@@ -25,11 +25,19 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import type { Program, WorkoutDay, Exercise } from '../../types';
+import type { Program, WorkoutDay, Exercise, ExerciseProgressionConfig, ProgramGoal } from '../../types';
 import { ConfirmDialog } from '../shared/ConfirmDialog';
+import {
+  getGoalDefaults,
+  isCompoundExercise,
+  calculateWeeklyTargets,
+  formatProgressionLabel,
+  type ExerciseProgression,
+} from '../../utils/progression';
 
 interface Props {
   program: Program;
+  fitnessGoal?: 'lose' | 'maintain' | 'build';
   onSave: (program: Program) => void;
   onClose: () => void;
 }
@@ -43,12 +51,234 @@ const ACCENT_COLORS = [
   '#f5a623',
 ];
 
+function ProgressionEditor({
+  exercise,
+  goalType,
+  durationWeeks,
+  onUpdate,
+}: {
+  exercise: Exercise;
+  goalType: string;
+  durationWeeks: number;
+  onUpdate: (id: string, updates: Partial<Exercise>) => void;
+}) {
+  const [showPreview, setShowPreview] = useState(false);
+  const prog = exercise.progression;
+
+  const autoGenerate = () => {
+    const compound = isCompoundExercise(exercise.name);
+    const defaults = getGoalDefaults(goalType, compound);
+    onUpdate(exercise.id, {
+      progression: defaults.progression as ExerciseProgressionConfig,
+      sets: defaults.sets,
+      reps: defaults.reps,
+    });
+  };
+
+  if (!prog) {
+    return (
+      <div>
+        <button
+          onClick={autoGenerate}
+          className="w-full py-2 rounded-lg border border-dashed border-text-muted/30 text-text-muted text-xs font-medium hover:border-text-secondary hover:text-text-secondary transition-colors"
+        >
+          + Add Progression Plan
+        </button>
+      </div>
+    );
+  }
+
+  const targets =
+    exercise.startingWeight != null
+      ? calculateWeeklyTargets(
+          prog as ExerciseProgression,
+          exercise.startingWeight,
+          exercise.sets,
+          durationWeeks,
+        )
+      : [];
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <label className="label">Progression</label>
+        <button
+          onClick={() => onUpdate(exercise.id, { progression: undefined })}
+          className="text-[10px] text-text-muted hover:text-danger"
+        >
+          Remove
+        </button>
+      </div>
+
+      <div className="bg-surface-raised rounded-lg p-2.5 space-y-2">
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="text-[9px] text-text-muted mb-0.5 block">Type</label>
+            <select
+              className="input-field text-xs py-1.5"
+              value={prog.type}
+              onChange={(e) =>
+                onUpdate(exercise.id, {
+                  progression: { ...prog, type: e.target.value as ExerciseProgressionConfig['type'] },
+                })
+              }
+            >
+              <option value="linear">Linear (+weight/wk)</option>
+              <option value="double_progression">Double Prog (reps then weight)</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-[9px] text-text-muted mb-0.5 block">+lbs / week</label>
+            <input
+              type="number"
+              inputMode="decimal"
+              className="input-field text-xs py-1.5"
+              value={prog.weeklyWeightIncrement}
+              onChange={(e) =>
+                onUpdate(exercise.id, {
+                  progression: {
+                    ...prog,
+                    weeklyWeightIncrement: parseFloat(e.target.value) || 0,
+                  },
+                })
+              }
+              step={2.5}
+            />
+          </div>
+        </div>
+
+        {prog.type === 'double_progression' && (
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-[9px] text-text-muted mb-0.5 block">Rep min</label>
+              <input
+                type="number"
+                inputMode="numeric"
+                className="input-field text-xs py-1.5"
+                value={prog.repRangeMin}
+                onChange={(e) =>
+                  onUpdate(exercise.id, {
+                    progression: {
+                      ...prog,
+                      repRangeMin: parseInt(e.target.value) || 1,
+                    },
+                  })
+                }
+              />
+            </div>
+            <div>
+              <label className="text-[9px] text-text-muted mb-0.5 block">Rep max</label>
+              <input
+                type="number"
+                inputMode="numeric"
+                className="input-field text-xs py-1.5"
+                value={prog.repRangeMax}
+                onChange={(e) =>
+                  onUpdate(exercise.id, {
+                    progression: {
+                      ...prog,
+                      repRangeMax: parseInt(e.target.value) || 1,
+                    },
+                  })
+                }
+              />
+            </div>
+          </div>
+        )}
+
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="text-[9px] text-text-muted mb-0.5 block">Deload every (weeks)</label>
+            <input
+              type="number"
+              inputMode="numeric"
+              className="input-field text-xs py-1.5"
+              value={prog.deloadFrequency}
+              onChange={(e) =>
+                onUpdate(exercise.id, {
+                  progression: {
+                    ...prog,
+                    deloadFrequency: parseInt(e.target.value) || 0,
+                  },
+                })
+              }
+              placeholder="0 = never"
+            />
+          </div>
+          <div>
+            <label className="text-[9px] text-text-muted mb-0.5 block">Deload reduce %</label>
+            <input
+              type="number"
+              inputMode="numeric"
+              className="input-field text-xs py-1.5"
+              value={prog.deloadPercent}
+              onChange={(e) =>
+                onUpdate(exercise.id, {
+                  progression: {
+                    ...prog,
+                    deloadPercent: Math.min(100, parseInt(e.target.value) || 0),
+                  },
+                })
+              }
+            />
+          </div>
+        </div>
+
+        <button
+          onClick={autoGenerate}
+          className="text-[10px] text-text-muted hover:text-text-secondary"
+        >
+          Reset to defaults
+        </button>
+
+        {targets.length > 0 && (
+          <div>
+            <button
+              onClick={() => setShowPreview(!showPreview)}
+              className="text-[10px] text-text-secondary font-medium flex items-center gap-1"
+            >
+              {showPreview ? 'Hide' : 'Show'} week preview
+              {showPreview ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+            </button>
+            {showPreview && (
+              <div className="flex flex-wrap gap-1 pt-1.5">
+                {targets.map((t) => (
+                  <span
+                    key={t.week}
+                    className={`text-[9px] px-1.5 py-0.5 rounded font-mono ${
+                      t.isDeload
+                        ? 'bg-[#f5a623]/15 text-[#f5a623]'
+                        : 'bg-surface text-text-secondary'
+                    }`}
+                  >
+                    W{t.week} {t.weight}×{t.reps}{t.isDeload ? '↓' : ''}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {exercise.startingWeight == null && (
+          <p className="text-[9px] text-text-muted italic">
+            Set a starting weight above to see the week-by-week preview
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function SortableExercise({
   exercise,
+  goalType,
+  durationWeeks,
   onUpdate,
   onRemove,
 }: {
   exercise: Exercise;
+  goalType: string;
+  durationWeeks: number;
   onUpdate: (id: string, updates: Partial<Exercise>) => void;
   onRemove: (id: string) => void;
 }) {
@@ -192,6 +422,12 @@ function SortableExercise({
               placeholder="e.g. superset, dropset"
             />
           </div>
+          <ProgressionEditor
+            exercise={exercise}
+            goalType={goalType}
+            durationWeeks={durationWeeks}
+            onUpdate={onUpdate}
+          />
         </div>
       )}
     </div>
@@ -201,6 +437,8 @@ function SortableExercise({
 function DayEditor({
   day,
   dayIndex,
+  goalType,
+  durationWeeks,
   onUpdateDay,
   onRemoveDay,
   onUpdateExercise,
@@ -210,6 +448,8 @@ function DayEditor({
 }: {
   day: WorkoutDay;
   dayIndex: number;
+  goalType: string;
+  durationWeeks: number;
   onUpdateDay: (dayId: string, updates: Partial<WorkoutDay>) => void;
   onRemoveDay: (dayId: string) => void;
   onUpdateExercise: (
@@ -360,6 +600,8 @@ function DayEditor({
                     <SortableExercise
                       key={exercise.id}
                       exercise={exercise}
+                      goalType={goalType}
+                      durationWeeks={durationWeeks}
                       onUpdate={(exId, updates) =>
                         onUpdateExercise(day.id, exId, updates)
                       }
@@ -403,7 +645,7 @@ function DayEditor({
   );
 }
 
-export function ProgramEditor({ program, onSave, onClose }: Props) {
+export function ProgramEditor({ program, fitnessGoal, onSave, onClose }: Props) {
   const [editedProgram, setEditedProgram] = useState<Program>(() => ({
     ...program,
     days: program.days.map((d) => ({
@@ -484,13 +726,16 @@ export function ProgramEditor({ program, onSave, onClose }: Props) {
   );
 
   const addExercise = useCallback((dayId: string) => {
+    const goalType = editedProgram.goal?.type || 'custom';
+    const defaults = goalType !== 'custom' ? getGoalDefaults(goalType, true) : null;
     const newExercise: Exercise = {
       id: crypto.randomUUID(),
       name: '',
-      sets: 3,
-      reps: '8-12',
+      sets: defaults?.sets ?? 3,
+      reps: defaults?.reps ?? '8-12',
       muscle: '',
       note: '',
+      progression: defaults?.progression as ExerciseProgressionConfig | undefined,
     };
     setEditedProgram((prev) => ({
       ...prev,
@@ -500,7 +745,7 @@ export function ProgramEditor({ program, onSave, onClose }: Props) {
           : d
       ),
     }));
-  }, []);
+  }, [editedProgram.goal]);
 
   const reorderExercises = useCallback(
     (dayId: string, oldIndex: number, newIndex: number) => {
@@ -569,6 +814,47 @@ export function ProgramEditor({ program, onSave, onClose }: Props) {
           />
         </div>
 
+        {/* Goal & Duration */}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="label mb-1.5 block">Goal</label>
+            <select
+              className="input-field text-sm"
+              value={editedProgram.goal?.type || 'custom'}
+              onChange={(e) => {
+                const type = e.target.value as ProgramGoal['type'];
+                updateProgramField({
+                  goal: { type, description: editedProgram.goal?.description || type },
+                });
+              }}
+            >
+              <option value="strength">Strength</option>
+              <option value="hypertrophy">Hypertrophy</option>
+              <option value="endurance">Endurance</option>
+              <option value="recomp">Recomp</option>
+              <option value="powerbuilding">Powerbuilding</option>
+              <option value="custom">Custom</option>
+            </select>
+          </div>
+          <div>
+            <label className="label mb-1.5 block">Duration (weeks)</label>
+            <input
+              type="number"
+              inputMode="numeric"
+              className="input-field text-sm"
+              value={editedProgram.suggestedDurationWeeks || ''}
+              onChange={(e) =>
+                updateProgramField({
+                  suggestedDurationWeeks: parseInt(e.target.value) || undefined,
+                })
+              }
+              placeholder="e.g. 8"
+              min={1}
+              max={52}
+            />
+          </div>
+        </div>
+
         {/* Days */}
         <div>
           <h3 className="label mb-3">
@@ -580,6 +866,8 @@ export function ProgramEditor({ program, onSave, onClose }: Props) {
                 key={day.id}
                 day={day}
                 dayIndex={index}
+                goalType={editedProgram.goal?.type || 'custom'}
+                durationWeeks={editedProgram.suggestedDurationWeeks || 8}
                 onUpdateDay={updateDay}
                 onRemoveDay={removeDay}
                 onUpdateExercise={updateExercise}

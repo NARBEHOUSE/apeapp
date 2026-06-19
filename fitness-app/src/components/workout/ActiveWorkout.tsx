@@ -14,18 +14,26 @@ import type { WorkoutSession, WorkoutDay, SetLog, Exercise, ExerciseLastPerforma
 import { RestTimer } from './RestTimer';
 import { toast } from '../shared/Toast';
 import { getAllPRs } from '../../db/workouts';
+import {
+  calculateWeeklyTargets,
+  getAdaptiveTarget,
+  type ExerciseProgression,
+  type WeeklyTarget,
+} from '../../utils/progression';
 
 interface Props {
   session: WorkoutSession;
   day: WorkoutDay;
   previousSession: WorkoutSession | undefined;
   lastPerformance: Record<string, ExerciseLastPerformance>;
+  currentWeek: number;
   onLogSet: (exerciseId: string, set: SetLog) => void;
   onUpdateSet: (exerciseId: string, setIndex: number, updates: Partial<SetLog>) => void;
   onFinish: () => void;
   onCancel: () => void;
   restTimerDuration?: number;
   profileId: string;
+  durationWeeks: number;
 }
 
 interface SetInput {
@@ -51,6 +59,7 @@ function ExerciseCard({
   sessionSets,
   previousSets,
   lastPerformance,
+  weeklyTarget,
   prs,
   onComplete,
   onUpdate,
@@ -60,6 +69,7 @@ function ExerciseCard({
   sessionSets: SetLog[];
   previousSets: SetLog[] | undefined;
   lastPerformance: ExerciseLastPerformance | undefined;
+  weeklyTarget: WeeklyTarget | null;
   prs: Record<string, { weight: number; reps: number; date: string }>;
   onComplete: (exerciseId: string, weight: number, reps: number) => void;
   onUpdate: (exerciseId: string, setIndex: number, updates: Partial<SetLog>) => void;
@@ -71,10 +81,12 @@ function ExerciseCard({
   const lastSets = lastPerformance?.sets.filter((s) => s.completed);
   const [inputs, setInputs] = useState<SetInput[]>(() =>
     Array.from({ length: exercise.sets }, (_, i) => {
+      const targetWeight = weeklyTarget?.weight;
+      const targetReps = weeklyTarget?.reps;
       const last = lastSets?.[i];
       const prev = previousSets?.[i];
-      const weight = last?.weight ?? prev?.weight ?? exercise.startingWeight;
-      const reps = last?.reps ?? prev?.reps;
+      const weight = targetWeight ?? last?.weight ?? prev?.weight ?? exercise.startingWeight;
+      const reps = targetReps ?? last?.reps ?? prev?.reps;
       return {
         weight: weight != null ? String(weight) : '',
         reps: reps != null ? String(reps) : String(exercise.reps.split('-')[0]?.replace(/[^0-9]/g, '') || ''),
@@ -174,6 +186,21 @@ function ExerciseCard({
 
       {!collapsed && (
         <div className="mt-3 space-y-1.5">
+          {/* Weekly target */}
+          {weeklyTarget && (
+            <div className={`flex items-center gap-2 px-1.5 py-1 rounded-lg text-[10px] ${
+              weeklyTarget.isDeload ? 'bg-[#f5a623]/10 text-[#f5a623]' : 'bg-accent-blue/10 text-accent-blue'
+            }`}>
+              <span className="font-medium">
+                W{weeklyTarget.week} target:
+              </span>
+              <span>
+                {weeklyTarget.weight} × {weeklyTarget.reps}
+                {weeklyTarget.isDeload && ' (deload)'}
+              </span>
+            </div>
+          )}
+
           {/* Header */}
           <div className="grid grid-cols-[1.5rem_1fr_1fr_2.25rem] gap-2 px-0.5">
             <span className="text-[9px] text-text-muted text-center">#</span>
@@ -299,12 +326,14 @@ export function ActiveWorkout({
   day,
   previousSession,
   lastPerformance,
+  currentWeek,
   onLogSet,
   onUpdateSet,
   onFinish,
   onCancel,
   restTimerDuration = 90,
   profileId,
+  durationWeeks,
 }: Props) {
   const [elapsed, setElapsed] = useState(0);
   const [showRestTimer, setShowRestTimer] = useState(false);
@@ -469,7 +498,23 @@ export function ActiveWorkout({
 
       {/* Exercises */}
       <div className="px-4 pt-4 space-y-3">
-        {activeExercises.map((exercise, index) => (
+        {activeExercises.map((exercise, index) => {
+          let weeklyTarget: WeeklyTarget | null = null;
+          if (exercise.progression && exercise.startingWeight != null && currentWeek > 0 && durationWeeks > 0) {
+            const targets = calculateWeeklyTargets(
+              exercise.progression as ExerciseProgression,
+              exercise.startingWeight,
+              exercise.sets,
+              durationWeeks,
+            );
+            const planned = targets[currentWeek - 1] || null;
+            const prevPlanned = currentWeek >= 2 ? targets[currentWeek - 2] : null;
+            const lastPerf = lastPerformance[exercise.name.toLowerCase().trim()];
+            weeklyTarget = planned
+              ? getAdaptiveTarget(planned, prevPlanned, lastPerf)
+              : null;
+          }
+          return (
           <div key={exercise.id} className="relative">
             <ExerciseCard
               exercise={exercise}
@@ -477,6 +522,7 @@ export function ActiveWorkout({
               sessionSets={session.sets[exercise.id] || []}
               previousSets={previousSession?.sets[exercise.id]}
               lastPerformance={lastPerformance[exercise.name.toLowerCase().trim()]}
+              weeklyTarget={weeklyTarget}
               prs={prs}
               onComplete={handleComplete}
               onUpdate={onUpdateSet}
@@ -490,7 +536,8 @@ export function ActiveWorkout({
               <SkipForward size={13} />
             </button>
           </div>
-        ))}
+          );
+        })}
 
         {/* Skipped exercises summary */}
         {skippedExercises.length > 0 && (

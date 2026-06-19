@@ -295,12 +295,21 @@ export function Workout({ profile, onUpdateProfile }: Props) {
     if (!day || !program) return null;
     const previousSession = getPreviousSession(program.id, day.id);
     const lastPerformance = getLastPerformanceMap(day.exercises);
+    const programDuration = program.suggestedDurationWeeks || 0;
+    const programCurrentWeek = enrollment
+      ? Math.min(
+          Math.max(1, Math.ceil((Date.now() - new Date(enrollment.startDate).getTime()) / (7 * 24 * 60 * 60 * 1000))),
+          programDuration || Infinity,
+        )
+      : 0;
     return (
       <ActiveWorkout
         session={activeSession}
         day={day}
         previousSession={previousSession}
         lastPerformance={lastPerformance}
+        currentWeek={programCurrentWeek}
+        durationWeeks={programDuration}
         onLogSet={logSet}
         onUpdateSet={updateSet}
         onFinish={handleFinish}
@@ -316,6 +325,7 @@ export function Workout({ profile, onUpdateProfile }: Props) {
     return (
       <ProgramEditor
         program={editingProgram}
+        fitnessGoal={profile.bodyStats?.fitnessGoal === 'lose' ? 'lose' : profile.bodyStats?.fitnessGoal === 'build' ? 'build' : 'maintain'}
         onSave={handleSaveProgram}
         onClose={() => { setEditingProgram(null); setView('home'); }}
       />

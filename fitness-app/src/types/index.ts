@@ -105,6 +105,15 @@ export interface WorkoutDay {
   exercises: Exercise[];
 }
 
+export interface ExerciseProgressionConfig {
+  type: 'linear' | 'double_progression';
+  weeklyWeightIncrement: number;
+  repRangeMin: number;
+  repRangeMax: number;
+  deloadFrequency: number;
+  deloadPercent: number;
+}
+
 export interface Exercise {
   id: string;
   name: string;
@@ -114,6 +123,7 @@ export interface Exercise {
   note: string;
   flag?: string;
   startingWeight?: number;
+  progression?: ExerciseProgressionConfig;
 }
 
 export interface ExerciseLastPerformance {
