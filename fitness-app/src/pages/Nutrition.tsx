@@ -255,9 +255,29 @@ export default function Nutrition({ profile }: NutritionPageProps) {
     setEditingEntry(null);
   }
 
+  function currentTimeRounded(): string {
+    const now = new Date();
+    const m = Math.round(now.getMinutes() / 15) * 15;
+    const h = m === 60 ? now.getHours() + 1 : now.getHours();
+    return `${String(h % 24).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+  }
+
   function handleAddAtHour(hour: number) {
     setAddAtTime(`${String(hour).padStart(2, '0')}:00`);
     setModal('manual');
+  }
+
+  function buildLoggedAt(time: string): string {
+    const [hh, mm] = time.split(':').map(Number);
+    const d = new Date(`${selectedDate}T00:00:00`);
+    d.setHours(hh, mm, 0, 0);
+    return d.toISOString();
+  }
+
+  function addEntryWithTime(entry: Parameters<typeof addEntry>[0]) {
+    const time = addAtTime || currentTimeRounded();
+    addEntry({ ...entry, loggedAt: buildLoggedAt(time) });
+    setAddAtTime(null);
   }
 
   function handleDragEnd(event: DragEndEvent) {
@@ -285,10 +305,6 @@ export default function Nutrition({ profile }: NutritionPageProps) {
     }
   }
 
-  function addEntryAtTime(entry: Parameters<typeof addEntry>[0]) {
-    addEntry(entry);
-    setAddAtTime(null);
-  }
 
   function handleQuickAdd(meal: SavedMeal) {
     addEntry({ date: selectedDate, name: meal.name, servingSize: meal.servingSize, servingUnit: meal.servingUnit, servingsConsumed: 1, calories: meal.calories, protein: meal.protein, carbs: meal.carbs, fat: meal.fat, fiber: meal.fiber, source: 'manual', mealType: 'snack' });
@@ -492,7 +508,7 @@ export default function Nutrition({ profile }: NutritionPageProps) {
           <label className="label mb-1 block">Time</label>
           <select
             className="input-field text-sm"
-            value={addAtTime || (() => { const now = new Date(); const m = Math.round(now.getMinutes() / 15) * 15; return `${String(now.getHours()).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`; })()}
+            value={addAtTime || currentTimeRounded()}
             onChange={(e) => setAddAtTime(e.target.value)}
           >
             {TIME_OPTIONS.map((opt) => (
@@ -500,7 +516,7 @@ export default function Nutrition({ profile }: NutritionPageProps) {
             ))}
           </select>
         </div>
-        <ManualEntry onAdd={addEntry} onClose={() => { setModal(null); setAddAtTime(null); }} profileId={profile.id} />
+        <ManualEntry onAdd={addEntryWithTime} onClose={() => { setModal(null); setAddAtTime(null); }} profileId={profile.id} />
       </Modal>
 
       <Modal open={modal === 'search'} onClose={() => setModal(null)} title="Search Foods">

@@ -22,14 +22,14 @@ export function useNutrition(profileId: string | null) {
   }, [loadEntries]);
 
   const addEntry = useCallback(
-    async (entry: Omit<FoodEntry, 'id' | 'profileId' | 'loggedAt'>) => {
+    async (entry: Omit<FoodEntry, 'id' | 'profileId' | 'loggedAt'> & { loggedAt?: string }) => {
       if (!profileId) return;
       const full: FoodEntry = {
         ...entry,
         id: crypto.randomUUID(),
         profileId,
         date: selectedDate,
-        loggedAt: new Date().toISOString(),
+        loggedAt: entry.loggedAt || new Date().toISOString(),
       };
       await saveFoodEntry(full);
       saveFoodToHistory(profileId, {
