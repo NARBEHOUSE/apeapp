@@ -414,7 +414,7 @@ export function generateHTMLReport(data: ReportData): string {
 </head>
 <body>
 <div class="header">
-  <img src="logo-head-black.png" alt="APE" onerror="this.style.display='none'" />
+  <img src="${typeof window !== 'undefined' ? window.location.origin + import.meta.env.BASE_URL : ''}logo-head-black.png" alt="APE" onerror="this.style.display='none'" />
   <h1>APE Client Report</h1>
 </div>
 <div class="subtitle"><strong>${config.profile.name}</strong> · ${formatDate(config.startDate)} — ${formatDate(config.endDate)}</div>
