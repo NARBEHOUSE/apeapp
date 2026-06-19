@@ -48,12 +48,16 @@ export function ManualEntry({ onAdd, onClose, profileId }: ManualEntryProps) {
   const [basePer100g, setBasePer100g] = useState<BasePer100g | null>(null);
   const [baseServingGrams, setBaseServingGrams] = useState<number>(0);
 
+  const [databaseCalories, setDatabaseCalories] = useState<number | null>(null);
+
   const p = parseFloat(protein) || 0;
   const c = parseFloat(carbs) || 0;
   const f = parseFloat(fat) || 0;
 
   const calculatedCal = useMemo(() => calcCalories(p, c, f), [p, c, f]);
-  const displayCal = useManualCal ? (parseFloat(calorieOverride) || 0) : calculatedCal;
+  const displayCal = useManualCal
+    ? (parseFloat(calorieOverride) || 0)
+    : (databaseCalories != null ? databaseCalories : calculatedCal);
   const canSubmit = name.trim() && (p > 0 || c > 0 || f > 0 || displayCal > 0);
 
   const servingUnits: { value: ServingUnit; label: string }[] = [
@@ -92,13 +96,14 @@ export function ManualEntry({ onAdd, onClose, profileId }: ManualEntryProps) {
       });
     }
 
+    setDatabaseCalories(Math.round(food.calories));
     setProtein(String(Math.round(food.protein * 10) / 10));
     setCarbs(String(Math.round(food.carbs * 10) / 10));
     setFat(String(Math.round(food.fat * 10) / 10));
     setFiber(food.fiber != null ? String(Math.round(food.fiber * 10) / 10) : '');
   }
 
-  // When serving size changes and we have base rates, recalculate macros
+  // When serving size changes and we have base rates, recalculate macros + calories
   const handleServingSizeChange = useCallback((value: string) => {
     setServingSize(value);
     if (!basePer100g) return;
@@ -110,6 +115,7 @@ export function ManualEntry({ onAdd, onClose, profileId }: ManualEntryProps) {
     setProtein(String(Math.round(basePer100g.protein * factor * 10) / 10));
     setCarbs(String(Math.round(basePer100g.carbs * factor * 10) / 10));
     setFat(String(Math.round(basePer100g.fat * factor * 10) / 10));
+    setDatabaseCalories(Math.round(basePer100g.calories * factor));
     if (basePer100g.fiber > 0) {
       setFiber(String(Math.round(basePer100g.fiber * factor * 10) / 10));
     }
@@ -252,7 +258,7 @@ export function ManualEntry({ onAdd, onClose, profileId }: ManualEntryProps) {
             className="input-field text-center text-sm py-2"
             placeholder="0"
             value={protein}
-            onChange={(e) => { setProtein(e.target.value); setBasePer100g(null); }}
+            onChange={(e) => { setProtein(e.target.value); setBasePer100g(null); setDatabaseCalories(null); }}
           />
           <div className="text-[8px] text-text-muted text-center mt-0.5">4 cal/g</div>
         </div>
@@ -264,7 +270,7 @@ export function ManualEntry({ onAdd, onClose, profileId }: ManualEntryProps) {
             className="input-field text-center text-sm py-2"
             placeholder="0"
             value={carbs}
-            onChange={(e) => { setCarbs(e.target.value); setBasePer100g(null); }}
+            onChange={(e) => { setCarbs(e.target.value); setBasePer100g(null); setDatabaseCalories(null); }}
           />
           <div className="text-[8px] text-text-muted text-center mt-0.5">4 cal/g</div>
         </div>
@@ -276,7 +282,7 @@ export function ManualEntry({ onAdd, onClose, profileId }: ManualEntryProps) {
             className="input-field text-center text-sm py-2"
             placeholder="0"
             value={fat}
-            onChange={(e) => { setFat(e.target.value); setBasePer100g(null); }}
+            onChange={(e) => { setFat(e.target.value); setBasePer100g(null); setDatabaseCalories(null); }}
           />
           <div className="text-[8px] text-text-muted text-center mt-0.5">9 cal/g</div>
         </div>
