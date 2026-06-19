@@ -99,7 +99,7 @@ export function ProgramList({ programs, onSelect, onDuplicate, onDelete, onEdit,
       const data = await exportProgram(programId);
       const program = programs.find((p) => p.id === programId);
       const slug = (program?.name || 'program').toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-      downloadJSON(data, `ape-program-${slug}.json`);
+      await downloadJSON(data, `ape-program-${slug}.json`);
       toast('Program exported! Share the file with anyone.', 'success');
     } catch {
       toast('Export failed', 'error');

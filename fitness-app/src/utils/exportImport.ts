@@ -138,8 +138,26 @@ export async function exportAllData(): Promise<string> {
   return JSON.stringify(data, null, 2);
 }
 
-export function downloadJSON(data: string, filename: string): void {
+export async function downloadJSON(data: string, filename: string): Promise<void> {
   const blob = new Blob([data], { type: 'application/json' });
+
+  if ('showSaveFilePicker' in window) {
+    try {
+      const handle = await (window as any).showSaveFilePicker({
+        suggestedName: filename,
+        types: [
+          { description: 'JSON File', accept: { 'application/json': ['.json'] } },
+        ],
+      });
+      const writable = await handle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+      return;
+    } catch (e: any) {
+      if (e?.name === 'AbortError') return;
+    }
+  }
+
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -432,10 +450,29 @@ data.json contains your profile, macro targets, workout history, and measurement
   }
 
   const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
+  const zipFilename = `ape-coach-${profile.name.toLowerCase().replace(/\s+/g, '-')}-${date}.zip`;
+
+  if ('showSaveFilePicker' in window) {
+    try {
+      const handle = await (window as any).showSaveFilePicker({
+        suggestedName: zipFilename,
+        types: [
+          { description: 'ZIP Archive', accept: { 'application/zip': ['.zip'] } },
+        ],
+      });
+      const writable = await handle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+      return;
+    } catch (e: any) {
+      if (e?.name === 'AbortError') return;
+    }
+  }
+
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `ape-coach-${profile.name.toLowerCase().replace(/\s+/g, '-')}-${date}.zip`;
+  a.download = zipFilename;
   a.click();
   URL.revokeObjectURL(url);
 }

@@ -850,7 +850,26 @@ export async function generatePDFReport(data: ReportData): Promise<void> {
   addFooter();
 
   const slug = config.profile.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-  doc.save(`ape-report-${slug}-${config.startDate}.pdf`);
+  const pdfFilename = `ape-report-${slug}-${config.startDate}.pdf`;
+
+  if ('showSaveFilePicker' in window) {
+    try {
+      const handle = await (window as any).showSaveFilePicker({
+        suggestedName: pdfFilename,
+        types: [
+          { description: 'PDF Document', accept: { 'application/pdf': ['.pdf'] } },
+        ],
+      });
+      const writable = await handle.createWritable();
+      await writable.write(doc.output('blob'));
+      await writable.close();
+      return;
+    } catch (e: any) {
+      if (e?.name === 'AbortError') return;
+    }
+  }
+
+  doc.save(pdfFilename);
 }
 
 export function openReportForPrint(html: string): void {
@@ -861,8 +880,34 @@ export function openReportForPrint(html: string): void {
   setTimeout(() => win.print(), 500);
 }
 
-export function downloadFile(content: string, filename: string, mimeType: string): void {
+const MIME_EXTENSIONS: Record<string, string> = {
+  'text/csv': '.csv',
+  'text/html': '.html',
+  'application/json': '.json',
+  'application/pdf': '.pdf',
+};
+
+export async function downloadFile(content: string, filename: string, mimeType: string): Promise<void> {
   const blob = new Blob([content], { type: mimeType });
+
+  if ('showSaveFilePicker' in window) {
+    try {
+      const ext = MIME_EXTENSIONS[mimeType] || '';
+      const handle = await (window as any).showSaveFilePicker({
+        suggestedName: filename,
+        types: ext
+          ? [{ description: filename, accept: { [mimeType]: [ext] } }]
+          : undefined,
+      });
+      const writable = await handle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+      return;
+    } catch (e: any) {
+      if (e?.name === 'AbortError') return;
+    }
+  }
+
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;

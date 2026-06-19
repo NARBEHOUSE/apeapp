@@ -74,7 +74,7 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
   // API Keys
   const [usdaKey, setUsdaKey] = useState(() => localStorage.getItem('fitos-usda-key') || '');
   const [claudeKey, setClaudeKey] = useState(() => localStorage.getItem('fitos-claude-key') || '');
-  const [claudeEnabled, setClaudeEnabled] = useState(() => localStorage.getItem('fitos-claude-enabled') === 'true');
+  const claudeEnabled = !!claudeKey.trim();
   const [showUsdaKey, setShowUsdaKey] = useState(false);
   const [showClaudeKey, setShowClaudeKey] = useState(false);
   const [usdaStatus, setUsdaStatus] = useState<'idle' | 'testing' | 'valid' | 'invalid'>('idle');
@@ -254,9 +254,9 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
       });
       const dateSlug = `${reportStartDate}-to-${reportEndDate}`;
       if (format === 'csv') {
-        downloadFile(generateCSV(data), `ape-report-${dateSlug}.csv`, 'text/csv');
+        await downloadFile(generateCSV(data), `ape-report-${dateSlug}.csv`, 'text/csv');
       } else {
-        downloadFile(generateHTMLReport(data), `ape-report-${dateSlug}.html`, 'text/html');
+        await downloadFile(generateHTMLReport(data), `ape-report-${dateSlug}.html`, 'text/html');
       }
       toast('Report exported!', 'success');
     } catch (err) {
@@ -321,11 +321,10 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
     setTimeout(() => setClaudeStatus('idle'), 3000);
   };
 
-  const handleToggleClaude = () => {
-    const next = !claudeEnabled;
-    setClaudeEnabled(next);
-    localStorage.setItem('fitos-claude-enabled', String(next));
-  };
+  // Claude is enabled when a key is present — update localStorage to match
+  useEffect(() => {
+    localStorage.setItem('fitos-claude-enabled', String(claudeEnabled));
+  }, [claudeEnabled]);
 
   // Recalculate macros from body stats
   const handleRecalculate = () => {
@@ -399,7 +398,7 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
     try {
       const data = await exportAllData();
       const date = new Date().toISOString().split('T')[0];
-      downloadJSON(data, `ape-backup-${date}.json`);
+      await downloadJSON(data, `ape-backup-${date}.json`);
       markBackupDone();
       toast('Backup saved! Store it in cloud storage for safety.', 'success');
     } catch (err) {
@@ -591,18 +590,11 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
                     console.anthropic.com <ExternalLink size={10} />
                   </a>
                 </p>
-                <button
-                  onClick={handleToggleClaude}
-                  className={`relative w-11 h-6 rounded-full transition-colors ${
-                    claudeEnabled ? 'bg-success' : 'bg-surface-raised border border-border-light'
-                  }`}
-                >
-                  <span
-                    className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${
-                      claudeEnabled ? 'translate-x-[22px]' : 'translate-x-0.5'
-                    }`}
-                  />
-                </button>
+                {claudeEnabled && (
+                  <span className="text-[10px] font-semibold text-success bg-success/10 px-2 py-0.5 rounded-full">
+                    Active
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -1299,7 +1291,7 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
                   try {
                     const data = await exportAllPrograms();
                     const date = new Date().toISOString().split('T')[0];
-                    downloadJSON(data, `ape-programs-${date}.json`);
+                    await downloadJSON(data, `ape-programs-${date}.json`);
                     toast('Programs exported!', 'success');
                   } catch (err) {
                     toast('Export failed', 'error');
@@ -1347,7 +1339,7 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
                   try {
                     const data = await exportCustomFoods(profile.id);
                     const date = new Date().toISOString().split('T')[0];
-                    downloadJSON(data, `ape-custom-foods-${date}.json`);
+                    await downloadJSON(data, `ape-custom-foods-${date}.json`);
                     toast('Custom foods exported!', 'success');
                   } catch (err) {
                     toast('Export failed', 'error');
@@ -1428,7 +1420,7 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
                     try {
                       const data = await exportCoachUpdate(targetProfile, coachName || 'Coach', coachNotes);
                       const date = new Date().toISOString().split('T')[0];
-                      downloadJSON(data, `ape-coach-${targetProfile.name.toLowerCase().replace(/\s+/g, '-')}-${date}.json`);
+                      await downloadJSON(data, `ape-coach-${targetProfile.name.toLowerCase().replace(/\s+/g, '-')}-${date}.json`);
                       toast('Coach update exported!', 'success');
                     } catch { toast('Export failed', 'error'); }
                   }}
