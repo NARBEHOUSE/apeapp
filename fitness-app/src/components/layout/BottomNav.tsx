@@ -24,7 +24,7 @@ export function BottomNav() {
               key={tab.path}
               onClick={() => navigate(tab.path)}
               className={`flex flex-col items-center justify-center gap-0.5 w-16 h-full transition-colors ${
-                active ? 'text-accent-orange' : 'text-text-muted'
+                active ? 'text-[#00ff09]' : 'text-text-muted'
               }`}
             >
               <Icon size={18} strokeWidth={active ? 2 : 1.5} />
