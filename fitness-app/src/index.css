@@ -15,6 +15,7 @@
   --color-text-secondary: #d8d8e2;
   --color-text-muted: #aaaab5;
   --color-accent: #e8572a;
+  --color-nav-active: #00ff09;
 }
 
 /* ===== LIGHT THEME ===== */
@@ -29,6 +30,7 @@
   --color-text-secondary: #333333;
   --color-text-muted: #555555;
   --color-accent: #e8572a;
+  --color-nav-active: #e8572a;
 }
 
 @layer base {

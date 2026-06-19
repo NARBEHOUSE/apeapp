@@ -23,9 +23,8 @@ export function BottomNav() {
             <button
               key={tab.path}
               onClick={() => navigate(tab.path)}
-              className={`flex flex-col items-center justify-center gap-0.5 w-16 h-full transition-colors ${
-                active ? 'text-[#00ff09]' : 'text-text-muted'
-              }`}
+              className="flex flex-col items-center justify-center gap-0.5 w-16 h-full transition-colors text-text-muted"
+              style={active ? { color: 'var(--color-nav-active)' } : undefined}
             >
               <Icon size={18} strokeWidth={active ? 2 : 1.5} />
               <span className="text-[9px] font-medium tracking-wide">{tab.label}</span>
