@@ -300,6 +300,19 @@ export async function exportCoachPackage(
     if (found) program = found;
   }
 
+  // Build lookups for exercise names and day titles across all programs
+  const allPrograms = await db.getAll('programs');
+  const exerciseNames = new Map<string, string>();
+  const dayTitles = new Map<string, string>();
+  for (const prog of allPrograms) {
+    for (const day of prog.days) {
+      dayTitles.set(day.id, day.title || day.label);
+      for (const ex of day.exercises) {
+        exerciseNames.set(ex.id, ex.name);
+      }
+    }
+  }
+
   const date = new Date().toISOString().split('T')[0];
 
   const readme = [
@@ -377,17 +390,23 @@ data.json contains your profile, macro targets, workout history, and measurement
     recentWorkouts: sessions
       .sort((a, b) => b.date.localeCompare(a.date))
       .slice(0, 20)
-      .map((s) => ({
-        date: s.date,
-        programName: s.programName,
-        duration: s.duration,
-        exercises: (s.exercises || []).map((e) => ({
-          name: e.name,
-          sets: (e.sets || [])
-            .filter((set) => set.completed)
-            .map((set) => ({ weight: set.weight, reps: set.reps })),
-        })),
-      })),
+      .map((s) => {
+        const durationMin = s.endTime
+          ? Math.round((s.endTime - s.startTime) / 60000)
+          : null;
+        return {
+          date: s.date,
+          dayTitle: dayTitles.get(s.dayId) || 'Workout',
+          durationMin,
+          notes: s.notes,
+          exercises: Object.entries(s.sets).map(([exerciseId, sets]) => ({
+            name: exerciseNames.get(exerciseId) || exerciseId,
+            sets: sets
+              .filter((set) => set.completed)
+              .map((set) => ({ weight: set.weight, reps: set.reps })),
+          })),
+        };
+      }),
     nutritionAvgLast7Days: nutritionAvg,
     photoCount: photos.length,
   };
