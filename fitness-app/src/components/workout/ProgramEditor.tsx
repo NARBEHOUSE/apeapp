@@ -27,6 +27,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import type { Program, WorkoutDay, Exercise, ExerciseProgressionConfig, ProgramGoal } from '../../types';
 import { ConfirmDialog } from '../shared/ConfirmDialog';
+import { ColorPicker, getRandomColor } from '../shared/ColorPicker';
 import { ProgressionEditor } from './ProgressionEditor';
 import {
   getGoalDefaults,
@@ -42,14 +43,6 @@ interface Props {
   onClose: () => void;
 }
 
-const ACCENT_COLORS = [
-  '#e8572a',
-  '#2e9e6b',
-  '#5b6ef5',
-  '#1a7a52',
-  '#c44fc4',
-  '#f5a623',
-];
 
 
 function SortableExercise({
@@ -335,23 +328,10 @@ function DayEditor({
           </div>
 
           {/* Accent color picker */}
-          <div>
-            <label className="label mb-2 block">Accent Color</label>
-            <div className="flex gap-2">
-              {ACCENT_COLORS.map((color) => (
-                <button
-                  key={color}
-                  onClick={() => onUpdateDay(day.id, { accent: color })}
-                  className={`w-8 h-8 rounded-full border-2 transition-all ${
-                    day.accent === color
-                      ? 'border-white scale-110'
-                      : 'border-transparent hover:scale-105'
-                  }`}
-                  style={{ backgroundColor: color }}
-                />
-              ))}
-            </div>
-          </div>
+          <ColorPicker
+            value={day.accent}
+            onChange={(color) => onUpdateDay(day.id, { accent: color })}
+          />
 
           {/* Note */}
           <div>
@@ -468,7 +448,7 @@ export function ProgramEditor({ program, fitnessGoal, onSave, onClose }: Props) 
       tag: 'CUSTOM',
       title: `Day ${editedProgram.days.length + 1}`,
       subtitle: '',
-      accent: ACCENT_COLORS[editedProgram.days.length % ACCENT_COLORS.length],
+      accent: getRandomColor(editedProgram.days[editedProgram.days.length - 1]?.accent),
       note: '',
       exercises: [],
     };

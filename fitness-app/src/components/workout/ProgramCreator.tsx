@@ -28,6 +28,7 @@ import type {
   ExerciseProgressionConfig,
 } from '../../types';
 import { ProgressionEditor } from './ProgressionEditor';
+import { ColorPicker, getRandomColor, getNextColor } from '../shared/ColorPicker';
 import {
   getGoalDefaults,
   formatProgressionLabel,
@@ -39,14 +40,6 @@ interface Props {
   onClose: () => void;
 }
 
-const ACCENT_COLORS = [
-  '#e8572a',
-  '#2e9e6b',
-  '#5b6ef5',
-  '#1a7a52',
-  '#c44fc4',
-  '#f5a623',
-];
 
 const MUSCLE_GROUPS = [
   'Chest',
@@ -257,7 +250,7 @@ export function ProgramCreator({ onSave, onClose }: Props) {
         tag: d.tag,
         title: d.title,
         subtitle: d.subtitle,
-        accent: ACCENT_COLORS[i % ACCENT_COLORS.length],
+        accent: getNextColor(i),
         note: '',
         exercises: [],
       }))
@@ -902,23 +895,10 @@ export function ProgramCreator({ onSave, onClose }: Props) {
                     </div>
 
                     {/* Accent color */}
-                    <div>
-                      <label className="label mb-2 block">Accent Color</label>
-                      <div className="flex gap-2">
-                        {ACCENT_COLORS.map((color) => (
-                          <button
-                            key={color}
-                            onClick={() => updateDay(day.id, { accent: color })}
-                            className={`w-8 h-8 rounded-full border-2 transition-all ${
-                              day.accent === color
-                                ? 'border-white scale-110'
-                                : 'border-transparent hover:scale-105'
-                            }`}
-                            style={{ backgroundColor: color }}
-                          />
-                        ))}
-                      </div>
-                    </div>
+                    <ColorPicker
+                      value={day.accent}
+                      onChange={(color) => updateDay(day.id, { accent: color })}
+                    />
 
                     {/* Coach note */}
                     <div>
