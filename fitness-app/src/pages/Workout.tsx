@@ -433,9 +433,7 @@ export function Workout({ profile, onUpdateProfile }: Props) {
           {program.days.map((day, index) => (
             <div key={day.id} className="bg-surface rounded-2xl p-4">
               <div className="text-[10px] text-text-muted font-medium mb-2">{day.label || `Day ${index + 1}`}</div>
-              <WorkoutDay day={day} onStart={() => {
-                if (isActive) handleStartDay(day, index);
-              }} />
+              <WorkoutDay day={day} />
             </div>
           ))}
         </div>

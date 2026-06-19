@@ -1,12 +1,11 @@
-import { Play, Coffee } from 'lucide-react';
+import { Coffee } from 'lucide-react';
 import type { WorkoutDay as WorkoutDayType } from '../../types';
 
 interface Props {
   day: WorkoutDayType;
-  onStart: () => void;
 }
 
-export function WorkoutDay({ day, onStart }: Props) {
+export function WorkoutDay({ day }: Props) {
   const isRest = day.tag.toLowerCase() === 'rest';
 
   return (
@@ -83,16 +82,6 @@ export function WorkoutDay({ day, onStart }: Props) {
         </div>
       )}
 
-      {/* Start Workout button */}
-      {!isRest && (
-        <button
-          onClick={onStart}
-          className="btn-primary w-full flex items-center justify-center gap-2"
-        >
-          <Play size={18} fill="currentColor" />
-          Start Workout
-        </button>
-      )}
     </div>
   );
 }
