@@ -101,7 +101,7 @@ export function ProfileSelector({ profiles, onSelect, onCreate, onDelete }: Prop
     return (
       <div className="min-h-screen bg-bg flex flex-col items-center justify-center px-6">
         <div className="mb-12 text-center">
-          <img src="/logo.png" alt="APE" className="h-20 mx-auto mb-4 invert brightness-200" />
+          <img src={`${import.meta.env.BASE_URL}logo.png`} alt="APE" className="h-20 mx-auto mb-4 invert brightness-200" />
           <p className="text-text-muted text-xs tracking-[0.2em] uppercase">Aesthetic Physique Enthusiast</p>
         </div>
 

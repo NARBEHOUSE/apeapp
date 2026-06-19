@@ -1554,7 +1554,7 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
         <SectionHeader section="about" icon={Info} title="About" />
         {expanded.has('about') && (
           <div className="pt-4 pb-2 text-center space-y-3">
-            <img src="/logo.png" alt="APE" className="h-14 mx-auto invert brightness-200" />
+            <img src={`${import.meta.env.BASE_URL}logo.png`} alt="APE" className="h-14 mx-auto invert brightness-200" />
             <p className="text-[11px] text-text-muted tracking-[0.15em] uppercase">
               Aesthetic Physique Enthusiast
             </p>

@@ -10,7 +10,7 @@ export function Header({ profileName, onLogout }: Props) {
     <header className="sticky top-0 z-20 bg-bg/90 backdrop-blur-lg">
       <div className="flex items-center justify-between px-5 h-12 max-w-lg mx-auto">
         <img
-          src="/logo.png"
+          src={`${import.meta.env.BASE_URL}logo.png`}
           alt="APE"
           className="h-6 invert brightness-200"
         />
