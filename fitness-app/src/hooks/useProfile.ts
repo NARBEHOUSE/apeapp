@@ -96,6 +96,11 @@ export function useProfile() {
     localStorage.removeItem(ACTIVE_KEY);
   }, []);
 
+  const refreshProfiles = useCallback(() => {
+    const stored = localStorage.getItem(PROFILES_KEY);
+    if (stored) setProfiles(JSON.parse(stored));
+  }, []);
+
   return {
     profiles,
     activeProfile,
@@ -105,5 +110,6 @@ export function useProfile() {
     updateProfile,
     deleteProfile,
     logout,
+    refreshProfiles,
   };
 }

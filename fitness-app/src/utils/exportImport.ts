@@ -216,6 +216,54 @@ export async function importData(jsonStr: string, mode: 'merge' | 'replace'): Pr
   }
 }
 
+export async function importBackupProfiles(jsonStr: string): Promise<Profile[]> {
+  const data = JSON.parse(jsonStr);
+  if (!data.version || !data.profiles?.length) {
+    throw new Error('Invalid backup file or no profiles found');
+  }
+
+  const db = await getDB();
+
+  const tx = db.transaction(
+    ['workoutSessions', 'foodEntries', 'measurements', 'programs'],
+    'readwrite',
+  );
+
+  for (const session of data.workoutSessions || []) {
+    await tx.objectStore('workoutSessions').put(session);
+  }
+  for (const entry of data.foodEntries || []) {
+    await tx.objectStore('foodEntries').put(entry);
+  }
+  for (const m of data.measurements || []) {
+    await tx.objectStore('measurements').put(m);
+  }
+  for (const p of data.programs || []) {
+    await tx.objectStore('programs').put(p);
+  }
+
+  await tx.done;
+
+  const existing: Profile[] = JSON.parse(localStorage.getItem('fitos-profiles') || '[]');
+  const existingIds = new Set(existing.map((p) => p.id));
+  const imported: Profile[] = [];
+
+  for (const profile of data.profiles as Profile[]) {
+    if (!existingIds.has(profile.id)) {
+      existing.push(profile);
+      imported.push(profile);
+    } else {
+      const idx = existing.findIndex((p) => p.id === profile.id);
+      if (idx >= 0) existing[idx] = profile;
+      imported.push(profile);
+    }
+  }
+
+  localStorage.setItem('fitos-profiles', JSON.stringify(existing));
+
+  return imported;
+}
+
 export async function clearProfileData(profileId: string): Promise<void> {
   const db = await getDB();
   const stores = ['workoutSessions', 'foodEntries', 'measurements', 'progressPhotos'] as const;

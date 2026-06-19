@@ -1,7 +1,9 @@
-import { useState } from 'react';
-import { Plus, Trash2, ChevronRight, ChevronLeft } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { Plus, Trash2, ChevronRight, ChevronLeft, Upload } from 'lucide-react';
 import type { Profile, BodyStats, FitnessGoal, ActivityLevel, Gender, MacroTargets } from '../types';
 import { ConfirmDialog } from '../components/shared/ConfirmDialog';
+import { importBackupProfiles } from '../utils/exportImport';
+import { toast } from '../components/shared/Toast';
 import {
   calculateMacros,
   calculateTDEE,
@@ -17,13 +19,37 @@ interface Props {
   onSelect: (id: string) => void;
   onCreate: (name: string, goal: string, bodyStats?: BodyStats, customMacros?: MacroTargets) => Profile | null;
   onDelete: (id: string) => void;
+  onRefresh?: () => void;
 }
 
 type Step = 'list' | 'name' | 'method' | 'body' | 'goal' | 'review' | 'custom_macros';
 
-export function ProfileSelector({ profiles, onSelect, onCreate, onDelete }: Props) {
+export function ProfileSelector({ profiles, onSelect, onCreate, onDelete, onRefresh }: Props) {
   const [step, setStep] = useState<Step>('list');
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const importRef = useRef<HTMLInputElement>(null);
+
+  const handleImportBackup = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const imported = await importBackupProfiles(reader.result as string);
+        onRefresh?.();
+        if (imported.length === 1) {
+          toast(`Imported profile: ${imported[0].name}`, 'success');
+          onSelect(imported[0].id);
+        } else {
+          toast(`Imported ${imported.length} profiles`, 'success');
+        }
+      } catch (err) {
+        toast(err instanceof Error ? err.message : 'Import failed', 'error');
+      }
+    };
+    reader.readAsText(file);
+    if (importRef.current) importRef.current.value = '';
+  };
 
   const [name, setName] = useState('');
   const [gender, setGender] = useState<Gender>('male');
@@ -136,13 +162,26 @@ export function ProfileSelector({ profiles, onSelect, onCreate, onDelete }: Prop
           ))}
 
           {profiles.length < 5 && (
-            <button
-              onClick={() => setStep('name')}
-              className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl text-text-muted text-sm font-medium hover:text-text-secondary transition-colors"
-            >
-              <Plus size={16} />
-              New Profile
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setStep('name')}
+                className="flex-1 flex items-center justify-center gap-2 py-4 rounded-2xl text-text-muted text-sm font-medium hover:text-text-secondary transition-colors"
+              >
+                <Plus size={16} />
+                New Profile
+              </button>
+              <label className="flex-1 flex items-center justify-center gap-2 py-4 rounded-2xl text-text-muted text-sm font-medium hover:text-text-secondary transition-colors cursor-pointer">
+                <Upload size={16} />
+                Import Backup
+                <input
+                  ref={importRef}
+                  type="file"
+                  accept=".json"
+                  onChange={handleImportBackup}
+                  className="hidden"
+                />
+              </label>
+            </div>
           )}
         </div>
 

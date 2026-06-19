@@ -18,6 +18,7 @@ function App() {
     updateProfile,
     deleteProfile,
     logout,
+    refreshProfiles,
   } = useProfile();
 
   if (!activeProfile) {
@@ -28,6 +29,7 @@ function App() {
           onSelect={selectProfile}
           onCreate={createProfile}
           onDelete={deleteProfile}
+          onRefresh={refreshProfiles}
         />
         <ToastContainer />
       </>
