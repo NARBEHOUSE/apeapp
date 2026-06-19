@@ -58,9 +58,25 @@ function formatTime12(loggedAt: string): string {
 }
 
 function formatHourLabel(h: number): string {
-  if (h === 0 || h === 12) return h === 0 ? '12a' : '12p';
-  return h < 12 ? `${h}a` : `${h - 12}p`;
+  if (h === 0 || h === 12) return h === 0 ? '12am' : '12pm';
+  return h < 12 ? `${h}am` : `${h - 12}pm`;
 }
+
+function generateTimeOptions(): { value: string; label: string }[] {
+  const options: { value: string; label: string }[] = [];
+  for (let h = 0; h < 24; h++) {
+    for (let m = 0; m < 60; m += 15) {
+      const value = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+      const hour12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+      const ampm = h < 12 ? 'am' : 'pm';
+      const label = m === 0 ? `${hour12}${ampm}` : `${hour12}:${String(m).padStart(2, '0')}${ampm}`;
+      options.push({ value, label });
+    }
+  }
+  return options;
+}
+
+const TIME_OPTIONS = generateTimeOptions();
 
 // Draggable entry
 function DraggableEntry({ entry, onDelete, onToggleFavorite, onEditTime }: {
@@ -171,8 +187,9 @@ export default function Nutrition({ profile }: NutritionPageProps) {
   const [savedMeals, setSavedMeals] = useState<SavedMeal[]>(() => getSavedMeals(profile.id));
   const [editingEntry, setEditingEntry] = useState<FoodEntry | null>(null);
   const [editTimeValue, setEditTimeValue] = useState('12:00');
-  const [addAtHour, setAddAtHour] = useState<number | null>(null);
+  const [addAtTime, setAddAtTime] = useState<string | null>(null);
   const [overHour, setOverHour] = useState<string | null>(null);
+  const [showAllHours, setShowAllHours] = useState(false);
 
   const [saveMealName, setSaveMealName] = useState('');
   const [saveMealCal, setSaveMealCal] = useState('');
@@ -192,15 +209,22 @@ export default function Nutrition({ profile }: NutritionPageProps) {
 
   const sortedEntries = [...entries].sort((a, b) => a.loggedAt.localeCompare(b.loggedAt));
 
-  const TIMELINE_START = 6;
-  const TIMELINE_END = 22;
+  const TIMELINE_START = 0;
+  const TIMELINE_END = 23;
 
   const entriesByHour: Record<number, FoodEntry[]> = {};
   for (let h = TIMELINE_START; h <= TIMELINE_END; h++) entriesByHour[h] = [];
   for (const entry of sortedEntries) {
-    const hour = Math.max(TIMELINE_START, Math.min(TIMELINE_END, getHourFromLoggedAt(entry.loggedAt)));
+    const hour = getHourFromLoggedAt(entry.loggedAt);
     entriesByHour[hour].push(entry);
   }
+
+  // Collapse empty hours outside the active range for a cleaner view
+  const hoursWithEntries = new Set(
+    sortedEntries.map((e) => getHourFromLoggedAt(e.loggedAt))
+  );
+  const visibleStart = Math.min(6, ...(hoursWithEntries.size > 0 ? hoursWithEntries : [6]));
+  const visibleEnd = Math.max(22, ...(hoursWithEntries.size > 0 ? hoursWithEntries : [22]));
 
   function changeDate(offset: number) {
     const d = new Date(selectedDate + 'T00:00:00');
@@ -232,7 +256,7 @@ export default function Nutrition({ profile }: NutritionPageProps) {
   }
 
   function handleAddAtHour(hour: number) {
-    setAddAtHour(hour);
+    setAddAtTime(`${String(hour).padStart(2, '0')}:00`);
     setModal('manual');
   }
 
@@ -261,19 +285,9 @@ export default function Nutrition({ profile }: NutritionPageProps) {
     }
   }
 
-  // When adding at a specific hour, override the loggedAt time
-  const originalAddEntry = addEntry;
-  function addEntryAtHour(entry: Parameters<typeof addEntry>[0]) {
-    if (addAtHour != null) {
-      // We'll add with the hook (which sets loggedAt to now), then immediately update time
-      // Better: just call addEntry and then the hook sets loggedAt = now, we'll post-fix
-      originalAddEntry(entry);
-      // Actually the hook sets loggedAt to current time. We need to update it after.
-      // For simplicity, let's set a flag and handle after
-    } else {
-      originalAddEntry(entry);
-    }
-    setAddAtHour(null);
+  function addEntryAtTime(entry: Parameters<typeof addEntry>[0]) {
+    addEntry(entry);
+    setAddAtTime(null);
   }
 
   function handleQuickAdd(meal: SavedMeal) {
@@ -344,7 +358,7 @@ export default function Nutrition({ profile }: NutritionPageProps) {
       {tab === 'planner' && (
         <>
           <div className="flex gap-2">
-            <button type="button" onClick={() => { setAddAtHour(null); setModal('manual'); }} className="flex-1 bg-surface rounded-xl py-2.5 flex items-center justify-center gap-1.5 active:scale-[0.98] transition-transform">
+            <button type="button" onClick={() => { setAddAtTime(null); setModal('manual'); }} className="flex-1 bg-surface rounded-xl py-2.5 flex items-center justify-center gap-1.5 active:scale-[0.98] transition-transform">
               <Plus size={14} className="text-accent-orange" /><span className="text-xs font-medium">Add</span>
             </button>
             <button type="button" onClick={() => setModal('search')} className="flex-1 bg-surface rounded-xl py-2.5 flex items-center justify-center gap-1.5 active:scale-[0.98] transition-transform">
@@ -363,22 +377,53 @@ export default function Nutrition({ profile }: NutritionPageProps) {
           ) : (
             <DndContext sensors={sensors} onDragEnd={handleDragEnd} onDragOver={handleDragOver}>
               <div className="space-y-0">
-                {Array.from({ length: TIMELINE_END - TIMELINE_START + 1 }, (_, i) => i + TIMELINE_START).map((hour) => {
-                  const hourEntries = entriesByHour[hour];
-                  return (
-                    <HourSlot key={hour} hour={hour} onAddAtHour={handleAddAtHour} isOver={overHour === `hour-${hour}`}>
-                      {hourEntries.map((entry) => (
-                        <DraggableEntry
-                          key={entry.id}
-                          entry={entry}
-                          onDelete={deleteEntry}
-                          onToggleFavorite={toggleFavorite}
-                          onEditTime={handleEditTime}
-                        />
-                      ))}
-                    </HourSlot>
-                  );
-                })}
+                {/* Show early hours toggle */}
+                {!showAllHours && visibleStart > 0 && (
+                  <button
+                    onClick={() => setShowAllHours(true)}
+                    className="w-full text-[10px] text-text-muted/50 hover:text-text-muted py-1 text-center"
+                  >
+                    Show 12am - {formatHourLabel(visibleStart - 1)}
+                  </button>
+                )}
+
+                {Array.from({ length: TIMELINE_END - TIMELINE_START + 1 }, (_, i) => i + TIMELINE_START)
+                  .filter((hour) => showAllHours || (hour >= visibleStart && hour <= visibleEnd))
+                  .map((hour) => {
+                    const hourEntries = entriesByHour[hour];
+                    return (
+                      <HourSlot key={hour} hour={hour} onAddAtHour={handleAddAtHour} isOver={overHour === `hour-${hour}`}>
+                        {hourEntries.map((entry) => (
+                          <DraggableEntry
+                            key={entry.id}
+                            entry={entry}
+                            onDelete={deleteEntry}
+                            onToggleFavorite={toggleFavorite}
+                            onEditTime={handleEditTime}
+                          />
+                        ))}
+                      </HourSlot>
+                    );
+                  })}
+
+                {/* Show late hours toggle */}
+                {!showAllHours && visibleEnd < 23 && (
+                  <button
+                    onClick={() => setShowAllHours(true)}
+                    className="w-full text-[10px] text-text-muted/50 hover:text-text-muted py-1 text-center"
+                  >
+                    Show {formatHourLabel(visibleEnd + 1)} - 11pm
+                  </button>
+                )}
+
+                {showAllHours && (
+                  <button
+                    onClick={() => setShowAllHours(false)}
+                    className="w-full text-[10px] text-text-muted/50 hover:text-text-muted py-1 text-center"
+                  >
+                    Collapse empty hours
+                  </button>
+                )}
               </div>
             </DndContext>
           )}
@@ -442,8 +487,20 @@ export default function Nutrition({ profile }: NutritionPageProps) {
       {tab === 'charts' && <NutritionCharts profileId={profile.id} targets={targets} />}
 
       {/* Modals */}
-      <Modal open={modal === 'manual'} onClose={() => { setModal(null); setAddAtHour(null); }} title={addAtHour != null ? `Add Food at ${formatHourLabel(addAtHour)}` : 'Add Food'}>
-        <ManualEntry onAdd={addEntry} onClose={() => { setModal(null); setAddAtHour(null); }} profileId={profile.id} />
+      <Modal open={modal === 'manual'} onClose={() => { setModal(null); setAddAtTime(null); }} title="Add Food">
+        <div className="mb-3">
+          <label className="label mb-1 block">Time</label>
+          <select
+            className="input-field text-sm"
+            value={addAtTime || (() => { const now = new Date(); const m = Math.round(now.getMinutes() / 15) * 15; return `${String(now.getHours()).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`; })()}
+            onChange={(e) => setAddAtTime(e.target.value)}
+          >
+            {TIME_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+        </div>
+        <ManualEntry onAdd={addEntry} onClose={() => { setModal(null); setAddAtTime(null); }} profileId={profile.id} />
       </Modal>
 
       <Modal open={modal === 'search'} onClose={() => setModal(null)} title="Search Foods">
