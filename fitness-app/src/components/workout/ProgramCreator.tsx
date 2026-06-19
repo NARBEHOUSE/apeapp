@@ -17,8 +17,6 @@ import {
   Layers,
   ClipboardList,
   Eye,
-  ChevronDown,
-  ChevronUp,
 } from 'lucide-react';
 import type {
   Program,
@@ -29,10 +27,9 @@ import type {
   CycleType,
   ExerciseProgressionConfig,
 } from '../../types';
+import { ProgressionEditor } from './ProgressionEditor';
 import {
   getGoalDefaults,
-  isCompoundExercise,
-  calculateWeeklyTargets,
   formatProgressionLabel,
   type ExerciseProgression,
 } from '../../utils/progression';
@@ -1148,7 +1145,6 @@ function ExerciseEditor({
   onRemove: (dayId: string, exerciseId: string) => void;
 }) {
   const [expanded, setExpanded] = useState(true);
-  const [showWeekPreview, setShowWeekPreview] = useState(false);
 
   return (
     <div className="bg-surface rounded-xl">
@@ -1267,201 +1263,12 @@ function ExerciseEditor({
             />
           </div>
 
-          {/* Progression */}
-          {(() => {
-            const prog = exercise.progression;
-
-            const autoGenerate = () => {
-              const compound = exercise.name ? isCompoundExercise(exercise.name) : true;
-              const defaults = getGoalDefaults(goalType, compound);
-              onUpdate(dayId, exercise.id, {
-                progression: defaults.progression as ExerciseProgressionConfig,
-                sets: defaults.sets,
-                reps: defaults.reps,
-              });
-            };
-
-            if (!prog) {
-              return (
-                <button
-                  onClick={autoGenerate}
-                  className="w-full py-2 rounded-lg border border-dashed border-text-muted/30 text-text-muted text-xs font-medium hover:border-text-secondary hover:text-text-secondary transition-colors"
-                >
-                  + Add Progression Plan
-                </button>
-              );
-            }
-
-            const targets =
-              exercise.startingWeight != null
-                ? calculateWeeklyTargets(
-                    prog as ExerciseProgression,
-                    exercise.startingWeight,
-                    exercise.sets,
-                    durationWeeks,
-                  )
-                : [];
-
-            return (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <label className="label">Progression</label>
-                  <button
-                    onClick={() => onUpdate(dayId, exercise.id, { progression: undefined })}
-                    className="text-[10px] text-text-muted hover:text-danger"
-                  >
-                    Remove
-                  </button>
-                </div>
-                <div className="bg-surface-raised rounded-lg p-2.5 space-y-2">
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="text-[9px] text-text-muted mb-0.5 block">Type</label>
-                      <select
-                        className="input-field text-xs py-1.5"
-                        value={prog.type}
-                        onChange={(e) =>
-                          onUpdate(dayId, exercise.id, {
-                            progression: { ...prog, type: e.target.value as ExerciseProgressionConfig['type'] },
-                          })
-                        }
-                      >
-                        <option value="linear">Linear (+weight/wk)</option>
-                        <option value="double_progression">Double Prog (reps then weight)</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="text-[9px] text-text-muted mb-0.5 block">+lbs / week</label>
-                      <input
-                        type="number"
-                        inputMode="decimal"
-                        className="input-field text-xs py-1.5"
-                        value={prog.weeklyWeightIncrement}
-                        onChange={(e) =>
-                          onUpdate(dayId, exercise.id, {
-                            progression: {
-                              ...prog,
-                              weeklyWeightIncrement: parseFloat(e.target.value) || 0,
-                            },
-                          })
-                        }
-                        step={2.5}
-                      />
-                    </div>
-                  </div>
-
-                  {prog.type === 'double_progression' && (
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="text-[9px] text-text-muted mb-0.5 block">Rep min</label>
-                        <input
-                          type="number"
-                          inputMode="numeric"
-                          className="input-field text-xs py-1.5"
-                          value={prog.repRangeMin}
-                          onChange={(e) =>
-                            onUpdate(dayId, exercise.id, {
-                              progression: { ...prog, repRangeMin: parseInt(e.target.value) || 1 },
-                            })
-                          }
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[9px] text-text-muted mb-0.5 block">Rep max</label>
-                        <input
-                          type="number"
-                          inputMode="numeric"
-                          className="input-field text-xs py-1.5"
-                          value={prog.repRangeMax}
-                          onChange={(e) =>
-                            onUpdate(dayId, exercise.id, {
-                              progression: { ...prog, repRangeMax: parseInt(e.target.value) || 1 },
-                            })
-                          }
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="text-[9px] text-text-muted mb-0.5 block">Deload every (weeks)</label>
-                      <input
-                        type="number"
-                        inputMode="numeric"
-                        className="input-field text-xs py-1.5"
-                        value={prog.deloadFrequency}
-                        onChange={(e) =>
-                          onUpdate(dayId, exercise.id, {
-                            progression: { ...prog, deloadFrequency: parseInt(e.target.value) || 0 },
-                          })
-                        }
-                        placeholder="0 = never"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[9px] text-text-muted mb-0.5 block">Deload reduce %</label>
-                      <input
-                        type="number"
-                        inputMode="numeric"
-                        className="input-field text-xs py-1.5"
-                        value={prog.deloadPercent}
-                        onChange={(e) =>
-                          onUpdate(dayId, exercise.id, {
-                            progression: {
-                              ...prog,
-                              deloadPercent: Math.min(100, parseInt(e.target.value) || 0),
-                            },
-                          })
-                        }
-                      />
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={autoGenerate}
-                    className="text-[10px] text-text-muted hover:text-text-secondary"
-                  >
-                    Reset to defaults
-                  </button>
-
-                  {targets.length > 0 && (
-                    <div>
-                      <button
-                        onClick={() => setShowWeekPreview(!showWeekPreview)}
-                        className="text-[10px] text-text-secondary font-medium flex items-center gap-1"
-                      >
-                        {showWeekPreview ? 'Hide' : 'Show'} week preview
-                        {showWeekPreview ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
-                      </button>
-                      {showWeekPreview && (
-                        <div className="flex flex-wrap gap-1 pt-1.5">
-                          {targets.map((t) => (
-                            <span
-                              key={t.week}
-                              className={`text-[9px] px-1.5 py-0.5 rounded font-mono ${
-                                t.isDeload
-                                  ? 'bg-[#f5a623]/15 text-[#f5a623]'
-                                  : 'bg-surface text-text-secondary'
-                              }`}
-                            >
-                              W{t.week} {t.weight}×{t.reps}{t.isDeload ? '↓' : ''}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {exercise.startingWeight == null && (
-                    <p className="text-[9px] text-text-muted italic">
-                      Set a starting weight above to see the week-by-week preview
-                    </p>
-                  )}
-                </div>
-              </div>
-            );
-          })()}
+          <ProgressionEditor
+            exercise={exercise}
+            goalType={goalType}
+            durationWeeks={durationWeeks}
+            onUpdate={(updates) => onUpdate(dayId, exercise.id, updates)}
+          />
         </div>
       )}
     </div>

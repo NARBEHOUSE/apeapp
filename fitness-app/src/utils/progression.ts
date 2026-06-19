@@ -1,6 +1,6 @@
-import type { SetLog } from '../types';
+import type { SetLog, WeeklyTarget } from '../types';
 
-export type ProgressionType = 'linear' | 'double_progression';
+export type ProgressionType = 'linear' | 'double_progression' | 'custom';
 
 export interface ExerciseProgression {
   type: ProgressionType;
@@ -11,13 +11,7 @@ export interface ExerciseProgression {
   deloadPercent: number;
 }
 
-export interface WeeklyTarget {
-  week: number;
-  sets: number;
-  reps: number;
-  weight: number;
-  isDeload: boolean;
-}
+export type { WeeklyTarget };
 
 const COMPOUND_KEYWORDS = [
   'bench press', 'squat', 'deadlift', 'overhead press', 'barbell row',
@@ -143,6 +137,21 @@ export function calculateWeeklyTargets(
   return calcLinear(progression, startingWeight, startingSets, durationWeeks);
 }
 
+export function generateBlankTargets(
+  durationWeeks: number,
+  startingSets: number,
+  startingReps: number,
+  startingWeight: number,
+): WeeklyTarget[] {
+  return Array.from({ length: durationWeeks }, (_, i) => ({
+    week: i + 1,
+    sets: startingSets,
+    reps: startingReps,
+    weight: startingWeight,
+    isDeload: false,
+  }));
+}
+
 function calcLinear(
   p: ExerciseProgression,
   startWeight: number,
@@ -260,6 +269,7 @@ export function getAdaptiveTarget(
 }
 
 export function formatProgressionLabel(p: ExerciseProgression): string {
+  if (p.type === 'custom') return 'Custom (manual)';
   const type = p.type === 'linear' ? 'Linear' : 'Double Prog';
   const deload =
     p.deloadFrequency > 0 ? `, deload every ${p.deloadFrequency}w` : '';

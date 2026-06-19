@@ -500,19 +500,24 @@ export function ActiveWorkout({
       <div className="px-4 pt-4 space-y-3">
         {activeExercises.map((exercise, index) => {
           let weeklyTarget: WeeklyTarget | null = null;
-          if (exercise.progression && exercise.startingWeight != null && currentWeek > 0 && durationWeeks > 0) {
-            const targets = calculateWeeklyTargets(
-              exercise.progression as ExerciseProgression,
-              exercise.startingWeight,
-              exercise.sets,
-              durationWeeks,
-            );
-            const planned = targets[currentWeek - 1] || null;
-            const prevPlanned = currentWeek >= 2 ? targets[currentWeek - 2] : null;
-            const lastPerf = lastPerformance[exercise.name.toLowerCase().trim()];
-            weeklyTarget = planned
-              ? getAdaptiveTarget(planned, prevPlanned, lastPerf)
-              : null;
+          if (currentWeek > 0) {
+            const storedTargets = exercise.weeklyTargets;
+            if (storedTargets && storedTargets.length > 0) {
+              weeklyTarget = storedTargets[currentWeek - 1] || null;
+            } else if (exercise.progression && exercise.startingWeight != null && durationWeeks > 0) {
+              const targets = calculateWeeklyTargets(
+                exercise.progression as ExerciseProgression,
+                exercise.startingWeight,
+                exercise.sets,
+                durationWeeks,
+              );
+              const planned = targets[currentWeek - 1] || null;
+              const prevPlanned = currentWeek >= 2 ? targets[currentWeek - 2] : null;
+              const lastPerf = lastPerformance[exercise.name.toLowerCase().trim()];
+              weeklyTarget = planned
+                ? getAdaptiveTarget(planned, prevPlanned, lastPerf)
+                : null;
+            }
           }
           return (
           <div key={exercise.id} className="relative">
