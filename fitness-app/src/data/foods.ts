@@ -59,7 +59,7 @@ export const FOOD_DATABASE: BuiltInFood[] = [
   {
     name: 'Ground Chicken, cooked',
     category: 'Protein',
-    per100g: { calories: 167, protein: 20.3, carbs: 0, fat: 9.1 },
+    per100g: { calories: 237, protein: 27.1, carbs: 0, fat: 13.5 },
     commonServing: { label: '4 oz (113g)', grams: 113 },
   },
 
@@ -85,7 +85,7 @@ export const FOOD_DATABASE: BuiltInFood[] = [
   {
     name: 'Ground Turkey 93/7, cooked',
     category: 'Protein',
-    per100g: { calories: 170, protein: 24.2, carbs: 0, fat: 8.0 },
+    per100g: { calories: 203, protein: 27.4, carbs: 0, fat: 9.6 },
     commonServing: { label: '4 oz (113g)', grams: 113 },
   },
   {
@@ -105,7 +105,7 @@ export const FOOD_DATABASE: BuiltInFood[] = [
   {
     name: 'Ground Beef 90/10, cooked',
     category: 'Protein',
-    per100g: { calories: 217, protein: 26.1, carbs: 0, fat: 11.7 },
+    per100g: { calories: 232, protein: 28.6, carbs: 0, fat: 12.3 },
     commonServing: { label: '1 patty (85g)', grams: 85 },
   },
   {
@@ -203,7 +203,7 @@ export const FOOD_DATABASE: BuiltInFood[] = [
   {
     name: 'Bacon, raw',
     category: 'Protein',
-    per100g: { calories: 417, protein: 12, carbs: 0.7, fat: 40 },
+    per100g: { calories: 458, protein: 11.6, carbs: 0.7, fat: 45 },
     commonServing: { label: '2 slices (56g)', grams: 56 },
   },
   {
@@ -215,13 +215,25 @@ export const FOOD_DATABASE: BuiltInFood[] = [
 
   // --- Fish & Seafood ---
   {
-    name: 'Salmon, raw',
+    name: 'Salmon (Atlantic, farmed), raw',
+    category: 'Protein',
+    per100g: { calories: 208, protein: 20.4, carbs: 0, fat: 13.4 },
+    commonServing: { label: '1 fillet (170g)', grams: 170 },
+  },
+  {
+    name: 'Salmon (Atlantic, farmed), cooked',
+    category: 'Protein',
+    per100g: { calories: 206, protein: 22.1, carbs: 0, fat: 12.4 },
+    commonServing: { label: '1 fillet (154g)', grams: 154 },
+  },
+  {
+    name: 'Salmon (wild), raw',
     category: 'Protein',
     per100g: { calories: 142, protein: 19.8, carbs: 0, fat: 6.3 },
     commonServing: { label: '1 fillet (170g)', grams: 170 },
   },
   {
-    name: 'Salmon, cooked',
+    name: 'Salmon (wild), cooked',
     category: 'Protein',
     per100g: { calories: 182, protein: 25.4, carbs: 0, fat: 8.1 },
     commonServing: { label: '1 fillet (154g)', grams: 154 },
@@ -271,7 +283,7 @@ export const FOOD_DATABASE: BuiltInFood[] = [
   {
     name: 'Shrimp, cooked',
     category: 'Protein',
-    per100g: { calories: 99, protein: 24, carbs: 0.2, fat: 0.3 },
+    per100g: { calories: 99, protein: 20.9, carbs: 0.2, fat: 1.1 },
     commonServing: { label: '12 large (85g)', grams: 85 },
   },
   {
@@ -425,9 +437,9 @@ export const FOOD_DATABASE: BuiltInFood[] = [
     commonServing: { label: '1 slice (28g)', grams: 28 },
   },
   {
-    name: 'Mozzarella Cheese',
+    name: 'Mozzarella Cheese (part-skim)',
     category: 'Dairy',
-    per100g: { calories: 280, protein: 28, carbs: 3.1, fat: 17 },
+    per100g: { calories: 254, protein: 24.3, carbs: 2.8, fat: 15.9 },
     commonServing: { label: '1 oz (28g)', grams: 28 },
   },
   {
@@ -605,7 +617,7 @@ export const FOOD_DATABASE: BuiltInFood[] = [
   {
     name: 'Whole Wheat Bread',
     category: 'Grains',
-    per100g: { calories: 247, protein: 13, carbs: 41, fat: 3.4, fiber: 7.0 },
+    per100g: { calories: 247, protein: 12.5, carbs: 41, fat: 3.4, fiber: 6.0 },
     commonServing: { label: '1 slice (36g)', grams: 36 },
   },
   {
@@ -1655,7 +1667,7 @@ export const FOOD_DATABASE: BuiltInFood[] = [
   {
     name: 'Bratwurst, cooked',
     category: 'Protein',
-    per100g: { calories: 297, protein: 13.7, carbs: 2.8, fat: 25.5, fiber: 0 },
+    per100g: { calories: 333, protein: 14.0, carbs: 2.8, fat: 29.2, fiber: 0 },
     commonServing: { label: '1 link (85g)', grams: 85 },
   },
   {
