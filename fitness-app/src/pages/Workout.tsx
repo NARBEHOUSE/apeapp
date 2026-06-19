@@ -411,8 +411,9 @@ export function Workout({ profile, onUpdateProfile }: Props) {
         </div>
 
         {/* Program info */}
-        {(program.goal || program.daysPerWeek || program.suggestedDurationWeeks) && (
+        {(program.goal || program.daysPerWeek || program.suggestedDurationWeeks || program.days.length > 0) && (
           <div className="flex flex-wrap gap-2">
+            <span className="text-[10px] bg-surface rounded-lg px-2 py-1 text-text-muted">{program.days.length}-day cycle</span>
             {program.goal && (
               <span className="text-[10px] bg-surface rounded-lg px-2 py-1 text-text-muted capitalize">{program.goal.type}</span>
             )}
@@ -514,7 +515,10 @@ export function Workout({ profile, onUpdateProfile }: Props) {
             <div className="mb-3">
               <div className="flex justify-between text-[10px] text-text-muted mb-1">
                 <span>Week {Math.min(weeksElapsed, enrollment.durationWeeks)} of {enrollment.durationWeeks}</span>
-                <span>{sessionsInProgram} sessions</span>
+                <span>
+                  {sessionsInProgram} sessions
+                  {activeProgram.days.length > 0 && ` · Cycle ${Math.floor(sessionsInProgram / activeProgram.days.filter(d => d.exercises.length > 0).length) + 1}`}
+                </span>
               </div>
               <div className="h-1 bg-surface-raised rounded-full overflow-hidden">
                 <div
@@ -572,13 +576,31 @@ export function Workout({ profile, onUpdateProfile }: Props) {
             </div>
           )}
 
-          {/* All days quick access */}
+          {/* Current cycle — adapts to any number of days */}
           <div>
-            <h3 className="label mb-3">This Week</h3>
-            <div className="grid grid-cols-7 gap-1.5">
+            <div className="flex items-baseline gap-2 mb-3">
+              <h3 className="label">Current Cycle</h3>
+              <span className="text-[9px] text-text-muted">
+                {activeProgram.days.length}-day {activeProgram.days.length <= 7 ? 'microcycle' : activeProgram.days.length <= 28 ? 'microcycle' : 'mesocycle'}
+              </span>
+            </div>
+            <div className={`grid gap-1.5 ${
+              activeProgram.days.length <= 5 ? 'grid-cols-5' :
+              activeProgram.days.length <= 7 ? 'grid-cols-7' :
+              activeProgram.days.length <= 10 ? 'grid-cols-5' :
+              'grid-cols-6'
+            }`}>
               {activeProgram.days.map((day, i) => {
                 const isNext = nextTraining?.index === i;
-                const isDone = enrollment.lastCompletedDayIndex >= i;
+                const lastIdx = enrollment.lastCompletedDayIndex;
+                const cycleLen = activeProgram.days.length;
+                // In the current rotation, days from 0..lastIdx are done, lastIdx+1 is next
+                // After a full cycle reset (lastIdx wraps), only days up to lastIdx are done
+                const isDone = lastIdx >= 0 && (
+                  lastIdx < cycleLen - 1
+                    ? i <= lastIdx
+                    : i <= lastIdx
+                ) && !isNext;
                 const isRest = day.exercises.length === 0;
                 return (
                   <button
@@ -596,7 +618,7 @@ export function Workout({ profile, onUpdateProfile }: Props) {
                     <span className="text-[8px] mt-0.5 truncate w-full px-0.5">
                       {isRest ? 'Rest' : day.tag}
                     </span>
-                    {isDone && !isNext && <CheckCircle2 size={8} className="mt-0.5" />}
+                    {isDone && <CheckCircle2 size={8} className="mt-0.5" />}
                   </button>
                 );
               })}
