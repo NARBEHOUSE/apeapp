@@ -75,7 +75,9 @@ export async function analyzeFood(base64Image: string, apiKey: string): Promise<
   }
 
   const data = await res.json();
-  const text = data.content[0].text;
+  let text: string = data.content[0].text;
+  // Strip markdown code fences if present
+  text = text.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim();
   return JSON.parse(text) as VisionResult;
 }
 
