@@ -68,6 +68,7 @@ export interface ReportData {
   photos: {
     start: ProgressPhoto[];
     end: ProgressPhoto[];
+    all: ProgressPhoto[];
   };
 }
 
@@ -196,7 +197,7 @@ export async function generateReport(config: ReportConfig): Promise<ReportData> 
     },
     bodyweight: { entries: weightEntries, startWeight, endWeight, change: weightChange },
     measurements: { entries: measurementEntries },
-    photos: { start: reportStartPhotos, end: reportEndPhotos },
+    photos: { start: reportStartPhotos, end: reportEndPhotos, all: sortedPhotos },
   };
 }
 
@@ -269,19 +270,112 @@ export function generateCSV(data: ReportData): string {
   return lines.join('\n');
 }
 
+/** Build an SVG multi-series line chart for embedding in HTML reports. */
+function svgLineChart(
+  series: { name: string; color: string; points: { label: string; value: number }[] }[],
+  opts: { width?: number; height?: number; unit?: string } = {}
+): string {
+  const width = opts.width ?? 760;
+  const height = opts.height ?? 240;
+  const padL = 44;
+  const padR = 16;
+  const padT = 16;
+  const padB = 34;
+  const plotW = width - padL - padR;
+  const plotH = height - padT - padB;
+
+  const allVals = series.flatMap((s) => s.points.map((p) => p.value));
+  if (allVals.length === 0) return '';
+  let min = Math.min(...allVals);
+  let max = Math.max(...allVals);
+  if (min === max) { min -= 1; max += 1; }
+  const range = max - min;
+  min = min - range * 0.1;
+  max = max + range * 0.1;
+
+  const maxLen = Math.max(...series.map((s) => s.points.length));
+  const xAt = (i: number) => padL + (maxLen <= 1 ? plotW / 2 : (i / (maxLen - 1)) * plotW);
+  const yAt = (v: number) => padT + plotH - ((v - min) / (max - min)) * plotH;
+
+  // Gridlines + y labels (4 steps)
+  const grid: string[] = [];
+  for (let g = 0; g <= 4; g++) {
+    const v = min + ((max - min) * g) / 4;
+    const y = yAt(v);
+    grid.push(`<line x1="${padL}" y1="${y.toFixed(1)}" x2="${width - padR}" y2="${y.toFixed(1)}" stroke="#eee" stroke-width="1" />`);
+    grid.push(`<text x="${padL - 6}" y="${(y + 3).toFixed(1)}" text-anchor="end" font-size="9" fill="#aaa">${v.toFixed(0)}</text>`);
+  }
+
+  // X-axis labels (first, middle, last to avoid clutter)
+  const labelSource = series.reduce((a, b) => (b.points.length > a.points.length ? b : a), series[0]);
+  const xLabels: string[] = [];
+  const idxs = labelSource.points.length <= 1 ? [0] : [0, Math.floor((labelSource.points.length - 1) / 2), labelSource.points.length - 1];
+  for (const i of [...new Set(idxs)]) {
+    const p = labelSource.points[i];
+    if (!p) continue;
+    xLabels.push(`<text x="${xAt(i).toFixed(1)}" y="${height - 12}" text-anchor="middle" font-size="9" fill="#888">${p.label}</text>`);
+  }
+
+  const paths = series.map((s) => {
+    const d = s.points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${xAt(i).toFixed(1)} ${yAt(p.value).toFixed(1)}`).join(' ');
+    const dots = s.points.map((p, i) => `<circle cx="${xAt(i).toFixed(1)}" cy="${yAt(p.value).toFixed(1)}" r="2.5" fill="${s.color}" />`).join('');
+    return `<path d="${d}" fill="none" stroke="${s.color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" />${dots}`;
+  }).join('');
+
+  const legend = series.length > 1
+    ? `<div style="display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin-top:8px;">${series
+        .map((s) => `<span style="font-size:10px;color:#666;display:inline-flex;align-items:center;gap:4px;"><span style="width:10px;height:10px;border-radius:2px;background:${s.color};display:inline-block;"></span>${s.name}</span>`)
+        .join('')}</div>`
+    : '';
+
+  return `<svg viewBox="0 0 ${width} ${height}" width="100%" style="max-width:${width}px;display:block;margin:0 auto;font-family:inherit;">
+    ${grid.join('')}
+    ${paths}
+    ${xLabels.join('')}
+  </svg>${legend}`;
+}
+
 export function generateHTMLReport(data: ReportData): string {
   const { config, nutrition, workouts, bodyweight, measurements, photos } = data;
 
   const formatDate = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const poseLabel = (p: string) => p.replace('_', ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 
-  const photoGrid = (photoList: typeof photos.start, label: string) => {
+  // Weight chart
+  const weightChartSVG = bodyweight.entries.length > 1
+    ? svgLineChart([{ name: 'Weight', color: '#e8572a', points: bodyweight.entries.map((e) => ({ label: formatDate(e.date), value: e.weight })) }])
+    : '';
+
+  // Measurement chart (multi-series)
+  const measureColors: Record<string, string> = {
+    chest: '#e8572a', waist: '#2e9e6b', hips: '#3b82f6', shoulders: '#a855f7',
+    leftArm: '#f59e0b', rightArm: '#eab308', leftThigh: '#06b6d4', rightThigh: '#0ea5e9', neck: '#ec4899',
+  };
+  const measureKeys = measurements.entries.length > 0
+    ? Array.from(new Set(measurements.entries.flatMap((e) => Object.keys(e.measurements))))
+    : [];
+  const measureSeries = measureKeys.map((key) => ({
+    name: key.replace(/([A-Z])/g, ' $1').replace(/\b\w/g, (c) => c.toUpperCase()),
+    color: measureColors[key] || '#888',
+    points: measurements.entries
+      .filter((e) => e.measurements[key] != null)
+      .map((e) => ({ label: formatDate(e.date), value: e.measurements[key] })),
+  })).filter((s) => s.points.length > 1);
+  const measureChartSVG = measureSeries.length > 0 ? svgLineChart(measureSeries) : '';
+
+  // Full progress photo gallery — every photo with date + stats
+  const photoGallery = (photoList: ProgressPhoto[]) => {
     if (photoList.length === 0) return '';
     return `
-    <div style="margin-bottom:16px;">
-      <h3 style="font-size:13px;color:#888;margin-bottom:8px;">${label}</h3>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));gap:8px;">
-        ${photoList.map((p) => `<div style="text-align:center;"><img src="${p.imageData}" style="width:100%;border-radius:8px;max-height:250px;object-fit:cover;" /><div style="font-size:10px;color:#888;margin-top:4px;">${p.pose} · ${formatDate(p.date)}</div></div>`).join('')}
-      </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(160px, 1fr));gap:12px;">
+      ${photoList.map((p) => `
+      <div style="border:1px solid #eee;border-radius:10px;overflow:hidden;background:#fafafa;">
+        <img src="${p.imageData}" style="width:100%;aspect-ratio:3/4;object-fit:cover;display:block;" />
+        <div style="padding:8px;">
+          <div style="font-size:11px;font-weight:600;color:#111;">${formatDate(p.date)}</div>
+          <div style="font-size:10px;color:#888;margin-top:2px;">${poseLabel(p.pose)}${p.weight != null ? ` · ${p.weight} lbs` : ''}</div>
+        </div>
+      </div>`).join('')}
     </div>`;
   };
 
@@ -337,11 +431,11 @@ export function generateHTMLReport(data: ReportData): string {
   ${bodyweight.change != null ? `<div class="stat"><div class="stat-value ${bodyweight.change < 0 ? 'positive' : bodyweight.change > 0 ? 'negative' : ''}">${bodyweight.change > 0 ? '+' : ''}${bodyweight.change.toFixed(1)}</div><div class="stat-label">Weight Δ (lbs)</div></div>` : ''}
 </div>
 
-${photos.start.length > 0 || photos.end.length > 0 ? `
+${photos.all.length > 0 ? `
+<div class="page-break"></div>
 <h2>Progress Photos</h2>
 <div class="card">
-  ${photoGrid(photos.start, 'Start of Period')}
-  ${photoGrid(photos.end, 'End of Period')}
+  ${photoGallery(photos.all)}
 </div>` : ''}
 
 <h2>Nutrition</h2>
@@ -368,7 +462,8 @@ ${workouts.sessions.map((w) => `
 ${bodyweight.entries.length > 0 ? `
 <h2>Body Weight</h2>
 <div class="card">
-  <table>
+  ${weightChartSVG}
+  <table style="margin-top:${weightChartSVG ? '16px' : '0'};">
     <thead><tr><th>Date</th><th>Weight (lbs)</th></tr></thead>
     <tbody>${bodyweight.entries.map((e) => `<tr><td>${formatDate(e.date)}</td><td>${e.weight}</td></tr>`).join('')}</tbody>
   </table>
@@ -377,7 +472,8 @@ ${bodyweight.entries.length > 0 ? `
 ${measurements.entries.length > 0 ? `
 <h2>Measurements</h2>
 <div class="card">
-  <table>
+  ${measureChartSVG}
+  <table style="margin-top:${measureChartSVG ? '16px' : '0'};">
     <thead><tr><th>Date</th>${Object.keys(measurements.entries[0]?.measurements || {}).map((k) => `<th>${k}</th>`).join('')}</tr></thead>
     <tbody>${measurements.entries.map((e) => `<tr><td>${formatDate(e.date)}</td>${Object.values(e.measurements).map((v) => `<td>${v}</td>`).join('')}</tr>`).join('')}</tbody>
   </table>
@@ -391,13 +487,109 @@ ${measurements.entries.length > 0 ? `
 }
 
 export async function generatePDFReport(data: ReportData): Promise<void> {
-  const { config, nutrition, workouts, bodyweight } = data;
+  const { config, nutrition, workouts, bodyweight, measurements, photos } = data;
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
   const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
   const orange = '#e8572a';
   const formatDate = (d: string) =>
     new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+  type RGB = [number, number, number];
+  const hexToRgb = (hex: string): RGB => {
+    const h = hex.replace('#', '');
+    return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
+  };
+
+  // Draw a multi-series line chart with jsPDF primitives.
+  const drawLineChart = (
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    series: { name: string; color: string; points: { label: string; value: number }[] }[]
+  ) => {
+    const padL = 12;
+    const padB = 8;
+    const plotX = x + padL;
+    const plotY = y;
+    const plotW = w - padL;
+    const plotH = h - padB;
+
+    const allVals = series.flatMap((s) => s.points.map((p) => p.value));
+    if (allVals.length === 0) return;
+    let min = Math.min(...allVals);
+    let max = Math.max(...allVals);
+    if (min === max) { min -= 1; max += 1; }
+    const r = max - min;
+    min -= r * 0.1;
+    max += r * 0.1;
+
+    const maxLen = Math.max(...series.map((s) => s.points.length));
+    const xAt = (i: number) => plotX + (maxLen <= 1 ? plotW / 2 : (i / (maxLen - 1)) * plotW);
+    const yAt = (v: number) => plotY + plotH - ((v - min) / (max - min)) * plotH;
+
+    // Gridlines + y labels
+    doc.setFontSize(6);
+    doc.setTextColor('#aaaaaa');
+    doc.setDrawColor(235, 235, 235);
+    doc.setLineWidth(0.2);
+    for (let g = 0; g <= 4; g++) {
+      const v = min + ((max - min) * g) / 4;
+      const gy = yAt(v);
+      doc.line(plotX, gy, plotX + plotW, gy);
+      doc.text(v.toFixed(0), plotX - 1.5, gy + 1, { align: 'right' });
+    }
+
+    // Series lines + dots
+    for (const s of series) {
+      const [cr, cg, cb] = hexToRgb(s.color);
+      doc.setDrawColor(cr, cg, cb);
+      doc.setFillColor(cr, cg, cb);
+      doc.setLineWidth(0.6);
+      for (let i = 1; i < s.points.length; i++) {
+        doc.line(xAt(i - 1), yAt(s.points[i - 1].value), xAt(i), yAt(s.points[i].value));
+      }
+      for (let i = 0; i < s.points.length; i++) {
+        doc.circle(xAt(i), yAt(s.points[i].value), 0.7, 'F');
+      }
+    }
+
+    // X labels (first / mid / last)
+    const longest = series.reduce((a, b) => (b.points.length > a.points.length ? b : a), series[0]);
+    doc.setTextColor('#888888');
+    const idxs = longest.points.length <= 1 ? [0] : [0, Math.floor((longest.points.length - 1) / 2), longest.points.length - 1];
+    for (const i of [...new Set(idxs)]) {
+      const p = longest.points[i];
+      if (!p) continue;
+      doc.text(p.label, xAt(i), plotY + plotH + 5, { align: 'center' });
+    }
+
+    // Legend
+    if (series.length > 1) {
+      let lx = plotX;
+      const ly = plotY + plotH + 9;
+      doc.setFontSize(6);
+      for (const s of series) {
+        const [cr, cg, cb] = hexToRgb(s.color);
+        doc.setFillColor(cr, cg, cb);
+        doc.rect(lx, ly - 1.6, 2, 2, 'F');
+        doc.setTextColor('#666666');
+        doc.text(s.name, lx + 3, ly);
+        lx += s.name.length * 1.6 + 8;
+      }
+    }
+  };
+
+  const loadImageSize = (src: string): Promise<{ w: number; h: number; fmt: string }> =>
+    new Promise((resolve) => {
+      const fmt = src.startsWith('data:image/png') ? 'PNG' : 'JPEG';
+      const img = new Image();
+      img.onload = () => resolve({ w: img.naturalWidth || 3, h: img.naturalHeight || 4, fmt });
+      img.onerror = () => resolve({ w: 3, h: 4, fmt });
+      img.src = src;
+    });
 
   const addFooter = () => {
     const pageCount = doc.getNumberOfPages();
@@ -520,11 +712,19 @@ export async function generatePDFReport(data: ReportData): Promise<void> {
   // Body weight
   if (bodyweight.entries.length > 0) {
     curY = (doc as jsPDF & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? 200;
-    if (curY > 240) { doc.addPage(); curY = 20; }
+    if (curY > 200) { doc.addPage(); curY = 20; }
     doc.setFontSize(12);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(orange);
     doc.text('BODY WEIGHT', 14, curY + 10);
+
+    // Line chart
+    if (bodyweight.entries.length > 1) {
+      drawLineChart(14, curY + 16, pageWidth - 28, 50, [
+        { name: 'Weight', color: orange, points: bodyweight.entries.map((e) => ({ label: formatDate(e.date), value: e.weight })) },
+      ]);
+      curY += 60;
+    }
 
     autoTable(doc, {
       startY: curY + 13,
@@ -536,6 +736,115 @@ export async function generatePDFReport(data: ReportData): Promise<void> {
       alternateRowStyles: { fillColor: '#f5f5f5' },
       margin: { left: 14, right: 14 },
     });
+  }
+
+  // Measurements (chart + table)
+  if (measurements.entries.length > 0) {
+    const measureColors: Record<string, string> = {
+      chest: '#e8572a', waist: '#2e9e6b', hips: '#3b82f6', shoulders: '#a855f7',
+      leftArm: '#f59e0b', rightArm: '#eab308', leftThigh: '#06b6d4', rightThigh: '#0ea5e9', neck: '#ec4899',
+    };
+    const measureKeys = Array.from(new Set(measurements.entries.flatMap((e) => Object.keys(e.measurements))));
+    const measureSeries = measureKeys.map((key) => ({
+      name: key.replace(/([A-Z])/g, ' $1').replace(/\b\w/g, (c) => c.toUpperCase()),
+      color: measureColors[key] || '#888888',
+      points: measurements.entries
+        .filter((e) => e.measurements[key] != null)
+        .map((e) => ({ label: formatDate(e.date), value: e.measurements[key] })),
+    })).filter((s) => s.points.length > 0);
+
+    curY = (doc as jsPDF & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? 200;
+    if (curY > 190) { doc.addPage(); curY = 20; }
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(orange);
+    doc.text('MEASUREMENTS', 14, curY + 10);
+
+    const chartSeries = measureSeries.filter((s) => s.points.length > 1);
+    if (chartSeries.length > 0) {
+      drawLineChart(14, curY + 16, pageWidth - 28, 54, chartSeries);
+      curY += 66;
+    }
+
+    autoTable(doc, {
+      startY: curY + 13,
+      head: [['Date', ...measureKeys.map((k) => k.replace(/([A-Z])/g, ' $1').replace(/\b\w/g, (c) => c.toUpperCase()))]],
+      body: measurements.entries.map((e) => [formatDate(e.date), ...measureKeys.map((k) => (e.measurements[k] != null ? String(e.measurements[k]) : '—'))]),
+      theme: 'grid',
+      headStyles: { fillColor: orange, textColor: '#ffffff', fontSize: 7 },
+      bodyStyles: { fontSize: 7 },
+      alternateRowStyles: { fillColor: '#f5f5f5' },
+      margin: { left: 14, right: 14 },
+    });
+  }
+
+  // Progress Photos — embedded with date + stats, dedicated page(s)
+  if (photos.all.length > 0) {
+    doc.addPage();
+    let py = 20;
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(orange);
+    doc.text('PROGRESS PHOTOS', 14, py);
+    py += 8;
+
+    const cols = 2;
+    const gap = 8;
+    const marginX = 14;
+    const cellW = (pageWidth - marginX * 2 - gap * (cols - 1)) / cols;
+    const maxImgH = 95;
+    const captionH = 10;
+
+    let col = 0;
+    let rowTop = py;
+    let rowMaxH = 0;
+
+    for (const p of photos.all) {
+      const { w: iw, h: ih, fmt } = await loadImageSize(p.imageData);
+      let drawW = cellW;
+      let drawH = (ih / iw) * drawW;
+      if (drawH > maxImgH) {
+        drawH = maxImgH;
+        drawW = (iw / ih) * drawH;
+      }
+      const cellH = drawH + captionH;
+
+      // New row?
+      if (col === 0) {
+        rowMaxH = 0;
+        // Page break if row won't fit
+        if (rowTop + cellH > pageHeight - 16) {
+          doc.addPage();
+          rowTop = 20;
+        }
+      }
+
+      const cellX = marginX + col * (cellW + gap);
+      const imgX = cellX + (cellW - drawW) / 2;
+      try {
+        doc.addImage(p.imageData, fmt, imgX, rowTop, drawW, drawH, undefined, 'FAST');
+      } catch {
+        // skip unrenderable image
+      }
+
+      // Caption
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor('#111111');
+      doc.text(formatDate(p.date), cellX, rowTop + drawH + 4);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7);
+      doc.setTextColor('#888888');
+      const poseTxt = p.pose.replace('_', ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+      doc.text(`${poseTxt}${p.weight != null ? ` · ${p.weight} lbs` : ''}`, cellX, rowTop + drawH + 8);
+
+      rowMaxH = Math.max(rowMaxH, cellH);
+      col++;
+      if (col >= cols) {
+        col = 0;
+        rowTop += rowMaxH + 8;
+      }
+    }
   }
 
   addFooter();
