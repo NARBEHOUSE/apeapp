@@ -1,0 +1,155 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ===== DARK THEME (default) ===== */
+:root,
+[data-theme="dark"] {
+  color-scheme: dark;
+  --color-bg: #111114;
+  --color-surface: #1a1a20;
+  --color-surface-raised: #222229;
+  --color-border: #2c2c35;
+  --color-border-light: #3a3a45;
+  --color-text-primary: #f0f0f5;
+  --color-text-secondary: #d8d8e2;
+  --color-text-muted: #aaaab5;
+  --color-accent: #e8572a;
+}
+
+/* ===== LIGHT THEME ===== */
+[data-theme="light"] {
+  color-scheme: light;
+  --color-bg: #f5f5f7;
+  --color-surface: #ffffff;
+  --color-surface-raised: #ebebed;
+  --color-border: #d4d4d8;
+  --color-border-light: #c0c0c6;
+  --color-text-primary: #111111;
+  --color-text-secondary: #333333;
+  --color-text-muted: #555555;
+  --color-accent: #e8572a;
+}
+
+@layer base {
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  html {
+    background-color: var(--color-bg);
+  }
+
+  body {
+    background-color: var(--color-bg);
+    color: var(--color-text-primary);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    margin: 0;
+    overscroll-behavior: none;
+  }
+
+  input[type='number'] {
+    -moz-appearance: textfield;
+  }
+
+  input[type='number']::-webkit-inner-spin-button,
+  input[type='number']::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  select {
+    appearance: none;
+    background-color: var(--color-surface);
+    border-radius: 0.75rem;
+    border: none;
+    color: var(--color-text-primary);
+  }
+
+  /* Light theme: date/time inputs need dark text */
+  [data-theme="light"] input[type="date"],
+  [data-theme="light"] input[type="time"] {
+    color-scheme: light;
+  }
+
+  ::-webkit-scrollbar {
+    width: 3px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-border);
+    border-radius: 2px;
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-surface rounded-2xl p-4;
+  }
+
+  .card-raised {
+    @apply bg-surface-raised rounded-2xl p-4;
+  }
+
+  .btn-primary {
+    background-color: var(--color-text-primary);
+    color: var(--color-bg);
+    @apply font-medium rounded-xl px-6 py-3 active:scale-[0.98] transition-all duration-100;
+  }
+
+  .btn-secondary {
+    @apply bg-surface text-text-primary font-medium rounded-xl px-6 py-3
+           active:scale-[0.98] transition-all duration-100;
+  }
+
+  .btn-danger {
+    @apply bg-danger/10 text-danger font-medium rounded-xl px-6 py-3
+           active:scale-[0.98] transition-all duration-100;
+  }
+
+  .input-field {
+    @apply w-full bg-surface border-none rounded-xl px-4 py-3
+           text-text-primary placeholder-text-muted outline-none
+           transition-all;
+    &:focus {
+      box-shadow: 0 0 0 1px var(--color-border-light);
+    }
+  }
+
+  .label {
+    @apply text-[11px] font-medium uppercase tracking-wider text-text-muted;
+  }
+}
+
+@keyframes slide-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+.animate-in.slide-in-from-bottom {
+  animation: slide-up 0.25s ease-out;
+}
+
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Opacity utilities for theme colors that Tailwind can't generate from CSS vars */
+.bg-bg\/90 { background-color: color-mix(in srgb, var(--color-bg) 90%, transparent); }
+.bg-bg\/95 { background-color: color-mix(in srgb, var(--color-bg) 95%, transparent); }
+.bg-bg\/60 { background-color: color-mix(in srgb, var(--color-bg) 60%, transparent); }
+.bg-surface\/50 { background-color: color-mix(in srgb, var(--color-surface) 50%, transparent); }
+.text-text-muted\/40 { color: color-mix(in srgb, var(--color-text-muted) 40%, transparent); }
+.text-text-muted\/50 { color: color-mix(in srgb, var(--color-text-muted) 50%, transparent); }
+.text-text-muted\/30 { color: color-mix(in srgb, var(--color-text-muted) 30%, transparent); }
+.text-text-muted\/20 { color: color-mix(in srgb, var(--color-text-muted) 20%, transparent); }
+.bg-surface-raised\/50 { background-color: color-mix(in srgb, var(--color-surface-raised) 50%, transparent); }
+.bg-border\/40 { background-color: color-mix(in srgb, var(--color-border) 40%, transparent); }
+.bg-border\/60 { background-color: color-mix(in srgb, var(--color-border) 60%, transparent); }
+.border-border\/30 { border-color: color-mix(in srgb, var(--color-border) 30%, transparent); }
+.border-border\/40 { border-color: color-mix(in srgb, var(--color-border) 40%, transparent); }

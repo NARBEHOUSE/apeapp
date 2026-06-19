@@ -1,0 +1,135 @@
+{
+  "id": "built-in-upper-lower-5day",
+  "name": "5-Day Upper/Lower",
+  "description": "Upper A · Lower A · Rest · Upper B · Lower B · Full Body · Rest",
+  "isBuiltIn": true,
+  "createdAt": "2025-06-01T00:00:00.000Z",
+  "updatedAt": "2025-06-01T00:00:00.000Z",
+  "suggestedDurationWeeks": 12,
+  "daysPerWeek": 5,
+  "split": "Upper/Lower + Full Body",
+  "goal": {
+    "type": "hypertrophy",
+    "description": "Build muscle with high frequency and volume"
+  },
+  "days": [
+    {
+      "id": "ul5-day1",
+      "label": "Day 1",
+      "tag": "UPPER A",
+      "title": "Chest Focus",
+      "subtitle": "Push priority with tricep finishers",
+      "accent": "#e8572a",
+      "note": "Pre-exhaust chest before pressing. Keep rest 60-90s.",
+      "exercises": [
+        { "id": "ul5-d1-e1", "name": "Ring Pushups", "sets": 3, "reps": "12-15", "muscle": "Chest", "note": "3s eccentric. Pre-exhausts pec before pressing." },
+        { "id": "ul5-d1-e2", "name": "Single Arm Cable Fly", "sets": 3, "reps": "15-20", "muscle": "Chest", "note": "Constant tension. Chase the stretch." },
+        { "id": "ul5-d1-e3", "name": "Incline Smith Press", "sets": 3, "reps": "10-12", "muscle": "Chest/Front Delt", "note": "Arms pre-fatigued. Moderate weight." },
+        { "id": "ul5-d1-e4", "name": "Cable Side Raises (single arm)", "sets": 4, "reps": "15-20", "muscle": "Side Delt", "note": "Constant tension. Slight forward lean." },
+        { "id": "ul5-d1-e5", "name": "Weighted Dips", "sets": 3, "reps": "8-12", "muscle": "Triceps/Chest", "note": "Forward lean to bias chest." },
+        { "id": "ul5-d1-e6", "name": "Skull Crushers (DB)", "sets": 3, "reps": "10-12", "muscle": "Triceps", "note": "Lower behind head for long head stretch." },
+        { "id": "ul5-d1-e7", "name": "Tricep Pressdowns (cable)", "sets": 2, "reps": "15-20", "muscle": "Triceps", "note": "Pump finisher." },
+        { "id": "ul5-d1-e8", "name": "Facepulls", "sets": 3, "reps": "15-20", "muscle": "Rear Delt/RC", "note": "Every upper day. Non-negotiable." }
+      ]
+    },
+    {
+      "id": "ul5-day2",
+      "label": "Day 2",
+      "tag": "LOWER A",
+      "title": "Quad Focus",
+      "subtitle": "Quad-dominant with posterior chain work",
+      "accent": "#2e9e6b",
+      "note": "Keep squat weight moderate. Focus on form and mind-muscle.",
+      "exercises": [
+        { "id": "ul5-d2-e1", "name": "Light Smith Squats (upright)", "sets": 3, "reps": "12-15", "muscle": "Quads", "note": "Never load heavy.", "flag": "L5S1" },
+        { "id": "ul5-d2-e2", "name": "Seated Leg Extensions", "sets": 4, "reps": "15-20", "muscle": "Quads", "note": "Pause at top." },
+        { "id": "ul5-d2-e3", "name": "Single Leg Step Ups", "sets": 4, "reps": "12-15/leg", "muscle": "Glutes", "note": "Drive through heel." },
+        { "id": "ul5-d2-e4", "name": "Walking Lunges (DB)", "sets": 3, "reps": "12-15/leg", "muscle": "Glutes/Quads", "note": "Longer stride = more glute." },
+        { "id": "ul5-d2-e5", "name": "Lying Leg Curls", "sets": 3, "reps": "12-15", "muscle": "Hamstrings", "note": "Point toes for max recruitment." },
+        { "id": "ul5-d2-e6", "name": "Weighted Hyperextensions", "sets": 4, "reps": "12-15", "muscle": "Glutes/Hams/Low Back", "note": "1s hold at top. Centerpiece." },
+        { "id": "ul5-d2-e7", "name": "Standing Calf Raises", "sets": 4, "reps": "15-20", "muscle": "Calves", "note": "2s pause at stretch." }
+      ]
+    },
+    {
+      "id": "ul5-day3",
+      "label": "Day 3",
+      "tag": "REST",
+      "title": "Rest Day",
+      "subtitle": "Recovery and mobility",
+      "accent": "#444444",
+      "note": "Active recovery: walk, stretch, foam roll.",
+      "exercises": []
+    },
+    {
+      "id": "ul5-day4",
+      "label": "Day 4",
+      "tag": "UPPER B",
+      "title": "Shoulder & Back Focus",
+      "subtitle": "Pull priority with bicep work",
+      "accent": "#5b6ef5",
+      "note": "Heavy pulling today. Full range of motion on everything.",
+      "exercises": [
+        { "id": "ul5-d4-e1", "name": "DB Seated Shoulder Press", "sets": 4, "reps": "10-12", "muscle": "Shoulders", "note": "Primary compound today. Push overhead." },
+        { "id": "ul5-d4-e2", "name": "Cable Side Raises (single arm)", "sets": 3, "reps": "15-20", "muscle": "Side Delt", "note": "Second lateral hit this week." },
+        { "id": "ul5-d4-e3", "name": "Weighted Chinups", "sets": 4, "reps": "6-10", "muscle": "Back/Biceps", "note": "Full dead hang." },
+        { "id": "ul5-d4-e4", "name": "Wide Grip Pullups or Pulldowns", "sets": 3, "reps": "8-12", "muscle": "Lats", "note": "Lat width focus." },
+        { "id": "ul5-d4-e5", "name": "Single Arm DB Row", "sets": 3, "reps": "10-12/side", "muscle": "Mid Back", "note": "Heavy. Brace hard." },
+        { "id": "ul5-d4-e6", "name": "Close Grip Cable Pullovers", "sets": 3, "reps": "12-15", "muscle": "Lats", "note": "Long head stretch. Ribs down." },
+        { "id": "ul5-d4-e7", "name": "Rear Delt Flies", "sets": 3, "reps": "15-20", "muscle": "Rear Delt", "note": "Light, high reps." },
+        { "id": "ul5-d4-e8", "name": "Facepulls", "sets": 3, "reps": "15-20", "muscle": "Rear Delt/RC", "note": "Every upper day." },
+        { "id": "ul5-d4-e9", "name": "Single Arm Preacher Curl", "sets": 3, "reps": "10-12", "muscle": "Biceps", "note": "Slow negative." },
+        { "id": "ul5-d4-e10", "name": "Hammer Curls (DB)", "sets": 2, "reps": "12-15", "muscle": "Biceps/Forearms", "note": "" },
+        { "id": "ul5-d4-e11", "name": "Cable Forearm Curls", "sets": 2, "reps": "15-20", "muscle": "Forearms", "note": "Finisher." }
+      ]
+    },
+    {
+      "id": "ul5-day5",
+      "label": "Day 5",
+      "tag": "LOWER B",
+      "title": "Hamstring Focus",
+      "subtitle": "Posterior chain priority",
+      "accent": "#1a7a52",
+      "note": "Lead with hamstrings. Keep quad work as maintenance.",
+      "exercises": [
+        { "id": "ul5-d5-e1", "name": "Lying Leg Curls", "sets": 4, "reps": "10-12", "muscle": "Hamstrings", "note": "Lead with hams today. Go heavier." },
+        { "id": "ul5-d5-e2", "name": "Weighted Hyperextensions", "sets": 4, "reps": "12-15", "muscle": "Glutes/Hams/Low Back", "note": "Second hit this week." },
+        { "id": "ul5-d5-e3", "name": "Single Leg Step Ups", "sets": 3, "reps": "12-15/leg", "muscle": "Glutes", "note": "" },
+        { "id": "ul5-d5-e4", "name": "Seated Leg Extensions", "sets": 3, "reps": "15-20", "muscle": "Quads", "note": "Maintenance volume." },
+        { "id": "ul5-d5-e5", "name": "Walking Lunges (DB)", "sets": 3, "reps": "12-15/leg", "muscle": "Glutes/Quads", "note": "Longer stride, bias glutes." },
+        { "id": "ul5-d5-e6", "name": "Seated Calf Raises", "sets": 4, "reps": "15-20", "muscle": "Calves", "note": "Seated hits soleus." }
+      ]
+    },
+    {
+      "id": "ul5-day6",
+      "label": "Day 6",
+      "tag": "FULL BODY",
+      "title": "Frequency Day",
+      "subtitle": "Light touch on everything",
+      "accent": "#c44fc4",
+      "note": "65-70% effort. Mind-muscle connection over load.",
+      "exercises": [
+        { "id": "ul5-d6-e1", "name": "Incline Smith Press", "sets": 2, "reps": "12-15", "muscle": "Chest", "note": "65-70% effort. Mind-muscle." },
+        { "id": "ul5-d6-e2", "name": "Single Arm Cable Fly", "sets": 2, "reps": "15-20", "muscle": "Chest", "note": "" },
+        { "id": "ul5-d6-e3", "name": "DB Seated Shoulder Press", "sets": 2, "reps": "12-15", "muscle": "Shoulders", "note": "Third shoulder hit." },
+        { "id": "ul5-d6-e4", "name": "Weighted Chinups or Pulldowns", "sets": 3, "reps": "8-12", "muscle": "Back/Biceps", "note": "" },
+        { "id": "ul5-d6-e5", "name": "Single Arm DB Row", "sets": 2, "reps": "12/side", "muscle": "Mid Back", "note": "" },
+        { "id": "ul5-d6-e6", "name": "Cable Side Raises", "sets": 3, "reps": "15-20", "muscle": "Side Delt", "note": "" },
+        { "id": "ul5-d6-e7", "name": "Facepulls", "sets": 3, "reps": "15-20", "muscle": "Rear Delt/RC", "note": "" },
+        { "id": "ul5-d6-e8", "name": "Weighted Hyperextensions", "sets": 3, "reps": "12-15", "muscle": "Glutes/Hams/Low Back", "note": "Drop weight 20% from heaviest day." },
+        { "id": "ul5-d6-e9", "name": "Seated Leg Extensions", "sets": 2, "reps": "15-20", "muscle": "Quads", "note": "" },
+        { "id": "ul5-d6-e10", "name": "Hammer Curls (DB)", "sets": 2, "reps": "12-15", "muscle": "Biceps/Forearms", "note": "" },
+        { "id": "ul5-d6-e11", "name": "Tricep Pressdowns", "sets": 2, "reps": "15-20", "muscle": "Triceps", "note": "" }
+      ]
+    },
+    {
+      "id": "ul5-day7",
+      "label": "Day 7",
+      "tag": "REST",
+      "title": "Rest Day",
+      "subtitle": "Recovery",
+      "accent": "#444444",
+      "note": "Full rest. Eat well, sleep well.",
+      "exercises": []
+    }
+  ]
+}

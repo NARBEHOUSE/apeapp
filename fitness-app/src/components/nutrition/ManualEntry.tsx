@@ -1,0 +1,337 @@
+import { useState, useMemo, useCallback } from 'react';
+import type { FoodEntry } from '../../types';
+import { FoodAutocomplete, type SelectedFood } from './FoodAutocomplete';
+import { saveFoodToHistory } from '../../db/foodHistory';
+
+type ServingUnit = 'g' | 'oz' | 'cup' | 'serving';
+
+interface ManualEntryProps {
+  onAdd: (entry: Omit<FoodEntry, 'id' | 'profileId' | 'loggedAt'>) => void;
+  onClose: () => void;
+  profileId: string;
+}
+
+function calcCalories(p: number, c: number, f: number): number {
+  return Math.round(p * 4 + c * 4 + f * 9);
+}
+
+interface BasePer100g {
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  fiber: number;
+}
+
+export function ManualEntry({ onAdd, onClose, profileId }: ManualEntryProps) {
+  const [name, setName] = useState('');
+  const [protein, setProtein] = useState('');
+  const [carbs, setCarbs] = useState('');
+  const [fat, setFat] = useState('');
+  const [fiber, setFiber] = useState('');
+  const [calorieOverride, setCalorieOverride] = useState('');
+  const [useManualCal, setUseManualCal] = useState(false);
+  const [servingSize, setServingSize] = useState('');
+  const [servingUnit, setServingUnit] = useState<ServingUnit>('g');
+  const [servingsConsumed, setServingsConsumed] = useState('1');
+  const [mealType, setMealType] = useState<FoodEntry['mealType']>(() => {
+    const hour = new Date().getHours();
+    if (hour < 11) return 'breakfast';
+    if (hour < 15) return 'lunch';
+    if (hour < 20) return 'dinner';
+    return 'snack';
+  });
+  const [selectedSource, setSelectedSource] = useState<FoodEntry['source']>('manual');
+  const [selectedBrand, setSelectedBrand] = useState<string | undefined>();
+
+  // Base rates from selected food (per gram) — used to recalculate when serving size changes
+  const [basePer100g, setBasePer100g] = useState<BasePer100g | null>(null);
+  const [baseServingGrams, setBaseServingGrams] = useState<number>(0);
+
+  const p = parseFloat(protein) || 0;
+  const c = parseFloat(carbs) || 0;
+  const f = parseFloat(fat) || 0;
+
+  const calculatedCal = useMemo(() => calcCalories(p, c, f), [p, c, f]);
+  const displayCal = useManualCal ? (parseFloat(calorieOverride) || 0) : calculatedCal;
+  const canSubmit = name.trim() && (p > 0 || c > 0 || f > 0 || displayCal > 0);
+
+  const servingUnits: { value: ServingUnit; label: string }[] = [
+    { value: 'g', label: 'g' },
+    { value: 'oz', label: 'oz' },
+    { value: 'cup', label: 'cup' },
+    { value: 'serving', label: 'srv' },
+  ];
+
+  function handleFoodSelect(food: SelectedFood) {
+    setName(food.name);
+    setSelectedSource(food.source);
+    setSelectedBrand(food.brand);
+    setUseManualCal(false);
+    setCalorieOverride('');
+
+    const unit = food.servingUnit.toLowerCase();
+    if (unit === 'g' || unit === 'oz' || unit === 'cup' || unit === 'serving') {
+      setServingUnit(unit as ServingUnit);
+    } else {
+      setServingUnit('g');
+    }
+
+    const grams = food.servingSize;
+    setServingSize(String(grams));
+    setBaseServingGrams(grams);
+
+    // Store per-100g rates so we can recalculate
+    if (grams > 0) {
+      setBasePer100g({
+        calories: (food.calories / grams) * 100,
+        protein: (food.protein / grams) * 100,
+        carbs: (food.carbs / grams) * 100,
+        fat: (food.fat / grams) * 100,
+        fiber: ((food.fiber || 0) / grams) * 100,
+      });
+    }
+
+    setProtein(String(Math.round(food.protein * 10) / 10));
+    setCarbs(String(Math.round(food.carbs * 10) / 10));
+    setFat(String(Math.round(food.fat * 10) / 10));
+    setFiber(food.fiber != null ? String(Math.round(food.fiber * 10) / 10) : '');
+  }
+
+  // When serving size changes and we have base rates, recalculate macros
+  const handleServingSizeChange = useCallback((value: string) => {
+    setServingSize(value);
+    if (!basePer100g) return;
+
+    const newGrams = parseFloat(value) || 0;
+    if (newGrams <= 0) return;
+
+    const factor = newGrams / 100;
+    setProtein(String(Math.round(basePer100g.protein * factor * 10) / 10));
+    setCarbs(String(Math.round(basePer100g.carbs * factor * 10) / 10));
+    setFat(String(Math.round(basePer100g.fat * factor * 10) / 10));
+    if (basePer100g.fiber > 0) {
+      setFiber(String(Math.round(basePer100g.fiber * factor * 10) / 10));
+    }
+  }, [basePer100g]);
+
+  function handleSubmit() {
+    if (!canSubmit) return;
+
+    const today = new Date().toISOString().split('T')[0];
+    const parsedProtein = parseFloat(protein) || 0;
+    const parsedCarbs = parseFloat(carbs) || 0;
+    const parsedFat = parseFloat(fat) || 0;
+    const parsedFiber = fiber ? parseFloat(fiber) : undefined;
+    const parsedServingSize = parseFloat(servingSize) || 1;
+    const finalCalories = displayCal;
+
+    saveFoodToHistory(profileId, {
+      name: name.trim(),
+      brand: selectedBrand,
+      calories: finalCalories,
+      protein: parsedProtein,
+      carbs: parsedCarbs,
+      fat: parsedFat,
+      fiber: parsedFiber,
+      servingSize: parsedServingSize,
+      servingUnit,
+      source: selectedSource,
+    });
+
+    onAdd({
+      date: today,
+      name: name.trim(),
+      brand: selectedBrand,
+      servingSize: parsedServingSize,
+      servingUnit,
+      servingsConsumed: parseFloat(servingsConsumed) || 1,
+      calories: finalCalories,
+      protein: parsedProtein,
+      carbs: parsedCarbs,
+      fat: parsedFat,
+      fiber: parsedFiber,
+      source: selectedSource,
+      mealType,
+    });
+    onClose();
+  }
+
+  const numServings = parseFloat(servingsConsumed) || 1;
+
+  return (
+    <div className="space-y-4">
+      {/* Food search */}
+      <div>
+        <label className="label mb-1 block">Food</label>
+        <FoodAutocomplete
+          profileId={profileId}
+          onSelect={handleFoodSelect}
+          onQueryChange={(q) => setName(q)}
+          placeholder="Search or type food name"
+        />
+      </div>
+
+      {/* Serving size — this drives macro recalculation */}
+      <div>
+        <label className="label mb-1.5 block">Amount</label>
+        <div className="flex items-center gap-2">
+          <input
+            type="number"
+            inputMode="decimal"
+            className="input-field text-sm py-2.5 flex-1"
+            placeholder="100"
+            value={servingSize}
+            onChange={(e) => handleServingSizeChange(e.target.value)}
+          />
+          <select
+            className="input-field text-sm py-2.5 w-16"
+            value={servingUnit}
+            onChange={(e) => setServingUnit(e.target.value as ServingUnit)}
+          >
+            {servingUnits.map((u) => (
+              <option key={u.value} value={u.value}>{u.label}</option>
+            ))}
+          </select>
+          <span className="text-text-muted text-sm px-1">×</span>
+          <input
+            type="number"
+            inputMode="decimal"
+            className="input-field text-sm py-2.5 w-14 text-center"
+            placeholder="1"
+            value={servingsConsumed}
+            onChange={(e) => setServingsConsumed(e.target.value)}
+          />
+        </div>
+        {basePer100g && (
+          <div className="text-[10px] text-text-muted mt-1">
+            Macros scale with amount ({basePer100g.protein.toFixed(1)}p / {basePer100g.carbs.toFixed(1)}c / {basePer100g.fat.toFixed(1)}f per 100g)
+          </div>
+        )}
+      </div>
+
+      {/* Calories */}
+      <div className="bg-surface rounded-xl p-3">
+        <div className="flex items-baseline justify-between">
+          <span className="text-2xl font-semibold">{Math.round(displayCal * numServings)}</span>
+          <span className="text-[10px] text-text-muted uppercase tracking-wider">
+            {numServings > 1 ? `${displayCal} × ${numServings}` : 'calories'}
+          </span>
+        </div>
+        {!useManualCal ? (
+          <button
+            onClick={() => { setUseManualCal(true); setCalorieOverride(String(calculatedCal || '')); }}
+            className="text-[10px] text-text-muted mt-1 underline"
+          >
+            Enter calories manually
+          </button>
+        ) : (
+          <div className="mt-2 space-y-1.5">
+            <input
+              type="number"
+              inputMode="decimal"
+              className="input-field text-sm"
+              placeholder="Calories"
+              value={calorieOverride}
+              onChange={(e) => setCalorieOverride(e.target.value)}
+            />
+            <button onClick={() => setUseManualCal(false)} className="text-[10px] text-text-muted underline">
+              Auto-calculate from macros
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Macros */}
+      <div className="grid grid-cols-4 gap-2">
+        <div>
+          <div className="text-[9px] text-text-muted text-center mb-1">Protein</div>
+          <input
+            type="number"
+            inputMode="decimal"
+            className="input-field text-center text-sm py-2"
+            placeholder="0"
+            value={protein}
+            onChange={(e) => { setProtein(e.target.value); setBasePer100g(null); }}
+          />
+          <div className="text-[8px] text-text-muted text-center mt-0.5">4 cal/g</div>
+        </div>
+        <div>
+          <div className="text-[9px] text-text-muted text-center mb-1">Carbs</div>
+          <input
+            type="number"
+            inputMode="decimal"
+            className="input-field text-center text-sm py-2"
+            placeholder="0"
+            value={carbs}
+            onChange={(e) => { setCarbs(e.target.value); setBasePer100g(null); }}
+          />
+          <div className="text-[8px] text-text-muted text-center mt-0.5">4 cal/g</div>
+        </div>
+        <div>
+          <div className="text-[9px] text-text-muted text-center mb-1">Fat</div>
+          <input
+            type="number"
+            inputMode="decimal"
+            className="input-field text-center text-sm py-2"
+            placeholder="0"
+            value={fat}
+            onChange={(e) => { setFat(e.target.value); setBasePer100g(null); }}
+          />
+          <div className="text-[8px] text-text-muted text-center mt-0.5">9 cal/g</div>
+        </div>
+        <div>
+          <div className="text-[9px] text-text-muted text-center mb-1">Fiber</div>
+          <input
+            type="number"
+            inputMode="decimal"
+            className="input-field text-center text-sm py-2"
+            placeholder="0"
+            value={fiber}
+            onChange={(e) => setFiber(e.target.value)}
+          />
+          <div className="text-[8px] text-text-muted text-center mt-0.5">g</div>
+        </div>
+      </div>
+
+      {/* Meal type */}
+      <div>
+        <label className="label mb-1.5 block">Meal</label>
+        <div className="grid grid-cols-4 gap-1.5">
+          {([
+            { value: 'breakfast' as const, label: '🌅 Breakfast' },
+            { value: 'lunch' as const, label: '☀️ Lunch' },
+            { value: 'dinner' as const, label: '🌙 Dinner' },
+            { value: 'snack' as const, label: '🍿 Snack' },
+          ]).map((m) => (
+            <button
+              key={m.value}
+              type="button"
+              onClick={() => setMealType(m.value)}
+              className={`py-2 rounded-lg text-[11px] font-medium transition-colors ${
+                mealType === m.value ? 'bg-surface-raised text-text-primary' : 'text-text-muted'
+              }`}
+            >
+              {m.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Submit */}
+      <div className="flex gap-2 pt-1">
+        <button type="button" onClick={onClose} className="btn-secondary flex-1 text-sm">
+          Cancel
+        </button>
+        <button
+          type="button"
+          onClick={handleSubmit}
+          disabled={!canSubmit}
+          className="btn-primary flex-1 text-sm disabled:opacity-30"
+        >
+          Add
+        </button>
+      </div>
+    </div>
+  );
+}
