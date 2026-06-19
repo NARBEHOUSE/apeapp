@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import {
   ChevronLeft, ChevronRight, Plus, Search, Camera, Copy,
-  Loader2, Star, Trash2, BookmarkPlus, Bookmark, GripVertical, Clock,
+  Loader2, Star, Trash2, BookmarkPlus, Bookmark, GripVertical, Clock, Pencil,
 } from 'lucide-react';
 import {
   DndContext, PointerSensor, useSensor, useSensors, useDroppable,
@@ -28,7 +28,7 @@ interface NutritionPageProps {
   onUpdateProfile?: (id: string, updates: Partial<Profile>) => void;
 }
 
-type ModalType = 'manual' | 'search' | 'ai' | 'save-meal' | 'edit-time' | 'edit-macros' | null;
+type ModalType = 'manual' | 'search' | 'ai' | 'save-meal' | 'edit-time' | 'edit-macros' | 'edit-entry' | null;
 type Tab = 'planner' | 'my-foods' | 'charts';
 
 function MiniMacroBar({ label, current, target, color }: {
@@ -81,11 +81,12 @@ function generateTimeOptions(): { value: string; label: string }[] {
 const TIME_OPTIONS = generateTimeOptions();
 
 // Draggable entry
-function DraggableEntry({ entry, onDelete, onToggleFavorite, onEditTime }: {
+function DraggableEntry({ entry, onDelete, onToggleFavorite, onEditTime, onEdit }: {
   entry: FoodEntry;
   onDelete: (id: string) => void;
   onToggleFavorite: (id: string) => void;
   onEditTime: (entry: FoodEntry) => void;
+  onEdit: (entry: FoodEntry) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: entry.id });
   const style = {
@@ -113,6 +114,9 @@ function DraggableEntry({ entry, onDelete, onToggleFavorite, onEditTime }: {
         </div>
       </div>
       <div className="flex items-center gap-0.5 shrink-0">
+        <button onClick={() => onEdit(entry)} className="p-0.5">
+          <Pencil size={10} className="text-text-muted/30 hover:text-accent-blue" />
+        </button>
         <button onClick={() => onEditTime(entry)} className="text-[8px] text-text-muted bg-surface rounded px-1 py-0.5 flex items-center gap-0.5">
           <Clock size={7} />{formatTime12(entry.loggedAt)}
         </button>
@@ -175,7 +179,7 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
   const location = useLocation();
   const {
     entries, selectedDate, setSelectedDate, loading,
-    addEntry, deleteEntry, updateEntryTime, toggleFavorite, copyYesterday, getTodayTotals,
+    addEntry, deleteEntry, updateEntry, updateEntryTime, toggleFavorite, copyYesterday, getTodayTotals,
   } = useNutrition(profile.id);
 
   useEffect(() => {
@@ -197,6 +201,16 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
   const [editMacroProtein, setEditMacroProtein] = useState(String(profile.macroTargets.protein));
   const [editMacroCarbs, setEditMacroCarbs] = useState(String(profile.macroTargets.carbs));
   const [editMacroFat, setEditMacroFat] = useState(String(profile.macroTargets.fat));
+
+  const [editEntryData, setEditEntryData] = useState<FoodEntry | null>(null);
+  const [editEntryCal, setEditEntryCal] = useState('');
+  const [editEntryProtein, setEditEntryProtein] = useState('');
+  const [editEntryCarbs, setEditEntryCarbs] = useState('');
+  const [editEntryFat, setEditEntryFat] = useState('');
+  const [editEntryFiber, setEditEntryFiber] = useState('');
+  const [editEntryServing, setEditEntryServing] = useState('');
+  const [editEntryServings, setEditEntryServings] = useState('');
+  const [editEntryName, setEditEntryName] = useState('');
 
   const [saveMealName, setSaveMealName] = useState('');
   const [saveMealCal, setSaveMealCal] = useState('');
@@ -260,6 +274,36 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
     updateEntryTime(editingEntry.id, d.toISOString());
     setModal(null);
     setEditingEntry(null);
+  }
+
+  function handleEditEntry(entry: FoodEntry) {
+    setEditEntryData(entry);
+    setEditEntryName(entry.name);
+    setEditEntryCal(String(Math.round(entry.calories)));
+    setEditEntryProtein(String(Math.round(entry.protein * 10) / 10));
+    setEditEntryCarbs(String(Math.round(entry.carbs * 10) / 10));
+    setEditEntryFat(String(Math.round(entry.fat * 10) / 10));
+    setEditEntryFiber(entry.fiber != null ? String(Math.round(entry.fiber * 10) / 10) : '');
+    setEditEntryServing(String(entry.servingSize));
+    setEditEntryServings(String(entry.servingsConsumed));
+    setModal('edit-entry');
+  }
+
+  function handleSaveEntry() {
+    if (!editEntryData) return;
+    updateEntry(editEntryData.id, {
+      name: editEntryName.trim() || editEntryData.name,
+      calories: parseFloat(editEntryCal) || editEntryData.calories,
+      protein: parseFloat(editEntryProtein) || 0,
+      carbs: parseFloat(editEntryCarbs) || 0,
+      fat: parseFloat(editEntryFat) || 0,
+      fiber: editEntryFiber ? parseFloat(editEntryFiber) : undefined,
+      servingSize: parseFloat(editEntryServing) || editEntryData.servingSize,
+      servingsConsumed: parseFloat(editEntryServings) || 1,
+    });
+    toast('Entry updated', 'success');
+    setModal(null);
+    setEditEntryData(null);
   }
 
   function currentTimeRounded(): string {
@@ -433,6 +477,7 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
                             onDelete={deleteEntry}
                             onToggleFavorite={toggleFavorite}
                             onEditTime={handleEditTime}
+                            onEdit={handleEditEntry}
                           />
                         ))}
                       </HourSlot>
@@ -561,6 +606,63 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
             <button onClick={handleSaveTime} className="btn-primary flex-1 text-sm">Save</button>
           </div>
         </div>
+      </Modal>
+
+      <Modal open={modal === 'edit-entry'} onClose={() => { setModal(null); setEditEntryData(null); }} title="Edit Food Entry">
+        {editEntryData && (
+          <div className="space-y-3">
+            <div className="flex items-center gap-3 bg-surface rounded-xl p-3">
+              <span className="text-lg">{getFoodEmoji(editEntryData.name)}</span>
+              <input
+                className="input-field text-sm flex-1"
+                value={editEntryName}
+                onChange={(e) => setEditEntryName(e.target.value)}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="label mb-1 block">Amount ({editEntryData.servingUnit})</label>
+                <input type="number" inputMode="decimal" className="input-field text-sm" value={editEntryServing} onChange={(e) => setEditEntryServing(e.target.value)} />
+              </div>
+              <div>
+                <label className="label mb-1 block">Servings</label>
+                <input type="number" inputMode="decimal" className="input-field text-sm" value={editEntryServings} onChange={(e) => setEditEntryServings(e.target.value)} />
+              </div>
+            </div>
+            <div>
+              <label className="label mb-1 block">Calories</label>
+              <input type="number" inputMode="decimal" className="input-field text-sm" value={editEntryCal} onChange={(e) => setEditEntryCal(e.target.value)} />
+            </div>
+            <div className="grid grid-cols-4 gap-2">
+              <div>
+                <label className="text-[9px] text-text-muted text-center block mb-0.5">Protein</label>
+                <input type="number" inputMode="decimal" className="input-field text-sm text-center" value={editEntryProtein} onChange={(e) => setEditEntryProtein(e.target.value)} />
+              </div>
+              <div>
+                <label className="text-[9px] text-text-muted text-center block mb-0.5">Carbs</label>
+                <input type="number" inputMode="decimal" className="input-field text-sm text-center" value={editEntryCarbs} onChange={(e) => setEditEntryCarbs(e.target.value)} />
+              </div>
+              <div>
+                <label className="text-[9px] text-text-muted text-center block mb-0.5">Fat</label>
+                <input type="number" inputMode="decimal" className="input-field text-sm text-center" value={editEntryFat} onChange={(e) => setEditEntryFat(e.target.value)} />
+              </div>
+              <div>
+                <label className="text-[9px] text-text-muted text-center block mb-0.5">Fiber</label>
+                <input type="number" inputMode="decimal" className="input-field text-sm text-center" value={editEntryFiber} onChange={(e) => setEditEntryFiber(e.target.value)} />
+              </div>
+            </div>
+            <div className="bg-surface-raised rounded-lg p-2 text-center text-xs text-text-muted">
+              Total: {Math.round((parseFloat(editEntryCal) || 0) * (parseFloat(editEntryServings) || 1))} cal ·
+              P{Math.round((parseFloat(editEntryProtein) || 0) * (parseFloat(editEntryServings) || 1))}g ·
+              C{Math.round((parseFloat(editEntryCarbs) || 0) * (parseFloat(editEntryServings) || 1))}g ·
+              F{Math.round((parseFloat(editEntryFat) || 0) * (parseFloat(editEntryServings) || 1))}g
+            </div>
+            <div className="flex gap-2 pt-1">
+              <button onClick={() => { setModal(null); setEditEntryData(null); }} className="btn-secondary flex-1 text-sm">Cancel</button>
+              <button onClick={handleSaveEntry} className="btn-primary flex-1 text-sm">Save</button>
+            </div>
+          </div>
+        )}
       </Modal>
 
       <Modal open={modal === 'edit-macros'} onClose={() => setModal(null)} title="Edit Macro Targets">

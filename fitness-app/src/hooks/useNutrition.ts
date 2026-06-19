@@ -68,6 +68,16 @@ export function useNutrition(profileId: string | null) {
     [entries, loadEntries]
   );
 
+  const updateEntry = useCallback(
+    async (id: string, updates: Partial<FoodEntry>) => {
+      const entry = entries.find((e) => e.id === id);
+      if (!entry) return;
+      await saveFoodEntry({ ...entry, ...updates });
+      await loadEntries();
+    },
+    [entries, loadEntries]
+  );
+
   const toggleFavorite = useCallback(
     async (id: string) => {
       const entry = entries.find((e) => e.id === id);
@@ -121,6 +131,7 @@ export function useNutrition(profileId: string | null) {
     loading,
     addEntry,
     deleteEntry,
+    updateEntry,
     updateEntryTime,
     toggleFavorite,
     copyYesterday,
