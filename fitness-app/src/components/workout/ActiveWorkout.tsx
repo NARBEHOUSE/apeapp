@@ -10,7 +10,7 @@ import {
   SkipForward,
   MessageSquare,
 } from 'lucide-react';
-import type { WorkoutSession, WorkoutDay, SetLog, Exercise } from '../../types';
+import type { WorkoutSession, WorkoutDay, SetLog, Exercise, ExerciseLastPerformance } from '../../types';
 import { RestTimer } from './RestTimer';
 import { toast } from '../shared/Toast';
 import { getAllPRs } from '../../db/workouts';
@@ -19,6 +19,7 @@ interface Props {
   session: WorkoutSession;
   day: WorkoutDay;
   previousSession: WorkoutSession | undefined;
+  lastPerformance: Record<string, ExerciseLastPerformance>;
   onLogSet: (exerciseId: string, set: SetLog) => void;
   onUpdateSet: (exerciseId: string, setIndex: number, updates: Partial<SetLog>) => void;
   onFinish: () => void;
@@ -32,11 +33,24 @@ interface SetInput {
   reps: string;
 }
 
+function formatLastPerformance(sets: SetLog[], date: string): string {
+  const completed = sets.filter((s) => s.completed);
+  if (completed.length === 0) return '';
+  const allSameWeight = completed.every((s) => s.weight === completed[0].weight);
+  const d = new Date(date + 'T00:00:00');
+  const dateStr = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  if (allSameWeight) {
+    return `${completed[0].weight} × ${completed.map((s) => s.reps).join(', ')} · ${dateStr}`;
+  }
+  return `${completed.map((s) => `${s.weight}×${s.reps}`).join(', ')} · ${dateStr}`;
+}
+
 function ExerciseCard({
   exercise,
   exerciseIndex,
   sessionSets,
   previousSets,
+  lastPerformance,
   prs,
   onComplete,
   onUpdate,
@@ -45,6 +59,7 @@ function ExerciseCard({
   exerciseIndex: number;
   sessionSets: SetLog[];
   previousSets: SetLog[] | undefined;
+  lastPerformance: ExerciseLastPerformance | undefined;
   prs: Record<string, { weight: number; reps: number; date: string }>;
   onComplete: (exerciseId: string, weight: number, reps: number) => void;
   onUpdate: (exerciseId: string, setIndex: number, updates: Partial<SetLog>) => void;
@@ -53,12 +68,16 @@ function ExerciseCard({
   const [collapsed, setCollapsed] = useState(false);
   const [deviationNote, setDeviationNote] = useState('');
   const [showNote, setShowNote] = useState(false);
+  const lastSets = lastPerformance?.sets.filter((s) => s.completed);
   const [inputs, setInputs] = useState<SetInput[]>(() =>
     Array.from({ length: exercise.sets }, (_, i) => {
+      const last = lastSets?.[i];
       const prev = previousSets?.[i];
+      const weight = last?.weight ?? prev?.weight ?? exercise.startingWeight;
+      const reps = last?.reps ?? prev?.reps;
       return {
-        weight: prev ? String(prev.weight) : '',
-        reps: prev ? String(prev.reps) : String(exercise.reps.split('-')[0]?.replace(/[^0-9]/g, '') || ''),
+        weight: weight != null ? String(weight) : '',
+        reps: reps != null ? String(reps) : String(exercise.reps.split('-')[0]?.replace(/[^0-9]/g, '') || ''),
       };
     })
   );
@@ -246,10 +265,10 @@ function ExerciseCard({
             />
           )}
 
-          {/* Previous session hint */}
-          {previousSets && previousSets.length > 0 && (
+          {/* Last performance hint */}
+          {lastPerformance && lastPerformance.sets.filter((s) => s.completed).length > 0 && (
             <p className="text-[10px] text-text-muted px-0.5">
-              Last: {previousSets.filter((s) => s.completed).length} sets
+              Last: {formatLastPerformance(lastPerformance.sets, lastPerformance.date)}
             </p>
           )}
 
@@ -279,6 +298,7 @@ export function ActiveWorkout({
   session,
   day,
   previousSession,
+  lastPerformance,
   onLogSet,
   onUpdateSet,
   onFinish,
@@ -456,6 +476,7 @@ export function ActiveWorkout({
               exerciseIndex={index}
               sessionSets={session.sets[exercise.id] || []}
               previousSets={previousSession?.sets[exercise.id]}
+              lastPerformance={lastPerformance[exercise.name.toLowerCase().trim()]}
               prs={prs}
               onComplete={handleComplete}
               onUpdate={onUpdateSet}

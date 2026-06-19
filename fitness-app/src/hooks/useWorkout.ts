@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import type { WorkoutSession, SetLog } from '../types';
+import type { WorkoutSession, SetLog, Exercise, ExerciseLastPerformance } from '../types';
 import { saveWorkoutSession, getSessionsByProfile } from '../db/workouts';
 import { getAllPrograms, initializePrograms } from '../db/programs';
 import type { Program } from '../types';
@@ -92,6 +92,42 @@ export function useWorkout(profileId: string | null) {
     [sessions]
   );
 
+  const getLastPerformanceMap = useCallback(
+    (dayExercises: Exercise[]): Record<string, ExerciseLastPerformance> => {
+      const idToName: Record<string, string> = {};
+      for (const program of programs) {
+        for (const day of program.days) {
+          for (const ex of day.exercises) {
+            if (ex.name.trim()) idToName[ex.id] = ex.name.toLowerCase().trim();
+          }
+        }
+      }
+
+      const targetNames = new Set(
+        dayExercises.map((e) => e.name.toLowerCase().trim()).filter((n) => n.length > 0)
+      );
+      const result: Record<string, ExerciseLastPerformance> = {};
+      const found = new Set<string>();
+
+      for (const session of sessions) {
+        if (found.size === targetNames.size) break;
+        for (const [exId, setLogs] of Object.entries(session.sets)) {
+          const name = idToName[exId];
+          if (name && targetNames.has(name) && !found.has(name)) {
+            const completed = setLogs.filter((s) => s.completed);
+            if (completed.length > 0) {
+              result[name] = { sets: completed, date: session.date };
+              found.add(name);
+            }
+          }
+        }
+      }
+
+      return result;
+    },
+    [programs, sessions]
+  );
+
   return {
     programs,
     sessions,
@@ -103,6 +139,7 @@ export function useWorkout(profileId: string | null) {
     finishWorkout,
     cancelWorkout,
     getPreviousSession,
+    getLastPerformanceMap,
     refreshPrograms: loadData,
   };
 }

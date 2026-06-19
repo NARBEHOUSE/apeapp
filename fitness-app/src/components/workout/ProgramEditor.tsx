@@ -91,7 +91,9 @@ function SortableExercise({
             {exercise.name || 'Untitled Exercise'}
           </span>
           <span className="text-xs text-text-secondary">
-            {exercise.sets}x{exercise.reps} {exercise.muscle && `- ${exercise.muscle}`}
+            {exercise.sets}x{exercise.reps}
+            {exercise.startingWeight != null && ` @ ${exercise.startingWeight}`}
+            {exercise.muscle && ` - ${exercise.muscle}`}
           </span>
         </button>
         <button
@@ -119,7 +121,7 @@ function SortableExercise({
               placeholder="Exercise name"
             />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             <div>
               <label className="label mb-1 block">Sets</label>
               <input
@@ -141,6 +143,23 @@ function SortableExercise({
                 value={exercise.reps}
                 onChange={(e) => onUpdate(exercise.id, { reps: e.target.value })}
                 placeholder="e.g. 8-12"
+              />
+            </div>
+            <div>
+              <label className="label mb-1 block">Weight</label>
+              <input
+                type="number"
+                inputMode="decimal"
+                className="input-field text-sm"
+                value={exercise.startingWeight ?? ''}
+                onChange={(e) =>
+                  onUpdate(exercise.id, {
+                    startingWeight: e.target.value
+                      ? parseFloat(e.target.value)
+                      : undefined,
+                  })
+                }
+                placeholder="Optional"
               />
             </div>
           </div>

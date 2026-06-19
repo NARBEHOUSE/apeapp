@@ -113,6 +113,12 @@ export interface Exercise {
   muscle: string;
   note: string;
   flag?: string;
+  startingWeight?: number;
+}
+
+export interface ExerciseLastPerformance {
+  sets: SetLog[];
+  date: string;
 }
 
 export interface WorkoutSession {

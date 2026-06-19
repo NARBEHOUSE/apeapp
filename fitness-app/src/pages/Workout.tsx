@@ -109,6 +109,7 @@ export function Workout({ profile, onUpdateProfile }: Props) {
     finishWorkout,
     cancelWorkout,
     getPreviousSession,
+    getLastPerformanceMap,
     refreshPrograms,
   } = useWorkout(profile.id);
 
@@ -293,11 +294,13 @@ export function Workout({ profile, onUpdateProfile }: Props) {
     const day = program?.days.find((d) => d.id === selectedDayId);
     if (!day || !program) return null;
     const previousSession = getPreviousSession(program.id, day.id);
+    const lastPerformance = getLastPerformanceMap(day.exercises);
     return (
       <ActiveWorkout
         session={activeSession}
         day={day}
         previousSession={previousSession}
+        lastPerformance={lastPerformance}
         onLogSet={logSet}
         onUpdateSet={updateSet}
         onFinish={handleFinish}

@@ -1051,6 +1051,7 @@ export function ProgramCreator({ onSave, onClose }: Props) {
                             </span>
                             <span className="text-text-muted flex-shrink-0 ml-2">
                               {ex.sets}x{ex.reps}
+                              {ex.startingWeight != null && ` @ ${ex.startingWeight}`}
                               {ex.muscle && ` (${ex.muscle})`}
                             </span>
                           </div>
@@ -1164,7 +1165,7 @@ function ExerciseEditor({
               placeholder="e.g. Bench Press"
             />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             <div>
               <label className="label mb-1 block">Sets</label>
               <input
@@ -1189,6 +1190,23 @@ function ExerciseEditor({
                   onUpdate(dayId, exercise.id, { reps: e.target.value })
                 }
                 placeholder="e.g. 8-12"
+              />
+            </div>
+            <div>
+              <label className="label mb-1 block">Weight</label>
+              <input
+                type="number"
+                inputMode="decimal"
+                className="input-field text-sm"
+                value={exercise.startingWeight ?? ''}
+                onChange={(e) =>
+                  onUpdate(dayId, exercise.id, {
+                    startingWeight: e.target.value
+                      ? parseFloat(e.target.value)
+                      : undefined,
+                  })
+                }
+                placeholder="Optional"
               />
             </div>
           </div>
