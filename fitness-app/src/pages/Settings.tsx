@@ -53,6 +53,7 @@ import { getMeasurementsByProfile } from '../db/progress';
 import { getAllPrograms } from '../db/programs';
 import { ConfirmDialog } from '../components/shared/ConfirmDialog';
 import { Modal } from '../components/shared/Modal';
+import { ImageCropper } from '../components/shared/ImageCropper';
 import { toast } from '../components/shared/Toast';
 
 interface Props {
@@ -275,6 +276,9 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
     setDashCards(next);
     saveDashboardConfig(next);
   };
+
+  // Profile photo cropper
+  const [cropperImage, setCropperImage] = useState<string | null>(null);
 
   // Confirm dialogs
   const [showClearProfile, setShowClearProfile] = useState(false);
@@ -861,20 +865,7 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
                       if (!file) return;
                       const reader = new FileReader();
                       reader.onload = () => {
-                        const img = new Image();
-                        img.onload = () => {
-                          const canvas = document.createElement('canvas');
-                          const size = 128;
-                          canvas.width = size;
-                          canvas.height = size;
-                          const ctx = canvas.getContext('2d')!;
-                          const scale = Math.max(size / img.width, size / img.height);
-                          const x = (size - img.width * scale) / 2;
-                          const y = (size - img.height * scale) / 2;
-                          ctx.drawImage(img, x, y, img.width * scale, img.height * scale);
-                          onUpdateProfile(profile.id, { profilePhoto: canvas.toDataURL('image/jpeg', 0.8) });
-                        };
-                        img.src = reader.result as string;
+                        setCropperImage(reader.result as string);
                       };
                       reader.readAsDataURL(file);
                       e.target.value = '';
@@ -891,6 +882,18 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
                 )}
               </div>
             </div>
+
+            {cropperImage && (
+              <ImageCropper
+                imageSrc={cropperImage}
+                onCrop={(dataUrl) => {
+                  onUpdateProfile(profile.id, { profilePhoto: dataUrl });
+                  setCropperImage(null);
+                  toast('Profile photo updated', 'success');
+                }}
+                onCancel={() => setCropperImage(null)}
+              />
+            )}
 
             <div>
               <label className="label mb-1.5 block">Name</label>
