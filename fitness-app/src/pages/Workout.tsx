@@ -15,7 +15,7 @@ import {
   Clock,
   CheckCircle2,
 } from 'lucide-react';
-import type { Profile, Program, WorkoutDay as WorkoutDayType, ActiveProgramEnrollment, ProgramCompletion } from '../types';
+import type { Profile, Program, WorkoutDay as WorkoutDayType, ActiveProgramEnrollment, ProgramCompletion, ExerciseFeedback } from '../types';
 import { useWorkout } from '../hooks/useWorkout';
 import { duplicateProgram, deleteProgram, saveProgram } from '../db/programs';
 import { ProgramList } from '../components/workout/ProgramList';
@@ -315,7 +315,14 @@ export function Workout({ profile, onUpdateProfile }: Props) {
         onFinish={handleFinish}
         onCancel={handleCancel}
         restTimerDuration={profile.restTimerDuration || 90}
+        programDefaultRestTimer={program.defaultRestTimer}
         profileId={profile.id}
+        onSaveFeedback={(feedback) => {
+          if (activeSession) {
+            const updated = { ...activeSession, exerciseFeedback: feedback };
+            import('../db/workouts').then(({ saveWorkoutSession }) => saveWorkoutSession(updated));
+          }
+        }}
       />
     );
   }

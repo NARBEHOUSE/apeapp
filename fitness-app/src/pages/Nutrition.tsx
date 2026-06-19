@@ -21,12 +21,14 @@ import { FoodSearch } from '../components/nutrition/FoodSearch';
 import { AIFoodScanner } from '../components/nutrition/AIFoodScanner';
 import { NutritionCharts } from '../components/nutrition/NutritionCharts';
 import { toast } from '../components/shared/Toast';
+import { calculateMacros } from '../utils/tdee';
 
 interface NutritionPageProps {
   profile: Profile;
+  onUpdateProfile?: (id: string, updates: Partial<Profile>) => void;
 }
 
-type ModalType = 'manual' | 'search' | 'ai' | 'save-meal' | 'edit-time' | null;
+type ModalType = 'manual' | 'search' | 'ai' | 'save-meal' | 'edit-time' | 'edit-macros' | null;
 type Tab = 'planner' | 'my-foods' | 'charts';
 
 function MiniMacroBar({ label, current, target, color }: {
@@ -169,7 +171,7 @@ function HourSlot({ hour, children, onAddAtHour, isOver }: {
   );
 }
 
-export default function Nutrition({ profile }: NutritionPageProps) {
+export default function Nutrition({ profile, onUpdateProfile }: NutritionPageProps) {
   const location = useLocation();
   const {
     entries, selectedDate, setSelectedDate, loading,
@@ -190,6 +192,11 @@ export default function Nutrition({ profile }: NutritionPageProps) {
   const [addAtTime, setAddAtTime] = useState<string | null>(null);
   const [overHour, setOverHour] = useState<string | null>(null);
   const [showAllHours, setShowAllHours] = useState(false);
+
+  const [editMacroCal, setEditMacroCal] = useState(String(profile.macroTargets.calories));
+  const [editMacroProtein, setEditMacroProtein] = useState(String(profile.macroTargets.protein));
+  const [editMacroCarbs, setEditMacroCarbs] = useState(String(profile.macroTargets.carbs));
+  const [editMacroFat, setEditMacroFat] = useState(String(profile.macroTargets.fat));
 
   const [saveMealName, setSaveMealName] = useState('');
   const [saveMealCal, setSaveMealCal] = useState('');
@@ -346,8 +353,17 @@ export default function Nutrition({ profile }: NutritionPageProps) {
         </button>
       </div>
 
-      {/* Macro Bars */}
-      <div className="bg-surface rounded-2xl p-3">
+      {/* Macro Bars — tap to edit */}
+      <button
+        onClick={() => {
+          setEditMacroCal(String(targets.calories));
+          setEditMacroProtein(String(targets.protein));
+          setEditMacroCarbs(String(targets.carbs));
+          setEditMacroFat(String(targets.fat));
+          setModal('edit-macros');
+        }}
+        className="w-full bg-surface rounded-2xl p-3 text-left active:scale-[0.99] transition-transform"
+      >
         <div className="flex items-baseline gap-2 mb-2.5">
           <span className="text-2xl font-bold">{Math.round(totals.calories)}</span>
           <span className="text-xs text-text-muted">/ {Math.round(targets.calories)} kcal</span>
@@ -359,9 +375,10 @@ export default function Nutrition({ profile }: NutritionPageProps) {
           <MiniMacroBar label="Protein" current={totals.protein} target={targets.protein} color="#5b6ef5" />
           <MiniMacroBar label="Carbs" current={totals.carbs} target={targets.carbs} color="#2e9e6b" />
           <MiniMacroBar label="Fat" current={totals.fat} target={targets.fat} color="#f5a623" />
-          <MiniMacroBar label="Fiber" current={totals.fiber} target={30} color="#666" />
+          <MiniMacroBar label="Fiber" current={totals.fiber} target={profile.fiberTarget ?? 30} color="#666" />
         </div>
-      </div>
+        <div className="text-[9px] text-text-muted text-center mt-1.5">Tap to edit targets</div>
+      </button>
 
       {/* Tabs */}
       <div className="flex gap-1 bg-surface rounded-xl p-1">
@@ -542,6 +559,65 @@ export default function Nutrition({ profile }: NutritionPageProps) {
           <div className="flex gap-2">
             <button onClick={() => { setModal(null); setEditingEntry(null); }} className="btn-secondary flex-1 text-sm">Cancel</button>
             <button onClick={handleSaveTime} className="btn-primary flex-1 text-sm">Save</button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal open={modal === 'edit-macros'} onClose={() => setModal(null)} title="Edit Macro Targets">
+        <div className="space-y-3">
+          <div>
+            <label className="label mb-1 block">Calories (kcal)</label>
+            <input type="number" inputMode="numeric" className="input-field text-sm" value={editMacroCal} onChange={(e) => setEditMacroCal(e.target.value)} />
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            <div>
+              <label className="label mb-1 block">Protein (g)</label>
+              <input type="number" inputMode="numeric" className="input-field text-sm text-center" value={editMacroProtein} onChange={(e) => setEditMacroProtein(e.target.value)} />
+            </div>
+            <div>
+              <label className="label mb-1 block">Carbs (g)</label>
+              <input type="number" inputMode="numeric" className="input-field text-sm text-center" value={editMacroCarbs} onChange={(e) => setEditMacroCarbs(e.target.value)} />
+            </div>
+            <div>
+              <label className="label mb-1 block">Fat (g)</label>
+              <input type="number" inputMode="numeric" className="input-field text-sm text-center" value={editMacroFat} onChange={(e) => setEditMacroFat(e.target.value)} />
+            </div>
+          </div>
+          {profile.bodyStats && (
+            <button
+              onClick={() => {
+                  const macros = calculateMacros(profile.bodyStats!);
+                setEditMacroCal(String(macros.calories));
+                setEditMacroProtein(String(macros.protein));
+                setEditMacroCarbs(String(macros.carbs));
+                setEditMacroFat(String(macros.fat));
+              }}
+              className="w-full text-xs text-accent-blue font-medium py-2"
+            >
+              Recalculate from body stats
+            </button>
+          )}
+          <div className="flex gap-2 pt-1">
+            <button onClick={() => setModal(null)} className="btn-secondary flex-1 text-sm">Cancel</button>
+            <button
+              onClick={() => {
+                if (onUpdateProfile) {
+                  onUpdateProfile(profile.id, {
+                    macroTargets: {
+                      calories: parseInt(editMacroCal) || targets.calories,
+                      protein: parseInt(editMacroProtein) || targets.protein,
+                      carbs: parseInt(editMacroCarbs) || targets.carbs,
+                      fat: parseInt(editMacroFat) || targets.fat,
+                    },
+                  });
+                  toast('Macro targets updated', 'success');
+                }
+                setModal(null);
+              }}
+              className="btn-primary flex-1 text-sm"
+            >
+              Save
+            </button>
           </div>
         </div>
       </Modal>

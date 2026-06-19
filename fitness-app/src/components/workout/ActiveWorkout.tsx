@@ -10,7 +10,7 @@ import {
   SkipForward,
   MessageSquare,
 } from 'lucide-react';
-import type { WorkoutSession, WorkoutDay, SetLog, Exercise, ExerciseLastPerformance } from '../../types';
+import type { WorkoutSession, WorkoutDay, SetLog, Exercise, ExerciseLastPerformance, ExerciseFeedback } from '../../types';
 import { RestTimer } from './RestTimer';
 import { toast } from '../shared/Toast';
 import { getAllPRs } from '../../db/workouts';
@@ -34,6 +34,8 @@ interface Props {
   restTimerDuration?: number;
   profileId: string;
   durationWeeks: number;
+  programDefaultRestTimer?: number;
+  onSaveFeedback?: (feedback: Record<string, ExerciseFeedback>) => void;
 }
 
 interface SetInput {
@@ -334,13 +336,17 @@ export function ActiveWorkout({
   restTimerDuration = 90,
   profileId,
   durationWeeks,
+  programDefaultRestTimer,
+  onSaveFeedback,
 }: Props) {
   const [elapsed, setElapsed] = useState(0);
   const [showRestTimer, setShowRestTimer] = useState(false);
+  const [activeRestDuration, setActiveRestDuration] = useState(restTimerDuration);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [prs, setPrs] = useState<
     Record<string, { weight: number; reps: number; date: string }>
   >({});
+  const [exerciseFeedback, setExerciseFeedback] = useState<Record<string, ExerciseFeedback>>({});
 
   // Session-level modifications (don't touch the program)
   const [skippedExercises, setSkippedExercises] = useState<SkippedExercise[]>([]);
@@ -442,10 +448,13 @@ export function ActiveWorkout({
         }));
       }
 
-      // Show rest timer
+      // Hierarchical rest timer: exercise override → program default → profile default
+      const exercise = [...day.exercises, ...addedExercises].find((e) => e.id === exerciseId);
+      const duration = exercise?.restTimerOverride || programDefaultRestTimer || restTimerDuration;
+      setActiveRestDuration(duration);
       setShowRestTimer(true);
     },
-    [onLogSet, prs, day.exercises, session.date]
+    [onLogSet, prs, day.exercises, session.date, addedExercises, programDefaultRestTimer, restTimerDuration]
   );
 
   const totalSets = activeExercises.reduce((sum, ex) => sum + ex.sets, 0);
@@ -630,10 +639,69 @@ export function ActiveWorkout({
         </div>
       )}
 
+      {/* Exercise Feedback (RP-style) */}
+      {activeExercises.some((ex) => (session.sets[ex.id] || []).some((s) => s.completed)) && (
+        <div className="px-4 pt-2">
+          <div className="bg-surface rounded-2xl p-4">
+            <h3 className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3">Exercise Feedback</h3>
+            <div className="space-y-3">
+              {activeExercises
+                .filter((ex) => (session.sets[ex.id] || []).some((s) => s.completed))
+                .map((ex) => {
+                  const fb = exerciseFeedback[ex.id] || { sensation: 0, pump: 0, soreness: 0 };
+                  const setFb = (field: keyof ExerciseFeedback, val: number) => {
+                    setExerciseFeedback((prev) => ({
+                      ...prev,
+                      [ex.id]: { ...prev[ex.id] || { sensation: 0, pump: 0, soreness: 0 }, [field]: val },
+                    }));
+                  };
+                  const labels = ['—', '1', '2', '3', '4', '5'];
+                  return (
+                    <div key={ex.id} className="space-y-1.5">
+                      <div className="text-[11px] font-medium truncate">{ex.name}</div>
+                      <div className="grid grid-cols-3 gap-2">
+                        {([
+                          { key: 'sensation' as const, label: 'Feel', color: '#5b6ef5' },
+                          { key: 'pump' as const, label: 'Pump', color: '#e8572a' },
+                          { key: 'soreness' as const, label: 'Sore', color: '#f5a623' },
+                        ]).map(({ key, label, color }) => (
+                          <div key={key}>
+                            <div className="text-[8px] text-text-muted text-center mb-0.5">{label}</div>
+                            <div className="flex gap-0.5 justify-center">
+                              {[1, 2, 3].map((v) => (
+                                <button
+                                  key={v}
+                                  onClick={() => setFb(key, fb[key] === v ? 0 : v)}
+                                  className="w-5 h-5 rounded text-[9px] font-bold transition-colors"
+                                  style={{
+                                    backgroundColor: fb[key] >= v ? color : 'var(--color-surface-raised)',
+                                    color: fb[key] >= v ? '#fff' : 'var(--color-text-muted)',
+                                  }}
+                                >
+                                  {v}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Sticky finish button */}
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-bg/95 backdrop-blur-sm border-t border-border z-20">
         <button
-          onClick={onFinish}
+          onClick={() => {
+            if (onSaveFeedback && Object.keys(exerciseFeedback).length > 0) {
+              onSaveFeedback(exerciseFeedback);
+            }
+            onFinish();
+          }}
           className="btn-primary w-full flex items-center justify-center gap-2"
         >
           <Trophy size={18} />
@@ -644,7 +712,7 @@ export function ActiveWorkout({
       {/* Rest timer overlay */}
       {showRestTimer && (
         <RestTimer
-          duration={restTimerDuration}
+          duration={activeRestDuration}
           onComplete={() => setShowRestTimer(false)}
           onDismiss={() => setShowRestTimer(false)}
         />

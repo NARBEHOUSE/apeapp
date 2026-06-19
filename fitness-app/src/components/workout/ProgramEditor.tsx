@@ -198,6 +198,21 @@ function SortableExercise({
               placeholder="e.g. superset, dropset"
             />
           </div>
+          <div>
+            <label className="label mb-1 block">Rest Timer Override (seconds)</label>
+            <input
+              type="number"
+              inputMode="numeric"
+              className="input-field text-sm"
+              value={exercise.restTimerOverride ?? ''}
+              onChange={(e) =>
+                onUpdate(exercise.id, {
+                  restTimerOverride: e.target.value ? parseInt(e.target.value) : undefined,
+                })
+              }
+              placeholder="Use program default"
+            />
+          </div>
           <ProgressionEditor
             exercise={exercise}
             goalType={goalType}
@@ -616,6 +631,26 @@ export function ProgramEditor({ program, fitnessGoal, onSave, onClose }: Props) 
               max={52}
             />
           </div>
+        </div>
+
+        {/* Default Rest Timer */}
+        <div>
+          <label className="label mb-1.5 block">Default Rest Timer (seconds)</label>
+          <input
+            type="number"
+            inputMode="numeric"
+            className="input-field text-sm"
+            value={editedProgram.defaultRestTimer || ''}
+            onChange={(e) =>
+              updateProgramField({
+                defaultRestTimer: e.target.value ? parseInt(e.target.value) : undefined,
+              })
+            }
+            placeholder="Use profile default"
+          />
+          <p className="text-[10px] text-text-muted mt-1">
+            Overrides profile setting. Each exercise can also override this.
+          </p>
         </div>
 
         {/* Days */}

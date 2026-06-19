@@ -37,23 +37,20 @@ export function calculateMacros(stats: BodyStats): MacroTargets {
   const tdee = calculateTDEE(stats);
   const targetCalories = Math.max(1200, tdee + getGoalOffset(stats.fitnessGoal));
 
-  // Protein: 1g/lb for build, 1.1g/lb for lose (preserve muscle in deficit), 0.9g/lb for maintain
-  const weightLbs = stats.weightKg * 2.20462;
-  let proteinMultiplier: number;
-  switch (stats.fitnessGoal) {
-    case 'lose': proteinMultiplier = 1.1; break;
-    case 'build': proteinMultiplier = 1.0; break;
-    case 'maintain': proteinMultiplier = 0.9; break;
-  }
-  const protein = Math.round(weightLbs * proteinMultiplier);
+  let protein: number;
 
-  // Fat: 25-30% of calories (25% for lose, 30% for build, 27% for maintain)
-  let fatPct: number;
-  switch (stats.fitnessGoal) {
-    case 'lose': fatPct = 0.25; break;
-    case 'build': fatPct = 0.30; break;
-    case 'maintain': fatPct = 0.27; break;
+  if (stats.bodyFatPercent != null && stats.bodyFatPercent > 0) {
+    // Lean body mass approach: 1g protein per lb of lean mass
+    const leanMassKg = stats.weightKg * (1 - stats.bodyFatPercent / 100);
+    const leanMassLbs = leanMassKg * 2.20462;
+    protein = Math.round(leanMassLbs);
+  } else {
+    // Fallback: 1g protein per cm of height
+    protein = Math.round(stats.heightCm);
   }
+
+  // Fat: 30% of total calories
+  const fatPct = 0.30;
   const fat = Math.round((targetCalories * fatPct) / 9);
 
   // Carbs: fill remaining calories

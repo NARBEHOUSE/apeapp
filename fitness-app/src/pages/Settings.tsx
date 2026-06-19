@@ -103,12 +103,16 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
   const [editWeight, setEditWeight] = useState(
     existingStats ? String(Math.round(kgToLbs(existingStats.weightKg))) : ''
   );
+  const [editBodyFatPercent, setEditBodyFatPercent] = useState(
+    existingStats?.bodyFatPercent != null ? String(existingStats.bodyFatPercent) : ''
+  );
   const [editActivityLevel, setEditActivityLevel] = useState<ActivityLevel>(
     existingStats?.activityLevel || 'moderate'
   );
   const [editFitnessGoal, setEditFitnessGoal] = useState<FitnessGoal>(
     existingStats?.fitnessGoal || 'maintain'
   );
+  const [editFiberTarget, setEditFiberTarget] = useState(String(profile.fiberTarget ?? 30));
 
   // Auto-adjustment
   const [autoAdjustResult, setAutoAdjustResult] = useState<AutoAdjustResult | null>(null);
@@ -340,6 +344,7 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
       weightKg: lbsToKg(weightNum),
       activityLevel: editActivityLevel,
       fitnessGoal: editFitnessGoal,
+      bodyFatPercent: editBodyFatPercent ? parseFloat(editBodyFatPercent) : undefined,
     };
     const macros = calculateMacros(stats);
     setEditCalories(String(macros.calories));
@@ -376,6 +381,7 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
         weightKg: lbsToKg(weightNum),
         activityLevel: editActivityLevel,
         fitnessGoal: editFitnessGoal,
+        bodyFatPercent: editBodyFatPercent ? parseFloat(editBodyFatPercent) : undefined,
       };
       tdee = calculateTDEE(bodyStats);
     }
@@ -389,6 +395,7 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
       macroTargets: { calories, protein, carbs, fat },
       bodyStats,
       tdee,
+      fiberTarget: parseInt(editFiberTarget) || 30,
     });
     toast('Settings saved', 'success');
   };
@@ -833,6 +840,58 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
         <SectionHeader section="profile" icon={User} title="Profile & Body Stats" />
         {expanded.has('profile') && (
           <div className="space-y-4 pt-2">
+            {/* Profile Photo */}
+            <div className="flex items-center gap-4">
+              {profile.profilePhoto ? (
+                <img src={profile.profilePhoto} alt={profile.name} className="w-16 h-16 rounded-full object-cover" />
+              ) : (
+                <div className="w-16 h-16 rounded-full flex items-center justify-center text-white text-xl font-bold" style={{ backgroundColor: profile.avatarColor }}>
+                  {profile.name[0]?.toUpperCase()}
+                </div>
+              )}
+              <div className="space-y-1.5">
+                <label className="btn-secondary px-4 py-2 text-xs cursor-pointer inline-flex items-center gap-1.5">
+                  {profile.profilePhoto ? 'Change Photo' : 'Add Photo'}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const reader = new FileReader();
+                      reader.onload = () => {
+                        const img = new Image();
+                        img.onload = () => {
+                          const canvas = document.createElement('canvas');
+                          const size = 128;
+                          canvas.width = size;
+                          canvas.height = size;
+                          const ctx = canvas.getContext('2d')!;
+                          const scale = Math.max(size / img.width, size / img.height);
+                          const x = (size - img.width * scale) / 2;
+                          const y = (size - img.height * scale) / 2;
+                          ctx.drawImage(img, x, y, img.width * scale, img.height * scale);
+                          onUpdateProfile(profile.id, { profilePhoto: canvas.toDataURL('image/jpeg', 0.8) });
+                        };
+                        img.src = reader.result as string;
+                      };
+                      reader.readAsDataURL(file);
+                      e.target.value = '';
+                    }}
+                  />
+                </label>
+                {profile.profilePhoto && (
+                  <button
+                    onClick={() => onUpdateProfile(profile.id, { profilePhoto: undefined })}
+                    className="text-[10px] text-danger block"
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
+            </div>
+
             <div>
               <label className="label mb-1.5 block">Name</label>
               <input
@@ -916,6 +975,22 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
                     onChange={(e) => setEditInches(e.target.value)}
                   />
                 </div>
+              </div>
+
+              {/* Body Fat % */}
+              <div className="mb-3">
+                <label className="text-[10px] text-text-muted font-semibold block mb-1">Body Fat % (optional)</label>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  className="input-field text-sm py-2.5"
+                  placeholder="Leave blank if unsure"
+                  value={editBodyFatPercent}
+                  onChange={(e) => setEditBodyFatPercent(e.target.value)}
+                />
+                <p className="text-[9px] text-text-muted mt-0.5">
+                  Used for lean-mass protein targeting. If blank, 1g protein per cm of height.
+                </p>
               </div>
 
               {/* Activity Level */}
@@ -1020,6 +1095,18 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
                     onChange={(e) => setEditFat(e.target.value)}
                   />
                 </div>
+              </div>
+              <div className="mt-3">
+                <label className="text-[10px] text-text-muted font-semibold block mb-1">
+                  Fiber Target (g)
+                </label>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  className="input-field text-sm py-2.5"
+                  value={editFiberTarget}
+                  onChange={(e) => setEditFiberTarget(e.target.value)}
+                />
               </div>
             </div>
 
@@ -1504,12 +1591,16 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
                 }`}
               >
                 <div className="flex items-center gap-3">
-                  <div
-                    className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold"
-                    style={{ backgroundColor: p.avatarColor }}
-                  >
-                    {p.name[0]?.toUpperCase()}
-                  </div>
+                  {p.profilePhoto ? (
+                    <img src={p.profilePhoto} alt={p.name} className="w-8 h-8 rounded-full object-cover" />
+                  ) : (
+                    <div
+                      className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold"
+                      style={{ backgroundColor: p.avatarColor }}
+                    >
+                      {p.name[0]?.toUpperCase()}
+                    </div>
+                  )}
                   <div>
                     <span className="text-sm font-semibold">{p.name}</span>
                     {p.id === profile.id && (

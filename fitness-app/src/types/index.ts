@@ -9,6 +9,7 @@ export interface BodyStats {
   weightKg: number;
   activityLevel: ActivityLevel;
   fitnessGoal: FitnessGoal;
+  bodyFatPercent?: number;
 }
 
 export interface CalorieAdjustment {
@@ -53,6 +54,9 @@ export interface Profile {
   lastAutoAdjustDate?: string;
   activeProgram?: ActiveProgramEnrollment;
   programHistory?: ProgramCompletion[];
+  profilePhoto?: string;
+  fiberTarget?: number;
+  lastKnownWeight?: number;
 }
 
 export interface MacroTargets {
@@ -92,6 +96,7 @@ export interface Program {
   blocks?: TrainingBlock[];
   daysPerWeek?: number;
   split?: string;
+  defaultRestTimer?: number;
 }
 
 export interface WorkoutDay {
@@ -133,11 +138,19 @@ export interface Exercise {
   startingWeight?: number;
   progression?: ExerciseProgressionConfig;
   weeklyTargets?: WeeklyTarget[];
+  restTimerOverride?: number;
 }
 
 export interface ExerciseLastPerformance {
   sets: SetLog[];
   date: string;
+}
+
+export interface ExerciseFeedback {
+  sensation: number;
+  pump: number;
+  soreness: number;
+  note?: string;
 }
 
 export interface WorkoutSession {
@@ -151,6 +164,7 @@ export interface WorkoutSession {
   sets: Record<string, SetLog[]>;
   notes?: string;
   bodyweight?: number;
+  exerciseFeedback?: Record<string, ExerciseFeedback>;
 }
 
 export interface SetLog {

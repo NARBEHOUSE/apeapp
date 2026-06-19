@@ -57,6 +57,7 @@ export function ProfileSelector({ profiles, onSelect, onCreate, onDelete, onRefr
   const [feet, setFeet] = useState('');
   const [inches, setInches] = useState('');
   const [weight, setWeight] = useState('');
+  const [bodyFatPercent, setBodyFatPercent] = useState('');
   const [activityLevel, setActivityLevel] = useState<ActivityLevel>('moderate');
   const [fitnessGoal, setFitnessGoal] = useState<FitnessGoal>('lose');
 
@@ -73,6 +74,7 @@ export function ProfileSelector({ profiles, onSelect, onCreate, onDelete, onRefr
     setFeet('');
     setInches('');
     setWeight('');
+    setBodyFatPercent('');
     setActivityLevel('moderate');
     setFitnessGoal('lose');
     setCustomCal('2000');
@@ -91,6 +93,7 @@ export function ProfileSelector({ profiles, onSelect, onCreate, onDelete, onRefr
           weightKg: lbsToKg(parseFloat(weight) || 0),
           activityLevel,
           fitnessGoal,
+          bodyFatPercent: bodyFatPercent ? parseFloat(bodyFatPercent) : undefined,
         }
       : null;
 
@@ -138,12 +141,20 @@ export function ProfileSelector({ profiles, onSelect, onCreate, onDelete, onRefr
                 onClick={() => onSelect(profile.id)}
                 className="flex-1 flex items-center gap-4 bg-surface rounded-2xl p-4 text-left active:scale-[0.98] transition-transform"
               >
-                <div
-                  className="w-10 h-10 rounded-full flex items-center justify-center text-white font-medium text-sm"
-                  style={{ backgroundColor: profile.avatarColor }}
-                >
-                  {profile.name[0]?.toUpperCase()}
-                </div>
+                {profile.profilePhoto ? (
+                  <img
+                    src={profile.profilePhoto}
+                    alt={profile.name}
+                    className="w-10 h-10 rounded-full object-cover shrink-0"
+                  />
+                ) : (
+                  <div
+                    className="w-10 h-10 rounded-full flex items-center justify-center text-white font-medium text-sm"
+                    style={{ backgroundColor: profile.avatarColor }}
+                  >
+                    {profile.name[0]?.toUpperCase()}
+                  </div>
+                )}
                 <div className="flex-1 min-w-0">
                   <div className="font-medium text-sm">{profile.name}</div>
                   <div className="text-[11px] text-text-muted truncate">
@@ -402,6 +413,14 @@ export function ProfileSelector({ profiles, onSelect, onCreate, onDelete, onRefr
                 <label className="label mb-1 block">Height (in)</label>
                 <input type="number" inputMode="numeric" className="input-field" placeholder="10" value={inches} onChange={(e) => setInches(e.target.value)} />
               </div>
+            </div>
+
+            <div>
+              <label className="label mb-1 block">Body Fat % (optional)</label>
+              <input type="number" inputMode="decimal" className="input-field" placeholder="Leave blank if unsure" value={bodyFatPercent} onChange={(e) => setBodyFatPercent(e.target.value)} />
+              <p className="text-[10px] text-text-muted mt-1">
+                Used for protein targeting. If unknown, we'll estimate from your height.
+              </p>
             </div>
 
             <div>

@@ -10,9 +10,12 @@ import { PhotoGallery } from '../components/progress/PhotoGallery';
 import { TimeLapse } from '../components/progress/TimeLapse';
 import { Modal } from '../components/shared/Modal';
 import { ConfirmDialog } from '../components/shared/ConfirmDialog';
+import { calculateMacros } from '../utils/tdee';
+import { toast } from '../components/shared/Toast';
 
 interface Props {
   profile: Profile;
+  onUpdateProfile?: (id: string, updates: Partial<Profile>) => void;
 }
 
 type Tab = 'measurements' | 'photos' | 'timelapse';
@@ -35,10 +38,12 @@ const BODY_LABELS: Record<string, string> = {
   shoulders: 'Shoulders',
 };
 
-export function Progress({ profile }: Props) {
+export function Progress({ profile, onUpdateProfile }: Props) {
   const [tab, setTab] = useState<Tab>('measurements');
   const [showCapture, setShowCapture] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [showRecalcPrompt, setShowRecalcPrompt] = useState(false);
+  const [weightChangeInfo, setWeightChangeInfo] = useState<{ oldWeight: number; newWeight: number } | null>(null);
 
   const {
     measurements,
@@ -53,6 +58,18 @@ export function Progress({ profile }: Props) {
 
   const handleSaveMeasurement = async (m: Omit<Measurement, 'id' | 'profileId'>) => {
     await addMeasurement(m);
+
+    if (m.weight != null && onUpdateProfile) {
+      const baseWeight = profile.lastKnownWeight || (profile.bodyStats ? profile.bodyStats.weightKg * 2.20462 : null);
+      const newWeight = m.weightUnit === 'kg' ? m.weight * 2.20462 : m.weight;
+
+      if (baseWeight && Math.abs(newWeight - baseWeight) / baseWeight >= 0.05) {
+        setWeightChangeInfo({ oldWeight: Math.round(baseWeight), newWeight: Math.round(newWeight) });
+        setShowRecalcPrompt(true);
+      }
+
+      onUpdateProfile(profile.id, { lastKnownWeight: newWeight });
+    }
   };
 
   const handleSavePhoto = async (photoData: {
@@ -201,6 +218,49 @@ export function Progress({ profile }: Props) {
           profileId={profile.id}
           getPhotosByPose={getPhotosByPoseType}
         />
+      )}
+
+      {/* Weight change recalculate prompt */}
+      {showRecalcPrompt && weightChangeInfo && onUpdateProfile && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="card mx-6 max-w-sm w-full">
+            <h3 className="font-bold text-lg mb-2">Weight Changed Significantly</h3>
+            <p className="text-text-secondary text-sm mb-4">
+              Your weight went from {weightChangeInfo.oldWeight} lbs to {weightChangeInfo.newWeight} lbs
+              ({Math.abs(Math.round(((weightChangeInfo.newWeight - weightChangeInfo.oldWeight) / weightChangeInfo.oldWeight) * 100))}% change).
+              Would you like to recalculate your calories and macros?
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => { setShowRecalcPrompt(false); setWeightChangeInfo(null); }}
+                className="btn-secondary flex-1"
+              >
+                Keep Current
+              </button>
+              <button
+                onClick={() => {
+                  if (profile.bodyStats) {
+                    const updatedStats = {
+                      ...profile.bodyStats,
+                      weightKg: weightChangeInfo.newWeight / 2.20462,
+                    };
+                    const macros = calculateMacros(updatedStats);
+                    onUpdateProfile(profile.id, {
+                      bodyStats: updatedStats,
+                      macroTargets: macros,
+                    });
+                    toast(`Macros recalculated for ${weightChangeInfo.newWeight} lbs`, 'success');
+                  }
+                  setShowRecalcPrompt(false);
+                  setWeightChangeInfo(null);
+                }}
+                className="btn-primary flex-1"
+              >
+                Recalculate
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

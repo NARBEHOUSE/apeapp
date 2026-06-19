@@ -42,8 +42,8 @@ function App() {
         <Routes>
           <Route path="/dashboard" element={<Dashboard profile={activeProfile} />} />
           <Route path="/workout/*" element={<Workout profile={activeProfile} onUpdateProfile={updateProfile} />} />
-          <Route path="/nutrition" element={<Nutrition profile={activeProfile} />} />
-          <Route path="/progress" element={<Progress profile={activeProfile} />} />
+          <Route path="/nutrition" element={<Nutrition profile={activeProfile} onUpdateProfile={updateProfile} />} />
+          <Route path="/progress" element={<Progress profile={activeProfile} onUpdateProfile={updateProfile} />} />
           <Route
             path="/settings"
             element={

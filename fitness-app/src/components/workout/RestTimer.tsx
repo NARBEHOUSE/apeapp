@@ -1,6 +1,26 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { X } from 'lucide-react';
 
+function playCompletionSound() {
+  try {
+    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const notes = [523.25, 659.25, 783.99];
+    notes.forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.frequency.value = freq;
+      osc.type = 'sine';
+      const start = ctx.currentTime + i * 0.12;
+      gain.gain.setValueAtTime(0.3, start);
+      gain.gain.exponentialRampToValueAtTime(0.01, start + 0.25);
+      osc.start(start);
+      osc.stop(start + 0.25);
+    });
+  } catch {}
+}
+
 interface Props {
   duration: number;
   onComplete: () => void;
@@ -36,6 +56,7 @@ export function RestTimer({ duration, onComplete, onDismiss }: Props) {
     if (remaining <= 0 && !completedRef.current) {
       completedRef.current = true;
       cleanup();
+      playCompletionSound();
       navigator.vibrate?.([50, 100, 50, 100, 50]);
       onComplete();
     }
