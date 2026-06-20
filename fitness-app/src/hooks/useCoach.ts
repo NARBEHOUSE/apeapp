@@ -105,8 +105,7 @@ export function useCoach() {
 
   const syncCoachFile = useCallback(async () => {
     if (!myCoachRel) return;
-    const token = getAccessToken();
-    if (!token) return;
+    const token = getAccessToken() || await requireAccessToken();
     try {
       // Read existing file to preserve pendingChanges and clientResponse
       let existing: Record<string, unknown> = {};
@@ -126,8 +125,7 @@ export function useCoach() {
 
   const checkForCoachChanges = useCallback(async () => {
     if (!myCoachRel) return;
-    const token = getAccessToken();
-    if (!token) return;
+    const token = getAccessToken() || await requireAccessToken();
     try {
       const raw = await readSharedFile(token, myCoachRel.fileId);
       const data = JSON.parse(raw);
