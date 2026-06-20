@@ -8,6 +8,7 @@ import { Workout } from './pages/Workout';
 import Nutrition from './pages/Nutrition';
 import { Progress } from './pages/Progress';
 import { Settings } from './pages/Settings';
+import { Privacy } from './pages/Privacy';
 import { ToastContainer } from './components/shared/Toast';
 import { GoogleAuthProvider, useGoogleAuth } from './contexts/GoogleAuthContext';
 
@@ -30,6 +31,18 @@ function AppContent() {
       logout();
     }
   }, [isSignedIn, activeProfile, logout]);
+
+  // Privacy page must be accessible without login for Google OAuth verification
+  if (typeof window !== 'undefined' && window.location.hash === '#/privacy') {
+    return (
+      <HashRouter>
+        <Routes>
+          <Route path="/privacy" element={<Privacy />} />
+          <Route path="*" element={<Privacy />} />
+        </Routes>
+      </HashRouter>
+    );
+  }
 
   if (!activeProfile || (!isSignedIn && activeProfile?.googleEmail)) {
     return (
@@ -66,6 +79,7 @@ function AppContent() {
               />
             }
           />
+          <Route path="/privacy" element={<Privacy />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </Layout>

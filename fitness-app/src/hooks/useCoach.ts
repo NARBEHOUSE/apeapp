@@ -9,6 +9,7 @@ import {
   createPhotoFolder,
   sharePhotoFolderWithCoach,
   uploadPhotoToFolder,
+  getOrCreateRootFolder,
 } from '../utils/googleDrive';
 import { getDB } from '../db';
 import type {
@@ -357,6 +358,47 @@ export function useCoach() {
     }
   }, []);
 
+  const backupClientData = useCallback(async (fileId: string, clientName: string): Promise<boolean> => {
+    const token = getAccessToken() || await requireAccessToken();
+    try {
+      const raw = await readSharedFile(token, fileId);
+      const rootId = await getOrCreateRootFolder(token);
+
+      // Create or find Client Backups folder
+      const folderSearchRes = await fetch(
+        `https://www.googleapis.com/drive/v3/files?q=name='Client Backups' and '${rootId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false&fields=files(id)&pageSize=1`,
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      const folderData = await folderSearchRes.json();
+      let backupFolderId = folderData.files?.[0]?.id;
+      if (!backupFolderId) {
+        const createRes = await fetch('https://www.googleapis.com/drive/v3/files', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: 'Client Backups', mimeType: 'application/vnd.google-apps.folder', parents: [rootId] }),
+        });
+        backupFolderId = (await createRes.json()).id;
+      }
+
+      // Save backup with timestamp
+      const date = new Date().toISOString().split('T')[0];
+      const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }).replace(/:/g, '-');
+      const fileName = `${clientName}_${date}_${time}.json`;
+      const metadata = JSON.stringify({ name: fileName, parents: [backupFolderId] });
+      const boundary = 'ape_backup_boundary';
+      const body = `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadata}\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n${raw}\r\n--${boundary}--`;
+      await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': `multipart/related; boundary=${boundary}` },
+        body,
+      });
+      return true;
+    } catch (err) {
+      console.error('Backup failed:', err);
+      return false;
+    }
+  }, []);
+
   return {
     relationships, myCoachRels, myClients, loading,
     pendingChanges, clientResponse,
@@ -364,7 +406,7 @@ export function useCoach() {
     shareWithCoach, syncCoachFiles, checkForCoachChanges, finalizeResponses, revokeCoachAccess,
     // Coach
     addClient, removeClient, getClientData, pushChangesToClient,
-    checkForClientResponse, acknowledgeClientResponse,
+    checkForClientResponse, acknowledgeClientResponse, backupClientData,
     // Log
     addLogEntry, getLog,
   };

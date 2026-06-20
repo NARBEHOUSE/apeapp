@@ -84,7 +84,7 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
     myCoachRels, myClients, loading: coachLoading, pendingChanges,
     shareWithCoach, revokeCoachAccess, syncCoachFiles,
     addClient, removeClient, getClientData, pushChangesToClient,
-    checkForClientResponse, acknowledgeClientResponse, getLog,
+    checkForClientResponse, acknowledgeClientResponse, backupClientData, getLog,
   } = useCoach();
 
   const [coachEmail, setCoachEmail] = useState('');
@@ -729,12 +729,25 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
                           <button
                             onClick={async () => {
                               const data = await getClientData(client.fileId);
-                              if (data) setViewingClient({ fileId: client.fileId, data });
-                              else toast('Could not load client data', 'error');
+                              if (data) {
+                                setViewingClient({ fileId: client.fileId, data });
+                                backupClientData(client.fileId, client.clientName || 'Client');
+                              } else {
+                                toast('Could not load client data', 'error');
+                              }
                             }}
                             className="px-2.5 py-1 rounded-lg text-[10px] font-medium bg-accent-blue/10 text-accent-blue"
                           >
                             View
+                          </button>
+                          <button
+                            onClick={async () => {
+                              const ok = await backupClientData(client.fileId, client.clientName || 'Client');
+                              toast(ok ? 'Client data backed up' : 'Backup failed', ok ? 'success' : 'error');
+                            }}
+                            className="px-2.5 py-1 rounded-lg text-[10px] font-medium bg-success/10 text-success"
+                          >
+                            Backup
                           </button>
                           <button
                             onClick={() => { removeClient(client.fileId); toast('Client removed', 'success'); }}
@@ -1974,6 +1987,7 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
             <p className="text-[10px] text-text-muted">
               Aesthetic Physique Enthusiast &mdash; NARBE LLC
             </p>
+            <a href="#/privacy" className="text-[10px] text-accent-blue underline">Privacy Policy</a>
           </div>
         )}
       </div>
