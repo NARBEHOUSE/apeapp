@@ -34,7 +34,7 @@ const MEASUREMENT_LABELS: Record<string, string> = {
 export default function Dashboard({ profile, onUpdateProfile }: DashboardProps) {
   const navigate = useNavigate();
   const { isSignedIn: googleSignedIn } = useGoogleAuth();
-  const { pendingChanges, checkForCoachChanges, finalizeResponses, myCoachRel } = useCoach();
+  const { pendingChanges, checkForCoachChanges, finalizeResponses, syncCoachFile, myCoachRel } = useCoach();
 
   const [sessions, setSessions] = useState<WorkoutSession[]>([]);
   const [foodEntries, setFoodEntries] = useState<FoodEntry[]>([]);
@@ -92,8 +92,11 @@ export default function Dashboard({ profile, onUpdateProfile }: DashboardProps) 
   }, [profile.id]);
 
   useEffect(() => {
-    if (googleSignedIn && myCoachRel) checkForCoachChanges();
-  }, [googleSignedIn, myCoachRel, checkForCoachChanges]);
+    if (googleSignedIn && myCoachRel) {
+      syncCoachFile();
+      checkForCoachChanges();
+    }
+  }, [googleSignedIn, myCoachRel, syncCoachFile, checkForCoachChanges]);
 
   const activeProgram = profile.activeProgram
     ? programs.find((p) => p.id === profile.activeProgram!.programId)

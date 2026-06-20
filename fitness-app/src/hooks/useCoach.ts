@@ -105,15 +105,22 @@ export function useCoach() {
 
   const syncCoachFile = useCallback(async () => {
     if (!myCoachRel) return;
-    const token = await requireAccessToken();
-    setLoading(true);
+    const token = getAccessToken();
+    if (!token) return;
     try {
-      const data = await gatherCoachData();
-      await writeSharedFile(token, myCoachRel.fileId, JSON.stringify(data));
+      // Read existing file to preserve pendingChanges and clientResponse
+      let existing: Record<string, unknown> = {};
+      try {
+        const raw = await readSharedFile(token, myCoachRel.fileId);
+        existing = JSON.parse(raw);
+      } catch { /* file might not exist yet */ }
+
+      const freshData = await gatherCoachData() as Record<string, unknown>;
+      freshData.pendingChanges = existing.pendingChanges || null;
+      freshData.clientResponse = existing.clientResponse || null;
+      await writeSharedFile(token, myCoachRel.fileId, JSON.stringify(freshData));
     } catch (err) {
       console.error('Failed to sync coach file:', err);
-    } finally {
-      setLoading(false);
     }
   }, [myCoachRel]);
 
@@ -163,15 +170,15 @@ export function useCoach() {
       }
     }
 
-    // Write client response to shared file and clear pendingChanges
+    // Write fresh data + client response to shared file, clearing pendingChanges
     if (myCoachRel) {
       try {
         const token = await requireAccessToken();
-        const raw = await readSharedFile(token, myCoachRel.fileId);
-        const data = JSON.parse(raw);
-        data.pendingChanges = null;
-        data.clientResponse = { responses, respondedAt: new Date().toISOString() } as PendingClientResponse;
-        await writeSharedFile(token, myCoachRel.fileId, JSON.stringify(data));
+        // Re-gather fresh data so the coach sees the updated profile
+        const freshData = await gatherCoachData() as Record<string, unknown>;
+        freshData.pendingChanges = null;
+        freshData.clientResponse = { responses, respondedAt: new Date().toISOString() } as PendingClientResponse;
+        await writeSharedFile(token, myCoachRel.fileId, JSON.stringify(freshData));
       } catch (err) {
         console.error('Failed to write client response:', err);
       }
