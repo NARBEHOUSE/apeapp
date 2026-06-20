@@ -1,6 +1,8 @@
-import { useState } from 'react';
-import { Ruler, Camera, Film, Trash2 } from 'lucide-react';
-import type { Profile, Measurement } from '../types';
+import { useState, useEffect, useCallback } from 'react';
+import { Ruler, Camera, Film, Trash2, ClipboardCheck } from 'lucide-react';
+import type { Profile, Measurement, CheckInEntry, CheckInQuestion, DEFAULT_CHECKIN_QUESTIONS } from '../types';
+import { DEFAULT_CHECKIN_QUESTIONS as DEFAULT_QUESTIONS } from '../types';
+import { getDB } from '../db';
 import { useProgress } from '../hooks/useProgress';
 import { formatDate } from '../utils/dateHelpers';
 import { MeasurementLog } from '../components/progress/MeasurementLog';
@@ -18,12 +20,13 @@ interface Props {
   onUpdateProfile?: (id: string, updates: Partial<Profile>) => void;
 }
 
-type Tab = 'measurements' | 'photos' | 'timelapse';
+type Tab = 'measurements' | 'photos' | 'timelapse' | 'checkin';
 
 const TABS: { value: Tab; label: string; icon: typeof Ruler }[] = [
   { value: 'measurements', label: 'Measurements', icon: Ruler },
   { value: 'photos', label: 'Photos', icon: Camera },
   { value: 'timelapse', label: 'Time Lapse', icon: Film },
+  { value: 'checkin', label: 'Check-In', icon: ClipboardCheck },
 ];
 
 const BODY_LABELS: Record<string, string> = {
@@ -55,6 +58,41 @@ export function Progress({ profile, onUpdateProfile }: Props) {
     deletePhoto,
     getPhotosByPoseType,
   } = useProgress(profile.id);
+
+  // Check-in state
+  const [checkIns, setCheckIns] = useState<CheckInEntry[]>([]);
+  const [checkInResponses, setCheckInResponses] = useState<Record<string, number | string>>({});
+  const [checkInNotes, setCheckInNotes] = useState('');
+  const questions: CheckInQuestion[] = JSON.parse(localStorage.getItem('fitos-checkin-questions') || 'null') || DEFAULT_QUESTIONS;
+
+  const today = new Date().toISOString().split('T')[0];
+  const todayCheckIn = checkIns.find((c) => c.date === today);
+
+  const loadCheckIns = useCallback(async () => {
+    const db = await getDB();
+    const all = await db.getAllFromIndex('checkIns', 'by-profile', profile.id);
+    setCheckIns(all.sort((a, b) => b.date.localeCompare(a.date)));
+  }, [profile.id]);
+
+  useEffect(() => { loadCheckIns(); }, [loadCheckIns]);
+
+  const handleSubmitCheckIn = async () => {
+    const responses = Object.entries(checkInResponses).map(([questionId, value]) => ({ questionId, value }));
+    if (responses.length === 0) return;
+    const entry: CheckInEntry = {
+      id: crypto.randomUUID(),
+      profileId: profile.id,
+      date: today,
+      responses,
+      notes: checkInNotes.trim() || undefined,
+    };
+    const db = await getDB();
+    await db.put('checkIns', entry);
+    setCheckInResponses({});
+    setCheckInNotes('');
+    await loadCheckIns();
+    toast('Check-in saved', 'success');
+  };
 
   const handleSaveMeasurement = async (m: Omit<Measurement, 'id' | 'profileId'>) => {
     await addMeasurement(m);
@@ -218,6 +256,115 @@ export function Progress({ profile, onUpdateProfile }: Props) {
           profileId={profile.id}
           getPhotosByPose={getPhotosByPoseType}
         />
+      )}
+
+      {tab === 'checkin' && (
+        <div className="space-y-4">
+          {todayCheckIn ? (
+            <div className="card p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="text-sm font-semibold">Today's Check-In</div>
+                <span className="text-[10px] text-success font-medium px-2 py-0.5 rounded-full bg-success/10">Complete</span>
+              </div>
+              <div className="space-y-2">
+                {todayCheckIn.responses.map((r) => {
+                  const q = questions.find((qq) => qq.id === r.questionId);
+                  return (
+                    <div key={r.questionId} className="flex items-center justify-between">
+                      <span className="text-xs text-text-secondary">{q?.label || r.questionId}</span>
+                      {typeof r.value === 'number' ? (
+                        <div className="flex items-center gap-1">
+                          <div className="w-20 h-1.5 rounded-full bg-surface-raised overflow-hidden">
+                            <div className="h-full rounded-full bg-accent-blue" style={{ width: `${(r.value / 10) * 100}%` }} />
+                          </div>
+                          <span className="text-xs font-medium w-5 text-right">{r.value}</span>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-text-muted">{r.value}</span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              {todayCheckIn.notes && <p className="text-xs text-text-muted italic">{todayCheckIn.notes}</p>}
+            </div>
+          ) : (
+            <div className="card p-4 space-y-4">
+              <div className="text-sm font-semibold">Daily Check-In</div>
+              <div className="space-y-4">
+                {questions.map((q) => (
+                  <div key={q.id}>
+                    <div className="text-xs font-medium text-text-secondary mb-2">{q.label}</div>
+                    {q.type === 'scale' ? (
+                      <div className="flex gap-1">
+                        {Array.from({ length: (q.max || 10) - (q.min || 1) + 1 }, (_, i) => i + (q.min || 1)).map((v) => (
+                          <button
+                            key={v}
+                            onClick={() => setCheckInResponses((prev) => ({ ...prev, [q.id]: v }))}
+                            className={`flex-1 py-2 rounded-lg text-xs font-medium transition-colors ${
+                              checkInResponses[q.id] === v
+                                ? 'bg-accent-blue text-white'
+                                : 'bg-surface-raised text-text-muted'
+                            }`}
+                          >
+                            {v}
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <input
+                        className="input-field text-sm"
+                        value={(checkInResponses[q.id] as string) || ''}
+                        onChange={(e) => setCheckInResponses((prev) => ({ ...prev, [q.id]: e.target.value }))}
+                        placeholder="Your answer..."
+                      />
+                    )}
+                  </div>
+                ))}
+              </div>
+              <div>
+                <div className="text-xs font-medium text-text-secondary mb-1">Notes (optional)</div>
+                <textarea
+                  className="input-field text-sm w-full resize-none"
+                  rows={2}
+                  value={checkInNotes}
+                  onChange={(e) => setCheckInNotes(e.target.value)}
+                  placeholder="How's your day going? Anything to note..."
+                />
+              </div>
+              <button
+                onClick={handleSubmitCheckIn}
+                disabled={Object.keys(checkInResponses).length === 0}
+                className="btn-primary w-full disabled:opacity-30"
+              >
+                Submit Check-In
+              </button>
+            </div>
+          )}
+
+          {/* History */}
+          {checkIns.length > 0 && (
+            <div className="space-y-2">
+              <div className="text-xs font-semibold text-text-secondary uppercase tracking-wider">History</div>
+              {checkIns.slice(0, 14).map((ci) => (
+                <div key={ci.id} className="card p-3 space-y-1.5">
+                  <div className="text-xs font-medium">{ci.date}</div>
+                  <div className="flex flex-wrap gap-x-3 gap-y-1">
+                    {ci.responses.map((r) => {
+                      const q = questions.find((qq) => qq.id === r.questionId);
+                      return (
+                        <span key={r.questionId} className="text-[10px] text-text-muted">
+                          {q?.label?.split(' ').slice(0, 2).join(' ') || r.questionId}: <span className="font-medium text-text-secondary">{r.value}</span>
+                        </span>
+                      );
+                    })}
+                  </div>
+                  {ci.notes && <p className="text-[10px] text-text-muted italic">{ci.notes}</p>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       )}
 
       {/* Weight change recalculate prompt */}

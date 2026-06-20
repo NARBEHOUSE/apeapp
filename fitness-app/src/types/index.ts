@@ -211,6 +211,33 @@ export interface CoachLogEntry {
   items: { type: string; label: string; action?: 'accepted' | 'denied'; clientNote?: string; coachNote?: string }[];
 }
 
+export interface CheckInQuestion {
+  id: string;
+  label: string;
+  type: 'scale' | 'text';
+  min?: number;
+  max?: number;
+}
+
+export interface CheckInEntry {
+  id: string;
+  profileId: string;
+  date: string;
+  responses: { questionId: string; value: number | string }[];
+  notes?: string;
+}
+
+export const DEFAULT_CHECKIN_QUESTIONS: CheckInQuestion[] = [
+  { id: 'mood', label: 'How are you feeling?', type: 'scale', min: 1, max: 10 },
+  { id: 'sleep', label: 'How was your sleep?', type: 'scale', min: 1, max: 10 },
+  { id: 'energy', label: 'Energy level', type: 'scale', min: 1, max: 10 },
+  { id: 'stress', label: 'Stress level', type: 'scale', min: 1, max: 10 },
+  { id: 'soreness', label: 'Muscle soreness', type: 'scale', min: 1, max: 10 },
+  { id: 'motivation', label: 'Motivation', type: 'scale', min: 1, max: 10 },
+  { id: 'hunger', label: 'Hunger/appetite', type: 'scale', min: 1, max: 10 },
+  { id: 'digestion', label: 'Digestion', type: 'scale', min: 1, max: 10 },
+];
+
 export interface CardioEntry {
   type: string;
   durationMin: number;

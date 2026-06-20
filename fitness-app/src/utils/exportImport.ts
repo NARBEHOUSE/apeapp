@@ -286,6 +286,7 @@ export async function clearAllData(): Promise<void> {
     db.clear('measurements'),
     db.clear('progressPhotos'),
     db.clear('programs'),
+    db.clear('checkIns'),
   ]);
   // Remove ALL fitos-* keys from localStorage for a truly clean slate
   const keysToRemove = [];

@@ -1,9 +1,10 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   ArrowLeft, Send, Dumbbell, Utensils, TrendingUp, Target,
-  ChevronDown, ChevronUp, Calendar, Plus, Trash2, Check, X, MessageSquare, Heart, RefreshCw,
+  ChevronDown, ChevronUp, Calendar, Plus, Trash2, Check, X, MessageSquare, Heart, RefreshCw, ClipboardCheck,
 } from 'lucide-react';
-import type { PendingCoachChanges, CoachChangeItem, PendingClientResponse, CoachPhotoMeta, Program, MacroTargets } from '../../types';
+import type { PendingCoachChanges, CoachChangeItem, PendingClientResponse, CoachPhotoMeta, Program, MacroTargets, CheckInEntry, CheckInQuestion } from '../../types';
+import { DEFAULT_CHECKIN_QUESTIONS } from '../../types';
 import { ProgramEditor } from '../workout/ProgramEditor';
 import { drivePhotoUrl } from '../../utils/googleDrive';
 import { toast } from '../shared/Toast';
@@ -23,6 +24,7 @@ interface ClientData {
   progressPhotos: { id: string; date: string; pose: string; imageData: string; weight?: number }[];
   photoMeta?: CoachPhotoMeta[];
   photoFolderId?: string;
+  checkIns?: CheckInEntry[];
   programs: Program[];
   pendingChanges?: PendingCoachChanges | null;
   clientResponse?: PendingClientResponse | null;
@@ -42,7 +44,8 @@ interface Props {
 export function ClientView({ data: initialData, fileId, onPushChanges, onCheckClientResponse, onAcknowledgeResponse, onRefresh, onClose, coachEmail }: Props) {
   const [data, setData] = useState<ClientData>(initialData);
   const [refreshing, setRefreshing] = useState(false);
-  const [tab, setTab] = useState<'overview' | 'workouts' | 'nutrition' | 'progress' | 'programs' | 'responses'>('overview');
+  const [tab, setTab] = useState<'overview' | 'workouts' | 'nutrition' | 'progress' | 'programs' | 'checkins' | 'responses'>('overview');
+  const [viewingPhoto, setViewingPhoto] = useState<{ url: string; date: string; pose: string; weight?: number } | null>(null);
   const [editProtein, setEditProtein] = useState(String(data.profile.macroTargets?.protein || ''));
   const [editCarbs, setEditCarbs] = useState(String(data.profile.macroTargets?.carbs || ''));
   const [editFat, setEditFat] = useState(String(data.profile.macroTargets?.fat || ''));
@@ -181,6 +184,7 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
     { key: 'nutrition' as const, label: 'Nutrition', icon: Utensils },
     { key: 'progress' as const, label: 'Progress', icon: TrendingUp },
     { key: 'programs' as const, label: 'Programs', icon: Calendar },
+    { key: 'checkins' as const, label: 'Check-Ins', icon: ClipboardCheck },
     ...(responses ? [{ key: 'responses' as const, label: 'Responses', icon: MessageSquare }] : []),
   ];
 
@@ -447,12 +451,16 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
                 <div className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Progress Photos</div>
                 <div className="grid grid-cols-3 gap-2">
                   {data.photoMeta.map((p) => (
-                    <div key={p.photoId} className="relative rounded-xl overflow-hidden aspect-square bg-surface-raised">
+                    <button
+                      key={p.photoId}
+                      onClick={() => setViewingPhoto({ url: drivePhotoUrl(p.driveFileId), date: p.date, pose: p.pose, weight: p.weight })}
+                      className="relative rounded-xl overflow-hidden aspect-square bg-surface-raised active:scale-95 transition-transform"
+                    >
                       <img src={drivePhotoUrl(p.driveFileId)} alt={p.pose} className="w-full h-full object-cover" loading="lazy" />
                       <div className="absolute bottom-0 inset-x-0 bg-black/60 px-1.5 py-0.5 text-[8px] text-white">
                         {p.date} · {p.pose}{p.weight ? ` · ${p.weight}` : ''}
                       </div>
-                    </div>
+                    </button>
                   ))}
                 </div>
               </div>
@@ -497,6 +505,50 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
                 ))}
               </div>
             ))}
+          </>
+        )}
+
+        {/* CHECK-INS */}
+        {tab === 'checkins' && (
+          <>
+            {(!data.checkIns || data.checkIns.length === 0) ? (
+              <p className="text-sm text-text-muted text-center py-8">No check-ins recorded</p>
+            ) : (
+              <div className="space-y-2">
+                {[...data.checkIns].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 21).map((ci) => (
+                  <div key={ci.id} className="card p-3 space-y-2">
+                    <div className="text-xs font-semibold">{ci.date}</div>
+                    <div className="space-y-1.5">
+                      {ci.responses.map((r) => {
+                        const q = DEFAULT_CHECKIN_QUESTIONS.find((qq) => qq.id === r.questionId);
+                        return (
+                          <div key={r.questionId} className="flex items-center justify-between">
+                            <span className="text-xs text-text-secondary">{q?.label || r.questionId}</span>
+                            {typeof r.value === 'number' ? (
+                              <div className="flex items-center gap-1">
+                                <div className="w-16 h-1.5 rounded-full bg-surface-raised overflow-hidden">
+                                  <div
+                                    className="h-full rounded-full"
+                                    style={{
+                                      width: `${(r.value / 10) * 100}%`,
+                                      backgroundColor: r.value >= 7 ? '#2e9e6b' : r.value >= 4 ? '#f5a623' : '#e85757',
+                                    }}
+                                  />
+                                </div>
+                                <span className="text-xs font-medium w-5 text-right">{r.value}</span>
+                              </div>
+                            ) : (
+                              <span className="text-xs text-text-muted">{r.value}</span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                    {ci.notes && <p className="text-[10px] text-text-muted italic">{ci.notes}</p>}
+                  </div>
+                ))}
+              </div>
+            )}
           </>
         )}
 
@@ -554,6 +606,33 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
           <button onClick={handlePushAll} disabled={pushing} className="btn-primary w-full flex items-center justify-center gap-1.5 disabled:opacity-50">
             <Send size={14} /> {pushing ? 'Pushing...' : 'Push All to Client'}
           </button>
+        </div>
+      )}
+
+      {/* Fullscreen photo viewer */}
+      {viewingPhoto && (
+        <div
+          className="fixed inset-0 z-[300] bg-black flex flex-col"
+          onClick={() => setViewingPhoto(null)}
+        >
+          <div className="flex items-center justify-between p-4 text-white">
+            <div>
+              <div className="text-sm font-medium">{viewingPhoto.date} · {viewingPhoto.pose}</div>
+              {viewingPhoto.weight && <div className="text-xs opacity-70">{viewingPhoto.weight} lbs</div>}
+            </div>
+            <button onClick={() => setViewingPhoto(null)} className="p-2">
+              <X size={20} />
+            </button>
+          </div>
+          <div className="flex-1 flex items-center justify-center overflow-auto p-4">
+            <img
+              src={viewingPhoto.url}
+              alt={viewingPhoto.pose}
+              className="max-w-full max-h-full object-contain"
+              style={{ touchAction: 'pinch-zoom' }}
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
         </div>
       )}
     </div>

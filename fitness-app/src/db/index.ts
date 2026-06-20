@@ -1,5 +1,5 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
-import type { WorkoutSession, FoodEntry, Measurement, ProgressPhoto, Program } from '../types';
+import type { WorkoutSession, FoodEntry, Measurement, ProgressPhoto, Program, CheckInEntry } from '../types';
 
 interface FitOSDB extends DBSchema {
   workoutSessions: {
@@ -42,6 +42,15 @@ interface FitOSDB extends DBSchema {
     key: string;
     value: Program;
   };
+  checkIns: {
+    key: string;
+    value: CheckInEntry;
+    indexes: {
+      'by-profile': string;
+      'by-date': string;
+      'by-profile-date': [string, string];
+    };
+  };
 }
 
 let dbInstance: IDBPDatabase<FitOSDB> | null = null;
@@ -49,8 +58,11 @@ let dbInstance: IDBPDatabase<FitOSDB> | null = null;
 export async function getDB(): Promise<IDBPDatabase<FitOSDB>> {
   if (dbInstance) return dbInstance;
 
-  dbInstance = await openDB<FitOSDB>('fitos-db', 1, {
+  dbInstance = await openDB<FitOSDB>('fitos-db', 2, {
     upgrade(db) {
+      if (db.objectStoreNames.contains('workoutSessions')) {
+        // v1 stores already exist, just add new ones below
+      } else {
       const workoutStore = db.createObjectStore('workoutSessions', { keyPath: 'id' });
       workoutStore.createIndex('by-profile', 'profileId');
       workoutStore.createIndex('by-date', 'date');
@@ -72,6 +84,14 @@ export async function getDB(): Promise<IDBPDatabase<FitOSDB>> {
       photoStore.createIndex('by-profile-pose', ['profileId', 'pose']);
 
       db.createObjectStore('programs', { keyPath: 'id' });
+      }
+
+      if (!db.objectStoreNames.contains('checkIns')) {
+        const checkInStore = db.createObjectStore('checkIns', { keyPath: 'id' });
+        checkInStore.createIndex('by-profile', 'profileId');
+        checkInStore.createIndex('by-date', 'date');
+        checkInStore.createIndex('by-profile-date', ['profileId', 'date']);
+      }
     },
   });
 

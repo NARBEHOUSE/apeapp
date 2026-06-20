@@ -297,12 +297,13 @@ async function compressPhotosForSync(
 
 export async function gatherCoachData(profileId?: string): Promise<object> {
   const db = await getDB();
-  const [allWorkouts, allFood, allMeasurements, allPhotos, allPrograms] = await Promise.all([
+  const [allWorkouts, allFood, allMeasurements, allPhotos, allPrograms, allCheckIns] = await Promise.all([
     db.getAll('workoutSessions'),
     db.getAll('foodEntries'),
     db.getAll('measurements'),
     db.getAll('progressPhotos'),
     db.getAll('programs'),
+    db.getAll('checkIns'),
   ]);
 
   const profiles = JSON.parse(localStorage.getItem('fitos-profiles') || '[]');
@@ -311,12 +312,13 @@ export async function gatherCoachData(profileId?: string): Promise<object> {
 
   return {
     _apeCoachShare: true,
-    version: 2,
+    version: 3,
     updatedAt: new Date().toISOString(),
     profile: profile || {},
     workoutSessions: pid ? allWorkouts.filter((w: { profileId: string }) => w.profileId === pid) : allWorkouts,
     foodEntries: pid ? allFood.filter((f: { profileId: string }) => f.profileId === pid) : allFood,
     measurements: pid ? allMeasurements.filter((m: { profileId: string }) => m.profileId === pid) : allMeasurements,
+    checkIns: pid ? allCheckIns.filter((c: { profileId: string }) => c.profileId === pid) : allCheckIns,
     progressPhotos: await compressPhotosForSync(
       (pid ? allPhotos.filter((p: { profileId: string }) => p.profileId === pid) : []) as unknown as { imageData: string; [key: string]: unknown }[]
     ),
@@ -337,18 +339,20 @@ export async function gatherAllData(googleEmail?: string): Promise<object> {
     : allProfiles;
   const profileIds = new Set(profiles.map((p) => p.id));
 
-  const [allWorkouts, allFood, allMeasurements, allPhotos, allPrograms] = await Promise.all([
+  const [allWorkouts, allFood, allMeasurements, allPhotos, allPrograms, allCheckIns] = await Promise.all([
     db.getAll('workoutSessions'),
     db.getAll('foodEntries'),
     db.getAll('measurements'),
     db.getAll('progressPhotos'),
     db.getAll('programs'),
+    db.getAll('checkIns'),
   ]);
 
   const workoutSessions = allWorkouts.filter((w: { profileId: string }) => profileIds.has(w.profileId));
   const foodEntries = allFood.filter((f: { profileId: string }) => profileIds.has(f.profileId));
   const measurements = allMeasurements.filter((m: { profileId: string }) => profileIds.has(m.profileId));
   const progressPhotos = allPhotos.filter((p: { profileId: string }) => profileIds.has(p.profileId));
+  const checkIns = allCheckIns.filter((c: { profileId: string }) => profileIds.has(c.profileId));
 
   const settings: Record<string, string | null> = {};
   for (const key of ['fitos-theme', 'fitos-dashboard-cards']) {
@@ -374,6 +378,7 @@ export async function gatherAllData(googleEmail?: string): Promise<object> {
     foodEntries,
     measurements,
     progressPhotos,
+    checkIns,
     programs: allPrograms.filter((p) => !p.isBuiltIn),
   };
 }
@@ -404,7 +409,7 @@ export async function restoreAllData(data: Record<string, unknown>, googleEmail?
     }
   }
 
-  const stores = ['workoutSessions', 'foodEntries', 'measurements', 'progressPhotos'] as const;
+  const stores = ['workoutSessions', 'foodEntries', 'measurements', 'progressPhotos', 'checkIns'] as const;
   for (const store of stores) {
     const items = data[store];
     if (Array.isArray(items)) {
