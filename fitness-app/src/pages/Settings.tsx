@@ -2016,6 +2016,7 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
             onPushChanges={pushChangesToClient}
             onCheckClientResponse={checkForClientResponse}
             onAcknowledgeResponse={acknowledgeClientResponse}
+            onRefresh={getClientData}
             onClose={() => setViewingClient(null)}
             coachEmail={googleUser?.email}
           />

@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   ArrowLeft, Send, Dumbbell, Utensils, TrendingUp, Target,
-  ChevronDown, ChevronUp, Calendar, Plus, Trash2, Check, X, MessageSquare, Heart,
+  ChevronDown, ChevronUp, Calendar, Plus, Trash2, Check, X, MessageSquare, Heart, RefreshCw,
 } from 'lucide-react';
 import type { PendingCoachChanges, CoachChangeItem, PendingClientResponse, Program, MacroTargets } from '../../types';
 import { ProgramEditor } from '../workout/ProgramEditor';
@@ -31,11 +31,14 @@ interface Props {
   onPushChanges: (fileId: string, changes: PendingCoachChanges) => Promise<boolean>;
   onCheckClientResponse: (fileId: string) => Promise<PendingClientResponse | null>;
   onAcknowledgeResponse: (fileId: string) => Promise<void>;
+  onRefresh: (fileId: string) => Promise<ClientData | null>;
   onClose: () => void;
   coachEmail?: string;
 }
 
-export function ClientView({ data, fileId, onPushChanges, onCheckClientResponse, onAcknowledgeResponse, onClose, coachEmail }: Props) {
+export function ClientView({ data: initialData, fileId, onPushChanges, onCheckClientResponse, onAcknowledgeResponse, onRefresh, onClose, coachEmail }: Props) {
+  const [data, setData] = useState<ClientData>(initialData);
+  const [refreshing, setRefreshing] = useState(false);
   const [tab, setTab] = useState<'overview' | 'workouts' | 'nutrition' | 'progress' | 'programs' | 'responses'>('overview');
   const [editProtein, setEditProtein] = useState(String(data.profile.macroTargets?.protein || ''));
   const [editCarbs, setEditCarbs] = useState(String(data.profile.macroTargets?.carbs || ''));
@@ -156,6 +159,19 @@ export function ClientView({ data, fileId, onPushChanges, onCheckClientResponse,
     else toast('No new responses', 'success');
   }
 
+  async function handleRefresh() {
+    setRefreshing(true);
+    const fresh = await onRefresh(fileId);
+    if (fresh) {
+      setData(fresh);
+      setResponses(fresh.clientResponse || null);
+      toast('Client data refreshed', 'success');
+    } else {
+      toast('Failed to refresh', 'error');
+    }
+    setRefreshing(false);
+  }
+
   const tabs = [
     { key: 'overview' as const, label: 'Overview', icon: Target },
     { key: 'workouts' as const, label: 'Workouts', icon: Dumbbell },
@@ -198,6 +214,9 @@ export function ClientView({ data, fileId, onPushChanges, onCheckClientResponse,
           <div className="text-sm font-semibold truncate">Coach Mode — {data.profile.name || 'Client'}</div>
           <div className="text-[10px] opacity-80">Stage changes, then push all at once</div>
         </div>
+        <button onClick={handleRefresh} disabled={refreshing} className="p-1.5 rounded-lg bg-white/20">
+          <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
+        </button>
         <button onClick={handleCheckResponses} className="px-2 py-1 rounded-lg bg-white/20 text-[10px] font-medium">
           Responses
         </button>
