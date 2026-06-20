@@ -681,12 +681,19 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
                   <button
                     onClick={async () => {
                       if (!coachEmail.trim()) return;
-                      const fileId = await shareWithCoach(coachEmail.trim());
-                      if (fileId) {
-                        toast('Shared with coach! Send them your code.', 'success');
-                        setCoachEmail('');
-                      } else {
-                        toast('Failed to share', 'error');
+                      try {
+                        const fileId = await shareWithCoach(coachEmail.trim());
+                        if (fileId) {
+                          toast('Shared with coach! Send them your code.', 'success');
+                          setCoachEmail('');
+                        }
+                      } catch (err) {
+                        const msg = err instanceof Error ? err.message : 'Failed to share';
+                        if (msg.includes('403') || msg.includes('TOKEN_EXPIRED') || msg.includes('Not signed in')) {
+                          toast('Sign out of Google and sign back in to grant file permissions', 'error');
+                        } else {
+                          toast(msg, 'error');
+                        }
                       }
                     }}
                     disabled={!coachEmail.trim() || coachLoading}

@@ -36,7 +36,7 @@ export function useCoach() {
 
   const shareWithCoach = useCallback(async (coachEmail: string): Promise<string | null> => {
     const token = getAccessToken();
-    if (!token) return null;
+    if (!token) throw new Error('Not signed in. Sign out of Google and sign back in to refresh permissions.');
     setLoading(true);
     try {
       const data = await gatherCoachData();
@@ -55,7 +55,7 @@ export function useCoach() {
       return fileId;
     } catch (err) {
       console.error('Failed to share with coach:', err);
-      return null;
+      throw err;
     } finally {
       setLoading(false);
     }
