@@ -140,6 +140,10 @@ export interface Exercise {
   progression?: ExerciseProgressionConfig;
   weeklyTargets?: WeeklyTarget[];
   restTimerOverride?: number;
+  exerciseType?: 'strength' | 'cardio';
+  cardioType?: string;
+  targetDuration?: number;
+  targetIntensity?: 'low' | 'moderate' | 'high';
 }
 
 export interface ExerciseLastPerformance {

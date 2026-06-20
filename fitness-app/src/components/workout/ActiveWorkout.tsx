@@ -578,6 +578,50 @@ export function ActiveWorkout({
                 : null;
             }
           }
+          if (exercise.exerciseType === 'cardio') {
+            const existing = cardioEntries.find((c) => c.type === exercise.name);
+            return (
+              <div key={exercise.id} className="bg-surface rounded-2xl p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-sm font-semibold flex items-center gap-1.5">
+                      <Heart size={14} className="text-danger" />
+                      {exercise.name || 'Cardio'}
+                    </div>
+                    <div className="text-[11px] text-text-muted">
+                      {exercise.targetDuration && `${exercise.targetDuration} min target`}
+                      {exercise.targetIntensity && ` · ${exercise.targetIntensity} intensity`}
+                    </div>
+                    {exercise.note && <div className="text-[10px] text-text-muted italic mt-0.5">{exercise.note}</div>}
+                  </div>
+                  {existing && <Check size={16} className="text-success" />}
+                </div>
+                {existing ? (
+                  <div className="flex gap-2 text-[11px] text-text-muted flex-wrap">
+                    <span>{existing.durationMin} min</span>
+                    {existing.intensity && <span className="capitalize">{existing.intensity}</span>}
+                    {existing.heartRateAvg && <span>{existing.heartRateAvg} bpm</span>}
+                    {existing.distanceKm != null && (
+                      <span>{existing.distanceUnit === 'mi' ? (existing.distanceKm / 1.60934).toFixed(1) + ' mi' : existing.distanceKm.toFixed(1) + ' km'}</span>
+                    )}
+                    {existing.caloriesBurned && <span>{existing.caloriesBurned} cal</span>}
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => {
+                      setCardioType(exercise.name || '');
+                      setCardioDuration(exercise.targetDuration ? String(exercise.targetDuration) : '');
+                      setCardioIntensity(exercise.targetIntensity || 'moderate');
+                      setShowAddCardio(true);
+                    }}
+                    className="btn-primary w-full text-sm py-2"
+                  >
+                    Log Cardio
+                  </button>
+                )}
+              </div>
+            );
+          }
           return (
           <div key={exercise.id} className="relative">
             <ExerciseCard
@@ -743,7 +787,8 @@ export function ActiveWorkout({
         </div>
       )}
 
-      {/* Cardio tracking */}
+      {/* Cardio tracking — hide if day has programmed cardio exercises */}
+      {!activeExercises.some((e) => e.exerciseType === 'cardio') && (
       <div className="px-4 pt-2">
         <div className="bg-surface rounded-2xl p-4">
           <div className="flex items-center justify-between mb-3">
@@ -790,6 +835,7 @@ export function ActiveWorkout({
           )}
         </div>
       </div>
+      )}
 
       {/* Add cardio modal */}
       {showAddCardio && (

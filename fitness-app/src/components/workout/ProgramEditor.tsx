@@ -94,12 +94,21 @@ function SortableExercise({
           className="flex-1 text-left min-w-0"
         >
           <span className="text-sm font-medium truncate block">
-            {exercise.name || 'Untitled Exercise'}
+            {exercise.name || (exercise.exerciseType === 'cardio' ? 'Untitled Cardio' : 'Untitled Exercise')}
           </span>
           <span className="text-xs text-text-secondary">
-            {exercise.sets}x{exercise.reps}
-            {exercise.startingWeight != null && ` @ ${exercise.startingWeight}`}
-            {exercise.muscle && ` - ${exercise.muscle}`}
+            {exercise.exerciseType === 'cardio' ? (
+              <>
+                {exercise.targetDuration ? `${exercise.targetDuration} min` : 'Cardio'}
+                {exercise.targetIntensity && ` · ${exercise.targetIntensity}`}
+              </>
+            ) : (
+              <>
+                {exercise.sets}x{exercise.reps}
+                {exercise.startingWeight != null && ` @ ${exercise.startingWeight}`}
+                {exercise.muscle && ` - ${exercise.muscle}`}
+              </>
+            )}
           </span>
         </button>
         <button
@@ -116,7 +125,60 @@ function SortableExercise({
         </button>
       </div>
 
-      {expanded && (
+      {expanded && exercise.exerciseType === 'cardio' ? (
+        <div className="px-3 pb-3 space-y-3 border-t border-border pt-3">
+          <div>
+            <label className="label mb-1 block">Cardio Name</label>
+            <input
+              className="input-field text-sm"
+              value={exercise.name}
+              onChange={(e) => onUpdate(exercise.id, { name: e.target.value })}
+              placeholder="e.g. Treadmill Run, Cycling"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="label mb-1 block">Target Duration (min)</label>
+              <input
+                type="number"
+                inputMode="numeric"
+                className="input-field text-sm"
+                value={exercise.targetDuration ?? ''}
+                onChange={(e) => onUpdate(exercise.id, { targetDuration: e.target.value ? parseInt(e.target.value) : undefined })}
+                placeholder="e.g. 30"
+              />
+            </div>
+            <div>
+              <label className="label mb-1 block">Target Intensity</label>
+              <div className="flex gap-1">
+                {(['low', 'moderate', 'high'] as const).map((i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => onUpdate(exercise.id, { targetIntensity: i })}
+                    className={`flex-1 py-2 rounded-lg text-[10px] font-medium capitalize transition-colors ${
+                      exercise.targetIntensity === i
+                        ? i === 'low' ? 'bg-success/20 text-success' : i === 'moderate' ? 'bg-accent-orange/20 text-accent-orange' : 'bg-danger/20 text-danger'
+                        : 'bg-surface-raised text-text-muted'
+                    }`}
+                  >
+                    {i}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+          <div>
+            <label className="label mb-1 block">Notes (optional)</label>
+            <input
+              className="input-field text-sm"
+              value={exercise.note}
+              onChange={(e) => onUpdate(exercise.id, { note: e.target.value })}
+              placeholder="e.g. incline 5%, Zone 2 HR"
+            />
+          </div>
+        </div>
+      ) : expanded && (
         <div className="px-3 pb-3 space-y-3 border-t border-border pt-3">
           <div>
             <label className="label mb-1 block">Name</label>
@@ -235,6 +297,7 @@ function DayEditor({
   onUpdateExercise,
   onRemoveExercise,
   onAddExercise,
+  onAddCardio,
   onReorderExercises,
 }: {
   day: WorkoutDay;
@@ -250,6 +313,7 @@ function DayEditor({
   ) => void;
   onRemoveExercise: (dayId: string, exerciseId: string) => void;
   onAddExercise: (dayId: string) => void;
+  onAddCardio: (dayId: string) => void;
   onReorderExercises: (dayId: string, oldIndex: number, newIndex: number) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -390,13 +454,22 @@ function DayEditor({
               </SortableContext>
             </DndContext>
 
-            <button
-              onClick={() => onAddExercise(day.id)}
-              className="w-full mt-2 py-2.5 rounded-xl border border-dashed border-border-light text-text-secondary text-sm font-medium hover:border-accent-orange/50 hover:text-accent-orange transition-colors flex items-center justify-center gap-1.5"
-            >
-              <Plus size={16} />
-              Add Exercise
-            </button>
+            <div className="flex gap-2 mt-2">
+              <button
+                onClick={() => onAddExercise(day.id)}
+                className="flex-1 py-2.5 rounded-xl border border-dashed border-border-light text-text-secondary text-sm font-medium hover:border-accent-orange/50 hover:text-accent-orange transition-colors flex items-center justify-center gap-1.5"
+              >
+                <Plus size={16} />
+                Add Exercise
+              </button>
+              <button
+                onClick={() => onAddCardio(day.id)}
+                className="flex-1 py-2.5 rounded-xl border border-dashed border-border-light text-text-secondary text-sm font-medium hover:border-accent-blue/50 hover:text-accent-blue transition-colors flex items-center justify-center gap-1.5"
+              >
+                <Plus size={16} />
+                Add Cardio
+              </button>
+            </div>
           </div>
 
           {/* Remove day */}
@@ -524,6 +597,27 @@ export function ProgramEditor({ program, fitnessGoal, onSave, onClose }: Props) 
       ),
     }));
   }, [editedProgram.goal]);
+
+  const addCardio = useCallback((dayId: string) => {
+    const newExercise: Exercise = {
+      id: crypto.randomUUID(),
+      name: '',
+      sets: 1,
+      reps: '1',
+      muscle: 'Cardio',
+      note: '',
+      exerciseType: 'cardio',
+      targetIntensity: 'moderate',
+    };
+    setEditedProgram((prev) => ({
+      ...prev,
+      days: prev.days.map((d) =>
+        d.id === dayId
+          ? { ...d, exercises: [...d.exercises, newExercise] }
+          : d
+      ),
+    }));
+  }, []);
 
   const reorderExercises = useCallback(
     (dayId: string, oldIndex: number, newIndex: number) => {
@@ -671,6 +765,7 @@ export function ProgramEditor({ program, fitnessGoal, onSave, onClose }: Props) 
                 onUpdateExercise={updateExercise}
                 onRemoveExercise={removeExercise}
                 onAddExercise={addExercise}
+                onAddCardio={addCardio}
                 onReorderExercises={reorderExercises}
               />
             ))}
