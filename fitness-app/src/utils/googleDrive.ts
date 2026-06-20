@@ -103,7 +103,7 @@ export async function gatherAllData(): Promise<object> {
   const profiles = JSON.parse(localStorage.getItem('fitos-profiles') || '[]');
 
   const settings: Record<string, string | null> = {};
-  for (const key of ['fitos-theme', 'fitos-dashboard-cards', 'fitos-usda-key', 'fitos-claude-key', 'fitos-claude-enabled']) {
+  for (const key of ['fitos-theme', 'fitos-dashboard-cards']) {
     settings[key] = localStorage.getItem(key);
   }
 
@@ -137,10 +137,11 @@ export async function restoreAllData(data: Record<string, unknown>): Promise<voi
     localStorage.setItem('fitos-profiles', JSON.stringify(data.profiles));
   }
 
+  const SENSITIVE_KEYS = ['fitos-usda-key', 'fitos-claude-key', 'fitos-claude-enabled'];
   if (data.settings && typeof data.settings === 'object') {
     const s = data.settings as Record<string, string | null>;
     for (const [key, val] of Object.entries(s)) {
-      if (val != null) localStorage.setItem(key, val);
+      if (val != null && !SENSITIVE_KEYS.includes(key)) localStorage.setItem(key, val);
     }
   }
 
