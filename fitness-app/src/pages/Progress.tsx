@@ -70,6 +70,18 @@ export function Progress({ profile, onUpdateProfile }: Props) {
   const [showManageQuestions, setShowManageQuestions] = useState(false);
   const [newQuestionLabel, setNewQuestionLabel] = useState('');
 
+  // Re-read questions from localStorage when switching to check-in tab
+  useEffect(() => {
+    if (tab === 'checkin') {
+      const stored = localStorage.getItem('fitos-checkin-questions');
+      if (stored) {
+        try { setQuestions(JSON.parse(stored)); } catch { /* invalid */ }
+      } else {
+        setQuestions(DEFAULT_QUESTIONS);
+      }
+    }
+  }, [tab]);
+
   const saveQuestions = useCallback((updated: CheckInQuestion[]) => {
     setQuestions(updated);
     localStorage.setItem('fitos-checkin-questions', JSON.stringify(updated));

@@ -595,9 +595,16 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
               </div>
               <button
                 onClick={() => {
+                  const defaultIds = new Set(DEFAULT_CHECKIN_QUESTIONS.map((q) => q.id));
+                  const added = coachQuestions.filter((q) => !defaultIds.has(q.id));
+                  const removedDefaults = DEFAULT_CHECKIN_QUESTIONS.filter((q) => !coachQuestions.some((cq) => cq.id === q.id));
+                  const parts: string[] = [];
+                  for (const q of added) parts.push(`Added: ${q.label}`);
+                  for (const q of removedDefaults) parts.push(`Removed: ${q.label}`);
+                  const label = parts.length > 0 ? parts.join(', ') : `${coachQuestions.length} check-in questions`;
                   setStagedChanges((prev) => [
-                    ...prev.filter((c) => c.type !== 'note' || !c.label.startsWith('Check-in questions')),
-                    { id: crypto.randomUUID(), type: 'note', label: `Check-in questions: ${coachQuestions.length} questions`, data: JSON.stringify({ action: 'set_questions', questions: coachQuestions }), coachNote: 'Updated check-in questions' },
+                    ...prev.filter((c) => c.type !== 'note' || !(typeof c.data === 'string' && c.data.includes('set_questions'))),
+                    { id: crypto.randomUUID(), type: 'note', label, data: JSON.stringify({ action: 'set_questions', questions: coachQuestions }) },
                   ]);
                   toast('Questions staged — push to apply', 'success');
                 }}

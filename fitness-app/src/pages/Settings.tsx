@@ -81,7 +81,7 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
   const { user: googleUser, isSignedIn: googleSignedIn, signIn: googleSignIn, signOut: googleSignOut, deleteCloudDataAndSignOut, syncStatus, lastSynced, syncNow, isLoading: googleLoading } = useGoogleAuth();
   const {
     myCoachRels, myClients, loading: coachLoading, pendingChanges,
-    shareWithCoach, revokeCoachAccess,
+    shareWithCoach, revokeCoachAccess, syncCoachFiles,
     addClient, removeClient, getClientData, pushChangesToClient,
     checkForClientResponse, acknowledgeClientResponse,
   } = useCoach();
@@ -559,7 +559,7 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
                 </div>
 
                 <button
-                  onClick={() => syncNow()}
+                  onClick={() => { syncNow(); syncCoachFiles(); }}
                   disabled={syncStatus === 'syncing'}
                   className="btn-secondary w-full flex items-center justify-center gap-2 text-sm disabled:opacity-50"
                 >

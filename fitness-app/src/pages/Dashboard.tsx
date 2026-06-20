@@ -93,8 +93,7 @@ export default function Dashboard({ profile, onUpdateProfile }: DashboardProps) 
 
   useEffect(() => {
     if (googleSignedIn && myCoachRels.length > 0) {
-      syncCoachFiles();
-      checkForCoachChanges();
+      syncCoachFiles().then(() => checkForCoachChanges());
     }
   }, [googleSignedIn, myCoachRels.length, syncCoachFiles, checkForCoachChanges]);
 

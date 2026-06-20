@@ -170,7 +170,8 @@ export function useCoach() {
 
         const photoMeta = await uploadAllPhotos(token, folderId);
         const fileData = { ...freshData };
-        fileData.pendingChanges = existing.pendingChanges || null;
+        // If client already responded, clear pendingChanges so they don't reappear
+        fileData.pendingChanges = existing.clientResponse ? null : (existing.pendingChanges || null);
         fileData.clientResponse = existing.clientResponse || null;
         fileData.progressPhotos = [];
         fileData.photoMeta = photoMeta;
