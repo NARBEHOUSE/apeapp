@@ -37,17 +37,10 @@ export function calculateMacros(stats: BodyStats): MacroTargets {
   const tdee = calculateTDEE(stats);
   const targetCalories = Math.max(1200, tdee + getGoalOffset(stats.fitnessGoal));
 
-  let protein: number;
-
-  if (stats.bodyFatPercent != null && stats.bodyFatPercent > 0) {
-    // Lean body mass approach: 1g protein per lb of lean mass
-    const leanMassKg = stats.weightKg * (1 - stats.bodyFatPercent / 100);
-    const leanMassLbs = leanMassKg * 2.20462;
-    protein = Math.round(leanMassLbs);
-  } else {
-    // Fallback: 1g protein per cm of height
-    protein = Math.round(stats.heightCm);
-  }
+  // Cutting requires more protein to preserve muscle in a deficit
+  const protein = Math.round(
+    stats.fitnessGoal === 'lose' ? stats.heightCm * 1.1 : stats.heightCm
+  );
 
   // Fat: 30% of total calories
   const fatPct = 0.30;
