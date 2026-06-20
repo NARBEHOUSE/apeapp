@@ -359,9 +359,22 @@ export async function gatherAllData(googleEmail?: string): Promise<object> {
   const progressPhotos = allPhotos.filter((p: { profileId: string }) => profileIds.has(p.profileId));
   const checkIns = allCheckIns.filter((c: { profileId: string }) => profileIds.has(c.profileId));
 
+  // Sync all fitos-* localStorage keys except sensitive/device-specific ones
+  const SKIP_SYNC = new Set([
+    'fitos-profiles',          // synced separately
+    'fitos-active-profile',    // device-specific
+    'fitos-google-user',       // device-specific auth cache
+    'fitos-last-synced',       // device-specific
+    'fitos-usda-key',          // sensitive API key
+    'fitos-claude-key',        // sensitive API key
+    'fitos-claude-enabled',    // tied to sensitive key
+  ]);
   const settings: Record<string, string | null> = {};
-  for (const key of ['fitos-theme', 'fitos-dashboard-cards', 'fitos-coach-relationships', 'fitos-checkin-questions', 'fitos-photo-folder-id', 'fitos-coach-uploaded-photos', 'fitos-coach-log']) {
-    settings[key] = localStorage.getItem(key);
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key && key.startsWith('fitos-') && !SKIP_SYNC.has(key) && !key.startsWith('fitos-food-history-') && !key.startsWith('fitos-saved-meals-')) {
+      settings[key] = localStorage.getItem(key);
+    }
   }
 
   const profileExtras: Record<string, Record<string, string | null>> = {};
