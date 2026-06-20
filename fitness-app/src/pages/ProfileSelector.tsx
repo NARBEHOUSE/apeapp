@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { Plus, Trash2, ChevronRight, ChevronLeft, Upload, Loader2, Cloud } from 'lucide-react';
+import { Plus, Trash2, ChevronRight, ChevronLeft, Upload, Loader2, LogOut } from 'lucide-react';
 import type { Profile, BodyStats, FitnessGoal, ActivityLevel, Gender, MacroTargets } from '../types';
 import { ConfirmDialog } from '../components/shared/ConfirmDialog';
 import { importBackupProfiles } from '../utils/exportImport';
@@ -29,7 +29,7 @@ export function ProfileSelector({ profiles, onSelect, onCreate, onDelete, onRefr
   const [step, setStep] = useState<Step>('list');
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const importRef = useRef<HTMLInputElement>(null);
-  const { isSignedIn, isLoading: googleLoading, signIn: googleSignIn, user: googleUser } = useGoogleAuth();
+  const { isSignedIn, isLoading: googleLoading, signIn: googleSignIn, signOut: googleSignOut, user: googleUser } = useGoogleAuth();
 
   const handleGoogleSignIn = async () => {
     const success = await googleSignIn();
@@ -151,8 +151,58 @@ export function ProfileSelector({ profiles, onSelect, onCreate, onDelete, onRefr
         </div>
 
         <div className="w-full max-w-sm space-y-2">
-          {/* Google Sign-In */}
-          {!isSignedIn ? (
+          {/* Google-linked profiles */}
+          {isSignedIn && profiles.length > 0 && profiles.map((profile) => (
+            <div key={profile.id} className="bg-surface rounded-2xl overflow-hidden">
+              <button
+                onClick={() => onSelect(profile.id)}
+                className="w-full flex items-center gap-4 p-4 text-left active:scale-[0.98] transition-transform"
+              >
+                {googleUser?.picture ? (
+                  <img src={googleUser.picture} alt="" className="w-10 h-10 rounded-full object-cover shrink-0" referrerPolicy="no-referrer" />
+                ) : profile.profilePhoto ? (
+                  <img src={profile.profilePhoto} alt={profile.name} className="w-10 h-10 rounded-full object-cover shrink-0" />
+                ) : (
+                  <div
+                    className="w-10 h-10 rounded-full flex items-center justify-center text-white font-medium text-sm"
+                    style={{ backgroundColor: profile.avatarColor }}
+                  >
+                    {profile.name[0]?.toUpperCase()}
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium text-sm">{profile.name}</div>
+                  <div className="text-[11px] text-text-muted truncate">
+                    {googleUser?.email} · {profile.macroTargets.calories} cal
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  <span className="text-[10px] text-success font-medium px-2 py-0.5 rounded-full bg-success/10">Synced</span>
+                  <ChevronRight size={16} className="text-text-muted" />
+                </div>
+              </button>
+              <div className="flex border-t border-border">
+                <button
+                  onClick={(e) => { e.stopPropagation(); googleSignOut(); }}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-[11px] text-text-muted hover:text-danger transition-colors"
+                >
+                  <LogOut size={12} />
+                  Sign Out
+                </button>
+                <div className="w-px bg-border" />
+                <button
+                  onClick={(e) => { e.stopPropagation(); setDeleteId(profile.id); }}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-[11px] text-text-muted hover:text-danger transition-colors"
+                >
+                  <Trash2 size={12} />
+                  Delete Profile
+                </button>
+              </div>
+            </div>
+          ))}
+
+          {/* Google sign-in (not signed in yet) */}
+          {!isSignedIn && (
             <button
               onClick={handleGoogleSignIn}
               disabled={googleLoading}
@@ -170,28 +220,37 @@ export function ProfileSelector({ profiles, onSelect, onCreate, onDelete, onRefr
               )}
               {googleLoading ? 'Signing in...' : 'Sign in with Google'}
             </button>
-          ) : (
-            <div className="flex items-center gap-3 bg-surface rounded-2xl p-4">
-              {googleUser?.picture ? (
-                <img src={googleUser.picture} alt="" className="w-8 h-8 rounded-full" referrerPolicy="no-referrer" />
-              ) : (
-                <Cloud size={20} className="text-accent-blue" />
-              )}
-              <div className="flex-1 min-w-0">
-                <div className="text-xs font-medium text-text-primary truncate">{googleUser?.name}</div>
-                <div className="text-[10px] text-text-muted truncate">{googleUser?.email}</div>
+          )}
+
+          {/* Signed in but no profile yet */}
+          {isSignedIn && profiles.length === 0 && (
+            <div className="bg-surface rounded-2xl p-4 text-center space-y-3">
+              <div className="flex items-center justify-center gap-2">
+                {googleUser?.picture && (
+                  <img src={googleUser.picture} alt="" className="w-6 h-6 rounded-full" referrerPolicy="no-referrer" />
+                )}
+                <span className="text-xs text-text-muted">{googleUser?.email}</span>
+                <span className="text-[10px] text-success font-medium px-1.5 py-0.5 rounded-full bg-success/10">Synced</span>
               </div>
-              <span className="text-[10px] text-success font-medium px-2 py-0.5 rounded-full bg-success/10">Synced</span>
+              <p className="text-sm text-text-secondary">Create your profile to get started</p>
+              <button
+                onClick={() => setStep('name')}
+                className="btn-primary w-full"
+              >
+                <Plus size={16} className="inline mr-1" />
+                Create Profile
+              </button>
+              <button
+                onClick={googleSignOut}
+                className="text-[11px] text-text-muted hover:text-danger transition-colors"
+              >
+                Sign out of Google
+              </button>
             </div>
           )}
 
-          {profiles.length === 0 && !isSignedIn && (
-            <div className="text-center py-2">
-              <p className="text-[11px] text-text-muted">or create a local profile below</p>
-            </div>
-          )}
-
-          {profiles.map((profile) => (
+          {/* Local profiles (not signed in with Google) */}
+          {!isSignedIn && profiles.map((profile) => (
             <div key={profile.id} className="flex items-center gap-2">
               <button
                 onClick={() => onSelect(profile.id)}
@@ -228,7 +287,7 @@ export function ProfileSelector({ profiles, onSelect, onCreate, onDelete, onRefr
             </div>
           ))}
 
-          {profiles.length < 5 && (
+          {!isSignedIn && profiles.length < 5 && (
             <div className="flex gap-2">
               <button
                 onClick={() => setStep('name')}
