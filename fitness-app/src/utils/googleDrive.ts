@@ -108,12 +108,44 @@ export async function downloadSyncData(token: string, fileId: string): Promise<s
   return res.text();
 }
 
-// --- Coach sharing (regular Drive, not appDataFolder) ---
+// --- APE App root folder in Drive ---
 
+const APE_ROOT_FOLDER = 'APE App';
 const COACH_FILE_NAME = 'ape-coach-share.json';
+const COACH_PHOTO_SUBFOLDER = 'Progress Photos';
+
+let cachedRootFolderId: string | null = null;
+
+export async function getOrCreateRootFolder(token: string): Promise<string> {
+  if (cachedRootFolderId) return cachedRootFolderId;
+
+  // Check if it exists
+  const res = await driveRequest(
+    token,
+    `https://www.googleapis.com/drive/v3/files?q=name='${APE_ROOT_FOLDER}' and mimeType='application/vnd.google-apps.folder' and 'root' in parents and trashed=false&fields=files(id)&pageSize=1`,
+  );
+  const data = await res.json();
+  if (data.files?.[0]) {
+    cachedRootFolderId = data.files[0].id;
+    return cachedRootFolderId;
+  }
+
+  // Create it
+  const createRes = await driveRequest(token, 'https://www.googleapis.com/drive/v3/files', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: APE_ROOT_FOLDER, mimeType: 'application/vnd.google-apps.folder' }),
+  });
+  const folder = await createRes.json();
+  cachedRootFolderId = folder.id;
+  return folder.id;
+}
+
+// --- Coach sharing ---
 
 export async function createCoachShareFile(token: string, content: string, coachEmail: string): Promise<string> {
-  const metadata = { name: COACH_FILE_NAME, mimeType: 'application/json' };
+  const rootId = await getOrCreateRootFolder(token);
+  const metadata = { name: COACH_FILE_NAME, mimeType: 'application/json', parents: [rootId] };
   const boundary = 'ape_coach_boundary';
   const body = `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n${content}\r\n--${boundary}--`;
 
@@ -124,7 +156,6 @@ export async function createCoachShareFile(token: string, content: string, coach
   });
   const file = await res.json();
 
-  // Share with the coach's specific Google account only
   await driveRequest(token, `https://www.googleapis.com/drive/v3/files/${file.id}/permissions?sendNotificationEmail=false`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -147,32 +178,24 @@ export async function writeSharedFile(token: string, fileId: string, content: st
   });
 }
 
-export async function findMyCoachFile(token: string): Promise<DriveFile | null> {
-  const res = await driveRequest(
-    token,
-    `https://www.googleapis.com/drive/v3/files?q=name='${COACH_FILE_NAME}' and 'me' in owners&fields=files(id,name,modifiedTime)&pageSize=1`,
-  );
-  const data = await res.json();
-  return data.files?.[0] || null;
-}
+
 
 export async function deleteFile(token: string, fileId: string): Promise<void> {
   await driveRequest(token, `https://www.googleapis.com/drive/v3/files/${fileId}`, { method: 'DELETE' });
 }
 
-// --- Coach photo folder ---
-
-const COACH_PHOTO_FOLDER = 'APE Coach Photos';
+// --- Coach photo folder (inside APE App root) ---
 
 export async function createPhotoFolder(token: string): Promise<string> {
+  const rootId = await getOrCreateRootFolder(token);
   const res = await driveRequest(token, 'https://www.googleapis.com/drive/v3/files', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name: COACH_PHOTO_FOLDER, mimeType: 'application/vnd.google-apps.folder' }),
+    body: JSON.stringify({ name: COACH_PHOTO_SUBFOLDER, mimeType: 'application/vnd.google-apps.folder', parents: [rootId] }),
   });
   const folder = await res.json();
 
-  // Anyone with the link can view — files inside inherit this
+  // Anyone with the link can view — so coach can see photos via URL
   await driveRequest(token, `https://www.googleapis.com/drive/v3/files/${folder.id}/permissions`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -184,15 +207,6 @@ export async function createPhotoFolder(token: string): Promise<string> {
 
 export function drivePhotoUrl(fileId: string): string {
   return `https://lh3.googleusercontent.com/d/${fileId}=s600`;
-}
-
-export async function findPhotoFolder(token: string): Promise<string | null> {
-  const res = await driveRequest(
-    token,
-    `https://www.googleapis.com/drive/v3/files?q=name='${COACH_PHOTO_FOLDER}' and mimeType='application/vnd.google-apps.folder' and 'me' in owners&fields=files(id)&pageSize=1`,
-  );
-  const data = await res.json();
-  return data.files?.[0]?.id || null;
 }
 
 export async function uploadPhotoToFolder(
