@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from 'react';
-import { Camera, Loader2, Check, AlertTriangle, Edit3 } from 'lucide-react';
+import { Camera, Loader2, Check, AlertTriangle, Edit3, StickyNote } from 'lucide-react';
 import { analyzeFood } from '../../utils/claudeVision';
 import type { FoodEntry } from '../../types';
 
@@ -69,6 +69,7 @@ export function AIFoodScanner({ onAdd, onClose }: AIFoodScannerProps) {
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const [mealType, setMealType] = useState<MealType>('lunch');
   const [disclaimer, setDisclaimer] = useState('');
+  const [userNotes, setUserNotes] = useState('');
 
   const mealTypes: { value: MealType; label: string }[] = [
     { value: 'breakfast', label: 'Breakfast' },
@@ -116,7 +117,7 @@ export function AIFoodScanner({ onAdd, onClose }: AIFoodScannerProps) {
 
     try {
       const base64 = await compressImage(file, 800);
-      const result = await analyzeFood(base64, apiKey);
+      const result = await analyzeFood(base64, apiKey, userNotes);
       setFoods(result.foods);
       setDisclaimer(result.disclaimer);
     } catch (err) {
@@ -124,7 +125,7 @@ export function AIFoodScanner({ onAdd, onClose }: AIFoodScannerProps) {
     } finally {
       setAnalyzing(false);
     }
-  }, [apiKey]);
+  }, [apiKey, userNotes]);
 
   function updateFood(idx: number, field: keyof DetectedFood, value: string | number) {
     setFoods((prev) =>
@@ -166,6 +167,20 @@ export function AIFoodScanner({ onAdd, onClose }: AIFoodScannerProps) {
           <p className="text-text-secondary text-sm max-w-xs mx-auto">
             Take a photo of your meal and AI will estimate the nutrition content.
           </p>
+          <div className="w-full max-w-xs mx-auto text-left">
+            <label className="flex items-center gap-1.5 text-xs font-medium text-text-secondary mb-1.5">
+              <StickyNote size={12} />
+              Notes for AI
+              <span className="text-text-muted font-normal">(optional)</span>
+            </label>
+            <textarea
+              value={userNotes}
+              onChange={(e) => setUserNotes(e.target.value)}
+              placeholder="e.g. beef is 90/10, dressing on the side, extra cheese..."
+              rows={2}
+              className="input-field text-sm w-full resize-none"
+            />
+          </div>
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
@@ -209,18 +224,28 @@ export function AIFoodScanner({ onAdd, onClose }: AIFoodScannerProps) {
       </div>
 
       {/* Retake button */}
-      <button
-        type="button"
-        onClick={() => {
-          setPreview(null);
-          setFoods([]);
-          setError('');
-          if (fileInputRef.current) fileInputRef.current.value = '';
-        }}
-        className="text-sm text-accent-blue"
-      >
-        Retake photo
-      </button>
+      <div className="flex items-center justify-between">
+        <button
+          type="button"
+          onClick={() => {
+            setPreview(null);
+            setFoods([]);
+            setError('');
+            if (fileInputRef.current) fileInputRef.current.value = '';
+          }}
+          className="text-sm text-accent-blue"
+        >
+          Retake photo
+        </button>
+      </div>
+
+      {/* User notes */}
+      {userNotes && (
+        <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-surface-raised border border-border">
+          <StickyNote size={13} className="text-text-muted flex-shrink-0 mt-0.5" />
+          <p className="text-xs text-text-secondary italic">{userNotes}</p>
+        </div>
+      )}
 
       <input
         ref={fileInputRef}

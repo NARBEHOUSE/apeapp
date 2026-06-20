@@ -41,7 +41,11 @@ Respond ONLY with valid JSON in this exact format, no other text:
   "disclaimer": "These are estimates. Verify against packaging when possible."
 }`;
 
-export async function analyzeFood(base64Image: string, apiKey: string): Promise<VisionResult> {
+export async function analyzeFood(base64Image: string, apiKey: string, userNotes?: string): Promise<VisionResult> {
+  const userText = userNotes?.trim()
+    ? `Analyze this food and estimate the nutrition. The user provided these notes about the food — use them to make your estimates more accurate:\n"${userNotes.trim()}"`
+    : 'Analyze this food and estimate the nutrition.';
+
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -62,7 +66,7 @@ export async function analyzeFood(base64Image: string, apiKey: string): Promise<
               type: 'image',
               source: { type: 'base64', media_type: 'image/jpeg', data: base64Image },
             },
-            { type: 'text', text: 'Analyze this food and estimate the nutrition.' },
+            { type: 'text', text: userText },
           ],
         },
       ],
