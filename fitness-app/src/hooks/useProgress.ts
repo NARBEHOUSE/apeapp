@@ -9,8 +9,8 @@ import {
   getPhotosByPose,
   deleteProgressPhoto as dbDeletePhoto,
 } from '../db/progress';
-import { getAccessToken } from '../utils/googleAuth';
-import { getOrCreateRootFolder, createPhotoFolder, uploadPhotoToFolder, deleteFile } from '../utils/googleDrive';
+import { getAccessToken, requireAccessToken, getStoredUser } from '../utils/googleAuth';
+import { createPhotoFolder, uploadPhotoToFolder, deleteFile } from '../utils/googleDrive';
 
 const UPLOADED_PHOTOS_KEY = 'fitos-coach-uploaded-photos';
 const PHOTO_FOLDER_KEY = 'fitos-photo-folder-id';
@@ -61,10 +61,10 @@ export function useProgress(profileId: string | null) {
       await saveProgressPhoto(full);
       await loadData();
 
-      // Upload to Google Drive in background
-      const token = getAccessToken();
-      if (token) {
+      // Upload to Google Drive if signed in
+      if (getStoredUser()) {
         try {
+          const token = getAccessToken() || await requireAccessToken();
           let folderId = localStorage.getItem(PHOTO_FOLDER_KEY);
           if (!folderId) {
             folderId = await createPhotoFolder(token);
@@ -75,7 +75,7 @@ export function useProgress(profileId: string | null) {
           map[full.id] = driveFileId;
           localStorage.setItem(UPLOADED_PHOTOS_KEY, JSON.stringify(map));
         } catch (err) {
-          console.error('Drive photo upload failed (will retry on sync):', err);
+          console.error('Drive photo upload failed:', err);
         }
       }
     },
@@ -87,10 +87,10 @@ export function useProgress(profileId: string | null) {
       await dbDeletePhoto(id);
       await loadData();
 
-      // Delete from Google Drive in background
-      const token = getAccessToken();
-      if (token) {
+      // Delete from Google Drive if signed in
+      if (getStoredUser()) {
         try {
+          const token = getAccessToken() || await requireAccessToken();
           const map = JSON.parse(localStorage.getItem(UPLOADED_PHOTOS_KEY) || '{}');
           if (map[id]) {
             await deleteFile(token, map[id]);
