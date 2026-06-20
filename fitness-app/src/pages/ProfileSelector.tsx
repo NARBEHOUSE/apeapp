@@ -320,9 +320,8 @@ export function ProfileSelector({ profiles, onSelect, onCreate, onDelete, onRefr
               await clearProfileData(deleteId);
               onDelete(deleteId);
               if (isSignedIn) await deleteCloudDataAndSignOut();
-              // If no profiles left, wipe everything for a clean slate
-              const remaining = JSON.parse(localStorage.getItem('fitos-profiles') || '[]');
-              if (remaining.length === 0) await clearAllData();
+              // Always do a full wipe — coach data, food history, etc.
+              await clearAllData();
             }
             setDeleteId(null);
           }}
