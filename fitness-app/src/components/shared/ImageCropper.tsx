@@ -54,14 +54,13 @@ export function ImageCropper({ imageSrc, onCrop, onCancel, outputSize = 256 }: P
     ctx.drawImage(img, -img.width / 2, -img.height / 2);
     ctx.restore();
 
-    // Dark overlay outside circle
+    // Dark overlay outside circle (ring shape via even-odd fill)
     ctx.save();
     ctx.fillStyle = 'rgba(0,0,0,0.6)';
-    ctx.fillRect(0, 0, VIEWPORT, VIEWPORT);
-    ctx.globalCompositeOperation = 'destination-out';
     ctx.beginPath();
-    ctx.arc(cx, cy, CIRCLE_R, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.rect(0, 0, VIEWPORT, VIEWPORT);
+    ctx.arc(cx, cy, CIRCLE_R, 0, Math.PI * 2, true);
+    ctx.fill('evenodd');
     ctx.restore();
 
     // Circle border
