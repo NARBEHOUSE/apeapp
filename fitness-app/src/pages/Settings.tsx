@@ -25,9 +25,14 @@ import {
   Palette,
   Cloud,
   CloudOff,
+  UserPlus,
+  UserX,
+  Copy as CopyIcon,
+  Send,
 } from 'lucide-react';
-import type { Profile, BodyStats, FitnessGoal, ActivityLevel, Gender } from '../types';
+import type { Profile, BodyStats, FitnessGoal, ActivityLevel, Gender, PendingCoachChanges } from '../types';
 import { useGoogleAuth } from '../contexts/GoogleAuthContext';
+import { useCoach } from '../hooks/useCoach';
 import { testUSDAKey } from '../utils/usda';
 import { testClaudeKey } from '../utils/claudeVision';
 import {
@@ -67,12 +72,23 @@ interface Props {
   onLogout: () => void;
 }
 
-type Section = 'google' | 'theme' | 'api' | 'dashboard' | 'reports' | 'profile' | 'tdee' | 'data' | 'profiles' | 'about';
+type Section = 'google' | 'coach' | 'theme' | 'api' | 'dashboard' | 'reports' | 'profile' | 'tdee' | 'data' | 'profiles' | 'about';
 
 const REST_OPTIONS = [60, 90, 120];
 
 export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, onLogout }: Props) {
   const { user: googleUser, isSignedIn: googleSignedIn, signIn: googleSignIn, signOut: googleSignOut, deleteCloudDataAndSignOut, syncStatus, lastSynced, syncNow, isLoading: googleLoading } = useGoogleAuth();
+  const {
+    myCoachRel, myClients, loading: coachLoading, pendingChanges,
+    shareWithCoach, revokeCoachAccess, checkForCoachChanges, clearPendingChanges,
+    addClient, removeClient, getClientData, pushChangesToClient,
+  } = useCoach();
+
+  const [coachEmail, setCoachEmail] = useState('');
+  const [clientCode, setClientCode] = useState('');
+  const [clientName, setClientName] = useState('');
+  const [viewingClient, setViewingClient] = useState<{ fileId: string; data: Record<string, unknown> } | null>(null);
+  const [coachNote, setCoachNote] = useState('');
 
   // Expanded sections
   const [expanded, setExpanded] = useState<Set<Section>>(new Set(['api']));
@@ -579,6 +595,258 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
           </div>
         )}
       </div>
+
+      {/* Coach */}
+      {googleSignedIn && (
+      <div className="card">
+        <SectionHeader section="coach" icon={UserPlus} title="Coach" />
+        {expanded.has('coach') && (
+          <div className="space-y-4 pt-2">
+            {/* Pending coach changes banner */}
+            {pendingChanges && (
+              <div className="p-3 rounded-xl bg-accent-orange/10 border border-accent-orange/30 space-y-2">
+                <div className="text-sm font-medium text-accent-orange">Your coach made changes</div>
+                {pendingChanges.note && <p className="text-xs text-text-secondary">{pendingChanges.note}</p>}
+                <div className="text-[10px] text-text-muted">
+                  {pendingChanges.macroTargets && `Macros: ${pendingChanges.macroTargets.protein}p / ${pendingChanges.macroTargets.carbs}c / ${pendingChanges.macroTargets.fat}f`}
+                  {pendingChanges.program && ` · Program: ${pendingChanges.program.name}`}
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={async () => {
+                      if (pendingChanges.macroTargets) {
+                        const cals = pendingChanges.macroTargets.protein * 4 + pendingChanges.macroTargets.carbs * 4 + pendingChanges.macroTargets.fat * 9;
+                        onUpdateProfile(profile.id, { macroTargets: { ...pendingChanges.macroTargets, calories: cals } });
+                      }
+                      if (pendingChanges.program) {
+                        const { getDB } = await import('../db');
+                        const db = await getDB();
+                        await db.put('programs', { ...pendingChanges.program, isBuiltIn: false });
+                      }
+                      await clearPendingChanges();
+                      toast('Coach changes accepted', 'success');
+                    }}
+                    className="btn-primary flex-1 text-sm py-2"
+                  >
+                    Accept
+                  </button>
+                  <button onClick={() => clearPendingChanges()} className="btn-secondary flex-1 text-sm py-2">
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Client side — share with coach */}
+            <div className="space-y-2">
+              <div className="text-xs font-semibold text-text-secondary uppercase tracking-wider">My Coach</div>
+              {myCoachRel ? (
+                <div className="space-y-2">
+                  <div className="p-3 rounded-xl bg-surface-raised border border-border">
+                    <div className="text-sm font-medium">Shared with {myCoachRel.coachEmail}</div>
+                    <div className="text-[10px] text-text-muted mt-0.5">
+                      Your coach can view your data and push program/macro changes
+                    </div>
+                    <div className="flex items-center gap-2 mt-2">
+                      <div className="text-[9px] text-text-muted bg-surface rounded px-2 py-1 font-mono flex-1 truncate">
+                        {myCoachRel.fileId}
+                      </div>
+                      <button
+                        onClick={() => { navigator.clipboard.writeText(myCoachRel.fileId); toast('Code copied', 'success'); }}
+                        className="p-1.5 rounded-lg hover:bg-surface text-text-muted"
+                      >
+                        <CopyIcon size={12} />
+                      </button>
+                    </div>
+                  </div>
+                  <button
+                    onClick={async () => { await revokeCoachAccess(); toast('Coach access revoked', 'success'); }}
+                    className="w-full flex items-center justify-center gap-1.5 py-2 text-[11px] text-danger font-medium"
+                  >
+                    <UserX size={12} /> Remove Coach
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-[11px] text-text-muted">
+                    Share your data with a coach so they can view your progress and push program changes.
+                  </p>
+                  <input
+                    type="email"
+                    className="input-field text-sm"
+                    placeholder="Coach's Gmail address"
+                    value={coachEmail}
+                    onChange={(e) => setCoachEmail(e.target.value)}
+                  />
+                  <button
+                    onClick={async () => {
+                      if (!coachEmail.trim()) return;
+                      const fileId = await shareWithCoach(coachEmail.trim());
+                      if (fileId) {
+                        toast('Shared with coach! Send them your code.', 'success');
+                        setCoachEmail('');
+                      } else {
+                        toast('Failed to share', 'error');
+                      }
+                    }}
+                    disabled={!coachEmail.trim() || coachLoading}
+                    className="btn-primary w-full text-sm disabled:opacity-30"
+                  >
+                    Share with Coach
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Coach side — manage clients */}
+            <div className="border-t border-border pt-3 space-y-2">
+              <div className="text-xs font-semibold text-text-secondary uppercase tracking-wider">My Clients</div>
+              {myClients.length > 0 && (
+                <div className="space-y-2">
+                  {myClients.map((client) => (
+                    <div key={client.fileId} className="p-3 rounded-xl bg-surface-raised border border-border">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="text-sm font-medium">{client.clientName || 'Client'}</div>
+                          {client.clientEmail && <div className="text-[10px] text-text-muted">{client.clientEmail}</div>}
+                        </div>
+                        <div className="flex gap-1">
+                          <button
+                            onClick={async () => {
+                              const data = await getClientData(client.fileId);
+                              if (data) setViewingClient({ fileId: client.fileId, data });
+                              else toast('Could not load client data', 'error');
+                            }}
+                            className="px-2.5 py-1 rounded-lg text-[10px] font-medium bg-accent-blue/10 text-accent-blue"
+                          >
+                            View
+                          </button>
+                          <button
+                            onClick={() => { removeClient(client.fileId); toast('Client removed', 'success'); }}
+                            className="p-1 rounded-lg text-text-muted hover:text-danger"
+                          >
+                            <UserX size={13} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <p className="text-[11px] text-text-muted">
+                Enter a client's share code to start coaching them.
+              </p>
+              <div className="flex gap-2">
+                <input
+                  className="input-field text-sm flex-1 font-mono"
+                  placeholder="Client's share code"
+                  value={clientCode}
+                  onChange={(e) => setClientCode(e.target.value)}
+                />
+                <input
+                  className="input-field text-sm w-24"
+                  placeholder="Name"
+                  value={clientName}
+                  onChange={(e) => setClientName(e.target.value)}
+                />
+              </div>
+              <button
+                onClick={() => {
+                  if (!clientCode.trim()) return;
+                  addClient(clientCode.trim(), clientName.trim() || undefined);
+                  toast('Client added', 'success');
+                  setClientCode('');
+                  setClientName('');
+                }}
+                disabled={!clientCode.trim()}
+                className="btn-primary w-full text-sm disabled:opacity-30"
+              >
+                Add Client
+              </button>
+            </div>
+
+            {/* View client modal */}
+            {viewingClient && (
+              <div className="space-y-3 border-t border-border pt-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-semibold">
+                    {(viewingClient.data.profile as { name?: string })?.name || 'Client Data'}
+                  </h4>
+                  <button onClick={() => setViewingClient(null)} className="text-[11px] text-text-muted">Close</button>
+                </div>
+
+                {(() => {
+                  const p = viewingClient.data.profile as Record<string, unknown> | undefined;
+                  const mt = p?.macroTargets as { calories?: number; protein?: number; carbs?: number; fat?: number } | undefined;
+                  return p ? (
+                    <div className="p-3 rounded-xl bg-surface-raised border border-border text-xs space-y-1">
+                      <div>Goal: <span className="font-medium">{String(p.goal || '-')}</span></div>
+                      {mt && <div>Macros: {mt.calories} cal · {mt.protein}p / {mt.carbs}c / {mt.fat}f</div>}
+                      <div>Workouts: {Array.isArray(viewingClient.data.workoutSessions) ? viewingClient.data.workoutSessions.length : 0}</div>
+                      <div>Food entries: {Array.isArray(viewingClient.data.foodEntries) ? viewingClient.data.foodEntries.length : 0}</div>
+                      <div>Measurements: {Array.isArray(viewingClient.data.measurements) ? viewingClient.data.measurements.length : 0}</div>
+                    </div>
+                  ) : null;
+                })()}
+
+                <div className="space-y-2">
+                  <div className="text-[10px] font-semibold text-text-secondary uppercase tracking-wider">Push Changes</div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <label className="text-[9px] text-text-muted block">Protein</label>
+                      <input type="number" inputMode="numeric" className="input-field text-xs text-center" id={`coach-p-${viewingClient.fileId}`}
+                        defaultValue={((viewingClient.data.profile as Record<string, unknown>)?.macroTargets as { protein?: number })?.protein || ''}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[9px] text-text-muted block">Carbs</label>
+                      <input type="number" inputMode="numeric" className="input-field text-xs text-center" id={`coach-c-${viewingClient.fileId}`}
+                        defaultValue={((viewingClient.data.profile as Record<string, unknown>)?.macroTargets as { carbs?: number })?.carbs || ''}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[9px] text-text-muted block">Fat</label>
+                      <input type="number" inputMode="numeric" className="input-field text-xs text-center" id={`coach-f-${viewingClient.fileId}`}
+                        defaultValue={((viewingClient.data.profile as Record<string, unknown>)?.macroTargets as { fat?: number })?.fat || ''}
+                      />
+                    </div>
+                  </div>
+                  <input
+                    className="input-field text-sm"
+                    placeholder="Note to client (optional)"
+                    value={coachNote}
+                    onChange={(e) => setCoachNote(e.target.value)}
+                  />
+                  <button
+                    onClick={async () => {
+                      const pEl = document.getElementById(`coach-p-${viewingClient.fileId}`) as HTMLInputElement;
+                      const cEl = document.getElementById(`coach-c-${viewingClient.fileId}`) as HTMLInputElement;
+                      const fEl = document.getElementById(`coach-f-${viewingClient.fileId}`) as HTMLInputElement;
+                      const protein = parseInt(pEl?.value) || 0;
+                      const carbs = parseInt(cEl?.value) || 0;
+                      const fat = parseInt(fEl?.value) || 0;
+                      if (!protein && !carbs && !fat) { toast('Enter at least one macro', 'error'); return; }
+                      const changes: PendingCoachChanges = {
+                        macroTargets: { calories: protein * 4 + carbs * 4 + fat * 9, protein, carbs, fat },
+                        note: coachNote.trim() || undefined,
+                        pushedAt: new Date().toISOString(),
+                      };
+                      const ok = await pushChangesToClient(viewingClient.fileId, changes);
+                      if (ok) { toast('Changes pushed to client', 'success'); setCoachNote(''); }
+                      else toast('Failed to push changes', 'error');
+                    }}
+                    disabled={coachLoading}
+                    className="btn-primary w-full text-sm flex items-center justify-center gap-1.5 disabled:opacity-50"
+                  >
+                    <Send size={14} /> Push Macro Changes
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+      )}
 
       {/* Theme */}
       <div className="card">

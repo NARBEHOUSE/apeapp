@@ -12,6 +12,7 @@ import { calculateAutoAdjustment, type AutoAdjustResult } from '../utils/tdee';
 import { getDashboardConfig } from '../utils/dashboardConfig';
 import { daysSinceBackup } from '../utils/backupReminder';
 import { useGoogleAuth } from '../contexts/GoogleAuthContext';
+import { useCoach } from '../hooks/useCoach';
 
 import WeeklyRing from '../components/dashboard/WeeklyRing';
 import MacroSummary from '../components/dashboard/MacroSummary';
@@ -31,6 +32,7 @@ const MEASUREMENT_LABELS: Record<string, string> = {
 export default function Dashboard({ profile }: DashboardProps) {
   const navigate = useNavigate();
   const { isSignedIn: googleSignedIn } = useGoogleAuth();
+  const { pendingChanges, checkForCoachChanges, myCoachRel } = useCoach();
 
   const [sessions, setSessions] = useState<WorkoutSession[]>([]);
   const [foodEntries, setFoodEntries] = useState<FoodEntry[]>([]);
@@ -86,6 +88,10 @@ export default function Dashboard({ profile }: DashboardProps) {
     loadData();
     return () => { cancelled = true; };
   }, [profile.id]);
+
+  useEffect(() => {
+    if (googleSignedIn && myCoachRel) checkForCoachChanges();
+  }, [googleSignedIn, myCoachRel, checkForCoachChanges]);
 
   const activeProgram = profile.activeProgram
     ? programs.find((p) => p.id === profile.activeProgram!.programId)
@@ -227,6 +233,23 @@ export default function Dashboard({ profile }: DashboardProps) {
             <div className="text-sm font-medium">Calorie adjustment ready</div>
             <div className="text-[11px] text-text-muted truncate">
               {autoAdjust.reason.split('.')[0]}
+            </div>
+          </div>
+          <ChevronRight size={14} className="text-text-muted" />
+        </button>
+      )}
+
+      {/* Coach changes banner */}
+      {pendingChanges && (
+        <button
+          onClick={() => navigate('/settings')}
+          className="bg-accent-orange/10 border border-accent-orange/30 rounded-2xl p-4 flex items-center gap-3 w-full text-left active:scale-[0.98] transition-transform"
+        >
+          <Zap size={16} className="text-accent-orange" />
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-medium text-accent-orange">Coach made changes</div>
+            <div className="text-[11px] text-text-muted truncate">
+              {pendingChanges.note || 'Open Settings → Coach to review and accept'}
             </div>
           </div>
           <ChevronRight size={14} className="text-text-muted" />

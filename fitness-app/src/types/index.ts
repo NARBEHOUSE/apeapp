@@ -158,6 +158,23 @@ export interface ExerciseFeedback {
   note?: string;
 }
 
+export interface CoachRelationship {
+  fileId: string;
+  coachEmail?: string;
+  clientEmail?: string;
+  clientName?: string;
+  role: 'client' | 'coach';
+  createdAt: string;
+}
+
+export interface PendingCoachChanges {
+  macroTargets?: { calories: number; protein: number; carbs: number; fat: number };
+  programId?: string;
+  program?: Program;
+  note?: string;
+  pushedAt: string;
+}
+
 export interface CardioEntry {
   type: string;
   durationMin: number;

@@ -108,6 +108,92 @@ export async function downloadSyncData(token: string, fileId: string): Promise<s
   return res.text();
 }
 
+// --- Coach sharing (regular Drive, not appDataFolder) ---
+
+const COACH_FILE_NAME = 'ape-coach-share.json';
+
+export async function createCoachShareFile(token: string, content: string): Promise<string> {
+  const metadata = { name: COACH_FILE_NAME, mimeType: 'application/json' };
+  const boundary = 'ape_coach_boundary';
+  const body = `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n${content}\r\n--${boundary}--`;
+
+  const res = await driveRequest(token, 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+    method: 'POST',
+    headers: { 'Content-Type': `multipart/related; boundary=${boundary}` },
+    body,
+  });
+  const file = await res.json();
+
+  // Make it writable by anyone with the link
+  await driveRequest(token, `https://www.googleapis.com/drive/v3/files/${file.id}/permissions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ role: 'writer', type: 'anyone' }),
+  });
+
+  return file.id;
+}
+
+export async function readSharedFile(token: string, fileId: string): Promise<string> {
+  const res = await driveRequest(token, `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`);
+  return res.text();
+}
+
+export async function writeSharedFile(token: string, fileId: string, content: string): Promise<void> {
+  await driveRequest(token, `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: content,
+  });
+}
+
+export async function findMyCoachFile(token: string): Promise<DriveFile | null> {
+  const res = await driveRequest(
+    token,
+    `https://www.googleapis.com/drive/v3/files?q=name='${COACH_FILE_NAME}' and 'me' in owners&fields=files(id,name,modifiedTime)&pageSize=1`,
+  );
+  const data = await res.json();
+  return data.files?.[0] || null;
+}
+
+export async function deleteFile(token: string, fileId: string): Promise<void> {
+  await driveRequest(token, `https://www.googleapis.com/drive/v3/files/${fileId}`, { method: 'DELETE' });
+}
+
+export async function gatherCoachData(): Promise<object> {
+  const db = await getDB();
+  const [workoutSessions, foodEntries, measurements, programs] = await Promise.all([
+    db.getAll('workoutSessions'),
+    db.getAll('foodEntries'),
+    db.getAll('measurements'),
+    db.getAll('programs'),
+  ]);
+
+  const profiles = JSON.parse(localStorage.getItem('fitos-profiles') || '[]');
+  const profile = profiles[0] || {};
+
+  return {
+    _apeCoachShare: true,
+    version: 1,
+    updatedAt: new Date().toISOString(),
+    profile: {
+      name: profile.name,
+      goal: profile.goal,
+      macroTargets: profile.macroTargets,
+      bodyStats: profile.bodyStats,
+      tdee: profile.tdee,
+      activeProgram: profile.activeProgram,
+    },
+    workoutSessions,
+    foodEntries,
+    measurements,
+    programs: programs.filter((p: { isBuiltIn?: boolean }) => !p.isBuiltIn),
+    pendingChanges: null,
+  };
+}
+
+// --- Sync (appDataFolder) ---
+
 export async function gatherAllData(): Promise<object> {
   const db = await getDB();
   const [workoutSessions, foodEntries, measurements, progressPhotos, programs] = await Promise.all([
