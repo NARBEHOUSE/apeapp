@@ -116,6 +116,14 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
   const [editCarbs, setEditCarbs] = useState(String(profile.macroTargets.carbs));
   const [editFat, setEditFat] = useState(String(profile.macroTargets.fat));
 
+  // Keep macro edit state in sync when profile changes externally (e.g. from Nutrition page)
+  useEffect(() => {
+    setEditCalories(String(profile.macroTargets.calories));
+    setEditProtein(String(profile.macroTargets.protein));
+    setEditCarbs(String(profile.macroTargets.carbs));
+    setEditFat(String(profile.macroTargets.fat));
+  }, [profile.macroTargets.calories, profile.macroTargets.protein, profile.macroTargets.carbs, profile.macroTargets.fat]);
+
   // Body stats editing
   const existingStats = profile.bodyStats;
   const existingHeight = existingStats ? cmToFeetInches(existingStats.heightCm) : { feet: 0, inches: 0 };

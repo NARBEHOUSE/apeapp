@@ -201,6 +201,13 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
   const [editMacroFat, setEditMacroFat] = useState(String(profile.macroTargets.fat));
   const [editMacroFiber, setEditMacroFiber] = useState(String(profile.fiberTarget ?? 30));
 
+  useEffect(() => {
+    setEditMacroProtein(String(profile.macroTargets.protein));
+    setEditMacroCarbs(String(profile.macroTargets.carbs));
+    setEditMacroFat(String(profile.macroTargets.fat));
+    setEditMacroFiber(String(profile.fiberTarget ?? 30));
+  }, [profile.macroTargets.protein, profile.macroTargets.carbs, profile.macroTargets.fat, profile.fiberTarget]);
+
   const editCalcCalories = Math.round(
     (parseInt(editMacroProtein) || 0) * 4 +
     (parseInt(editMacroCarbs) || 0) * 4 +
