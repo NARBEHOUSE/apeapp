@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   ArrowLeft, Send, Dumbbell, Utensils, TrendingUp, Target,
   ChevronDown, ChevronUp, Calendar, Plus, Trash2, Check, X, MessageSquare, Heart,
@@ -40,6 +40,13 @@ export function ClientView({ data, fileId, onPushChanges, onCheckClientResponse,
   const [editProtein, setEditProtein] = useState(String(data.profile.macroTargets?.protein || ''));
   const [editCarbs, setEditCarbs] = useState(String(data.profile.macroTargets?.carbs || ''));
   const [editFat, setEditFat] = useState(String(data.profile.macroTargets?.fat || ''));
+
+  useEffect(() => {
+    setEditProtein(String(data.profile.macroTargets?.protein || ''));
+    setEditCarbs(String(data.profile.macroTargets?.carbs || ''));
+    setEditFat(String(data.profile.macroTargets?.fat || ''));
+  }, [data.profile.macroTargets?.protein, data.profile.macroTargets?.carbs, data.profile.macroTargets?.fat]);
+
   const [macroNote, setMacroNote] = useState('');
   const [generalNote, setGeneralNote] = useState('');
   const [pushing, setPushing] = useState(false);
