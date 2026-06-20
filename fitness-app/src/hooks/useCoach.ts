@@ -233,18 +233,26 @@ export function useCoach() {
   }, [relationships]);
 
   const getClientData = useCallback(async (fileId: string) => {
-    const token = await requireAccessToken();
+    let token = getAccessToken();
+    if (!token) token = await requireAccessToken();
     try {
       const raw = await readSharedFile(token, fileId);
       return JSON.parse(raw);
-    } catch (err) {
+    } catch (err: unknown) {
+      if (err instanceof Error && err.message.includes('TOKEN_EXPIRED')) {
+        token = await requireAccessToken();
+        try {
+          const raw = await readSharedFile(token, fileId);
+          return JSON.parse(raw);
+        } catch { return null; }
+      }
       console.error('Failed to read client data:', err);
       return null;
     }
   }, []);
 
   const pushChangesToClient = useCallback(async (fileId: string, changes: PendingCoachChanges) => {
-    const token = await requireAccessToken();
+    const token = getAccessToken() || await requireAccessToken();
     setLoading(true);
     try {
       const raw = await readSharedFile(token, fileId);
@@ -269,7 +277,7 @@ export function useCoach() {
   }, [addLogEntry]);
 
   const checkForClientResponse = useCallback(async (fileId: string): Promise<PendingClientResponse | null> => {
-    const token = await requireAccessToken();
+    const token = getAccessToken() || await requireAccessToken();
     try {
       const raw = await readSharedFile(token, fileId);
       const data = JSON.parse(raw);
@@ -280,7 +288,7 @@ export function useCoach() {
   }, []);
 
   const acknowledgeClientResponse = useCallback(async (fileId: string) => {
-    const token = await requireAccessToken();
+    const token = getAccessToken() || await requireAccessToken();
     try {
       const raw = await readSharedFile(token, fileId);
       const data = JSON.parse(raw);
