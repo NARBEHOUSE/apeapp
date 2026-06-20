@@ -196,10 +196,16 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
   const [overHour, setOverHour] = useState<string | null>(null);
   const [showAllHours, setShowAllHours] = useState(false);
 
-  const [editMacroCal, setEditMacroCal] = useState(String(profile.macroTargets.calories));
   const [editMacroProtein, setEditMacroProtein] = useState(String(profile.macroTargets.protein));
   const [editMacroCarbs, setEditMacroCarbs] = useState(String(profile.macroTargets.carbs));
   const [editMacroFat, setEditMacroFat] = useState(String(profile.macroTargets.fat));
+  const [editMacroFiber, setEditMacroFiber] = useState(String(profile.fiberTarget ?? 30));
+
+  const editCalcCalories = Math.round(
+    (parseInt(editMacroProtein) || 0) * 4 +
+    (parseInt(editMacroCarbs) || 0) * 4 +
+    (parseInt(editMacroFat) || 0) * 9
+  );
 
   const [editEntryData, setEditEntryData] = useState<FoodEntry | null>(null);
   const [editEntryCal, setEditEntryCal] = useState('');
@@ -394,10 +400,10 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
       {/* Macro Bars — tap to edit */}
       <button
         onClick={() => {
-          setEditMacroCal(String(targets.calories));
           setEditMacroProtein(String(targets.protein));
           setEditMacroCarbs(String(targets.carbs));
           setEditMacroFat(String(targets.fat));
+          setEditMacroFiber(String(profile.fiberTarget ?? 30));
           setModal('edit-macros');
         }}
         className="w-full bg-surface rounded-2xl p-3 text-left active:scale-[0.99] transition-transform"
@@ -658,29 +664,38 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
 
       <Modal open={modal === 'edit-macros'} onClose={() => setModal(null)} title="Edit Macro Targets">
         <div className="space-y-3">
-          <div>
-            <label className="label mb-1 block">Calories (kcal)</label>
-            <input type="number" inputMode="numeric" className="input-field text-sm" value={editMacroCal} onChange={(e) => setEditMacroCal(e.target.value)} />
+          <div className="bg-surface rounded-xl p-3 text-center">
+            <div className="text-2xl font-semibold">{editCalcCalories}</div>
+            <div className="text-[10px] text-text-muted uppercase tracking-wider mt-0.5">calories (auto-calculated)</div>
+            <div className="text-[9px] text-text-muted mt-1">
+              P({parseInt(editMacroProtein) || 0})×4 + C({parseInt(editMacroCarbs) || 0})×4 + F({parseInt(editMacroFat) || 0})×9
+            </div>
           </div>
           <div className="grid grid-cols-3 gap-2">
             <div>
               <label className="label mb-1 block">Protein (g)</label>
               <input type="number" inputMode="numeric" className="input-field text-sm text-center" value={editMacroProtein} onChange={(e) => setEditMacroProtein(e.target.value)} />
+              <div className="text-[8px] text-text-muted text-center mt-0.5">4 cal/g</div>
             </div>
             <div>
               <label className="label mb-1 block">Carbs (g)</label>
               <input type="number" inputMode="numeric" className="input-field text-sm text-center" value={editMacroCarbs} onChange={(e) => setEditMacroCarbs(e.target.value)} />
+              <div className="text-[8px] text-text-muted text-center mt-0.5">4 cal/g</div>
             </div>
             <div>
               <label className="label mb-1 block">Fat (g)</label>
               <input type="number" inputMode="numeric" className="input-field text-sm text-center" value={editMacroFat} onChange={(e) => setEditMacroFat(e.target.value)} />
+              <div className="text-[8px] text-text-muted text-center mt-0.5">9 cal/g</div>
             </div>
+          </div>
+          <div>
+            <label className="label mb-1 block">Fiber (g)</label>
+            <input type="number" inputMode="numeric" className="input-field text-sm w-24" value={editMacroFiber} onChange={(e) => setEditMacroFiber(e.target.value)} />
           </div>
           {profile.bodyStats && (
             <button
               onClick={() => {
-                  const macros = calculateMacros(profile.bodyStats!);
-                setEditMacroCal(String(macros.calories));
+                const macros = calculateMacros(profile.bodyStats!);
                 setEditMacroProtein(String(macros.protein));
                 setEditMacroCarbs(String(macros.carbs));
                 setEditMacroFat(String(macros.fat));
@@ -697,11 +712,12 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
                 if (onUpdateProfile) {
                   onUpdateProfile(profile.id, {
                     macroTargets: {
-                      calories: parseInt(editMacroCal) || targets.calories,
+                      calories: editCalcCalories,
                       protein: parseInt(editMacroProtein) || targets.protein,
                       carbs: parseInt(editMacroCarbs) || targets.carbs,
                       fat: parseInt(editMacroFat) || targets.fat,
                     },
+                    fiberTarget: parseInt(editMacroFiber) || 30,
                   });
                   toast('Macro targets updated', 'success');
                 }
