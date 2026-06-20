@@ -160,6 +160,41 @@ export async function deleteFile(token: string, fileId: string): Promise<void> {
   await driveRequest(token, `https://www.googleapis.com/drive/v3/files/${fileId}`, { method: 'DELETE' });
 }
 
+function compressBase64Image(dataUrl: string, maxWidth: number, quality: number): Promise<string> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      let w = img.width;
+      let h = img.height;
+      if (w > maxWidth) { h = Math.round((h * maxWidth) / w); w = maxWidth; }
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) { resolve(dataUrl); return; }
+      ctx.drawImage(img, 0, 0, w, h);
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl.startsWith('data:') ? dataUrl : `data:image/jpeg;base64,${dataUrl}`;
+  });
+}
+
+async function compressPhotosForSync(
+  photos: { imageData: string; [key: string]: unknown }[],
+): Promise<unknown[]> {
+  return Promise.all(
+    photos.map(async (photo) => {
+      try {
+        const compressed = await compressBase64Image(photo.imageData, 400, 0.6);
+        return { ...photo, imageData: compressed };
+      } catch {
+        return photo;
+      }
+    }),
+  );
+}
+
 export async function gatherCoachData(profileId?: string): Promise<object> {
   const db = await getDB();
   const [allWorkouts, allFood, allMeasurements, allPhotos, allPrograms] = await Promise.all([
@@ -182,7 +217,9 @@ export async function gatherCoachData(profileId?: string): Promise<object> {
     workoutSessions: pid ? allWorkouts.filter((w: { profileId: string }) => w.profileId === pid) : allWorkouts,
     foodEntries: pid ? allFood.filter((f: { profileId: string }) => f.profileId === pid) : allFood,
     measurements: pid ? allMeasurements.filter((m: { profileId: string }) => m.profileId === pid) : allMeasurements,
-    progressPhotos: pid ? allPhotos.filter((p: { profileId: string }) => p.profileId === pid) : [],
+    progressPhotos: await compressPhotosForSync(
+      pid ? allPhotos.filter((p: { profileId: string }) => p.profileId === pid) : []
+    ),
     programs: allPrograms.filter((p: { isBuiltIn?: boolean }) => !p.isBuiltIn),
     pendingChanges: null,
     clientResponse: null,
