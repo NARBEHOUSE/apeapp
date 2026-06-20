@@ -5,6 +5,8 @@ import { ConfirmDialog } from '../components/shared/ConfirmDialog';
 import { importBackupProfiles, clearAllData, clearProfileData } from '../utils/exportImport';
 import { toast } from '../components/shared/Toast';
 import { useGoogleAuth } from '../contexts/GoogleAuthContext';
+import { getAccessToken, requireAccessToken } from '../utils/googleAuth';
+import { getOrCreateRootFolder, createPhotoFolder } from '../utils/googleDrive';
 import {
   calculateMacros,
   calculateTDEE,
@@ -117,15 +119,28 @@ export function ProfileSelector({ profiles, onSelect, onCreate, onDelete, onRefr
   const macros = bodyStats ? calculateMacros(bodyStats) : null;
   const tdee = bodyStats ? calculateTDEE(bodyStats) : null;
 
-  const handleCreate = () => {
+  const createDriveFolders = async () => {
+    if (!isSignedIn) return;
+    try {
+      const token = getAccessToken() || await requireAccessToken();
+      await getOrCreateRootFolder(token);
+      const folderId = await createPhotoFolder(token);
+      localStorage.setItem('fitos-photo-folder-id', folderId);
+    } catch (err) {
+      console.error('Failed to create Drive folders:', err);
+    }
+  };
+
+  const handleCreate = async () => {
     const trimmedName = name.trim();
     if (!trimmedName) return;
     const goalLabel = GOAL_LABELS[fitnessGoal] || fitnessGoal;
     const stats = (age && feet && weight) ? bodyStats : undefined;
     onCreate(trimmedName, goalLabel, stats || undefined, undefined, isSignedIn ? googleUser?.email : undefined);
+    await createDriveFolders();
   };
 
-  const handleCreateCustom = () => {
+  const handleCreateCustom = async () => {
     const trimmedName = name.trim();
     if (!trimmedName) return;
     const custom: MacroTargets = {
@@ -135,6 +150,7 @@ export function ProfileSelector({ profiles, onSelect, onCreate, onDelete, onRefr
       fat: parseInt(customFat) || 65,
     };
     onCreate(trimmedName, 'Custom', undefined, custom, isSignedIn ? googleUser?.email : undefined);
+    await createDriveFolders();
   };
 
   const canProceedBody = name.trim().length > 0;
