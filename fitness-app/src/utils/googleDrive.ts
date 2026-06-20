@@ -142,7 +142,7 @@ export async function getOrCreateRootFolder(token: string): Promise<string> {
   const data = await res.json();
   if (data.files?.[0]) {
     cachedRootFolderId = data.files[0].id;
-    return cachedRootFolderId;
+    return cachedRootFolderId!;
   }
 
   // Create it
@@ -318,7 +318,7 @@ export async function gatherCoachData(profileId?: string): Promise<object> {
     foodEntries: pid ? allFood.filter((f: { profileId: string }) => f.profileId === pid) : allFood,
     measurements: pid ? allMeasurements.filter((m: { profileId: string }) => m.profileId === pid) : allMeasurements,
     progressPhotos: await compressPhotosForSync(
-      pid ? allPhotos.filter((p: { profileId: string }) => p.profileId === pid) : []
+      (pid ? allPhotos.filter((p: { profileId: string }) => p.profileId === pid) : []) as unknown as { imageData: string; [key: string]: unknown }[]
     ),
     programs: allPrograms.filter((p: { isBuiltIn?: boolean }) => !p.isBuiltIn),
     pendingChanges: null,
