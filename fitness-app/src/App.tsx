@@ -8,8 +8,9 @@ import Nutrition from './pages/Nutrition';
 import { Progress } from './pages/Progress';
 import { Settings } from './pages/Settings';
 import { ToastContainer } from './components/shared/Toast';
+import { GoogleAuthProvider } from './contexts/GoogleAuthContext';
 
-function App() {
+function AppContent() {
   const {
     profiles,
     activeProfile,
@@ -61,6 +62,14 @@ function App() {
       </Layout>
       <ToastContainer />
     </HashRouter>
+  );
+}
+
+function App() {
+  return (
+    <GoogleAuthProvider>
+      <AppContent />
+    </GoogleAuthProvider>
   );
 }
 
