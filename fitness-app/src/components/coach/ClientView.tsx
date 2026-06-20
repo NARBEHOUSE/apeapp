@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
+import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip } from 'recharts';
 import {
   ArrowLeft, Send, Dumbbell, Utensils, TrendingUp, Target,
   ChevronDown, ChevronUp, Calendar, Plus, Trash2, Check, X, MessageSquare, Heart, RefreshCw, ClipboardCheck,
@@ -90,6 +91,23 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
 
   // Client responses
   const [responses, setResponses] = useState<PendingClientResponse | null>(data.clientResponse || null);
+
+  // Coach question editing
+  const [coachNewQuestion, setCoachNewQuestion] = useState('');
+
+  const CHART_COLORS = ['#e8572a', '#5b6ef5', '#2e9e6b', '#f5a623', '#c44fc4', '#e85757', '#4ecdc4', '#ff6b6b'];
+
+  const checkInTrend = useMemo(() => {
+    if (!data.checkIns || data.checkIns.length < 2) return [];
+    const sorted = [...data.checkIns].sort((a, b) => a.date.localeCompare(b.date)).slice(-30);
+    return sorted.map((ci) => {
+      const row: Record<string, string | number> = { date: ci.date.slice(5) };
+      for (const r of ci.responses) {
+        if (typeof r.value === 'number') row[r.questionId] = r.value;
+      }
+      return row;
+    });
+  }, [data.checkIns]);
 
   const editCalories = (parseInt(editProtein) || 0) * 4 + (parseInt(editCarbs) || 0) * 4 + (parseInt(editFat) || 0) * 9;
 
@@ -541,10 +559,72 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
         {/* CHECK-INS */}
         {tab === 'checkins' && (
           <>
+            {/* Coach question editing */}
+            <div className="card p-4 space-y-3 border-2 border-accent-blue/20">
+              <div className="text-xs font-semibold text-accent-blue uppercase tracking-wider">Edit Client Questions</div>
+              <p className="text-[10px] text-text-muted">Add or remove check-in questions. Changes will be staged and pushed to the client.</p>
+              <div className="space-y-1.5">
+                {DEFAULT_CHECKIN_QUESTIONS.map((q) => (
+                  <div key={q.id} className="flex items-center gap-2 p-2 rounded-lg bg-surface-raised">
+                    <span className="text-xs flex-1">{q.label}</span>
+                    <span className="text-[9px] text-text-muted">1-10</span>
+                  </div>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <input className="input-field text-sm flex-1" placeholder="Add a question (1-10 scale)" value={coachNewQuestion} onChange={(e) => setCoachNewQuestion(e.target.value)} />
+                <button
+                  onClick={() => {
+                    if (!coachNewQuestion.trim()) return;
+                    const newQ: CheckInQuestion = { id: crypto.randomUUID(), label: coachNewQuestion.trim(), type: 'scale', min: 1, max: 10 };
+                    setStagedChanges((prev) => [
+                      ...prev,
+                      { id: crypto.randomUUID(), type: 'note', label: `Add check-in question: "${newQ.label}"`, data: JSON.stringify({ action: 'add_question', question: newQ }) },
+                    ]);
+                    setCoachNewQuestion('');
+                    toast('Question change staged', 'success');
+                  }}
+                  disabled={!coachNewQuestion.trim()}
+                  className="btn-primary px-3 text-sm disabled:opacity-30"
+                >
+                  <Plus size={14} />
+                </button>
+              </div>
+            </div>
+
+            {/* Trend chart */}
+            {checkInTrend.length >= 2 && (
+              <div className="card p-4 space-y-3">
+                <div className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Trends (last 30 days)</div>
+                <div className="h-48">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={checkInTrend}>
+                      <XAxis dataKey="date" tick={{ fontSize: 9 }} interval="preserveStartEnd" />
+                      <YAxis domain={[1, 10]} tick={{ fontSize: 9 }} width={20} />
+                      <Tooltip contentStyle={{ fontSize: 11, background: '#1a1a1f', border: '1px solid #333', borderRadius: 8 }} />
+                      {DEFAULT_CHECKIN_QUESTIONS.map((q, i) => (
+                        <Line key={q.id} type="monotone" dataKey={q.id} name={q.label} stroke={CHART_COLORS[i % CHART_COLORS.length]} strokeWidth={1.5} dot={false} connectNulls />
+                      ))}
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="flex flex-wrap gap-x-3 gap-y-1">
+                  {DEFAULT_CHECKIN_QUESTIONS.map((q, i) => (
+                    <span key={q.id} className="text-[9px] flex items-center gap-1">
+                      <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }} />
+                      {q.label}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* History */}
             {(!data.checkIns || data.checkIns.length === 0) ? (
               <p className="text-sm text-text-muted text-center py-8">No check-ins recorded</p>
             ) : (
               <div className="space-y-2">
+                <div className="text-xs font-semibold text-text-secondary uppercase tracking-wider">History</div>
                 {[...data.checkIns].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 21).map((ci) => (
                   <div key={ci.id} className="card p-3 space-y-2">
                     <div className="text-xs font-semibold">{ci.date}</div>
@@ -557,13 +637,7 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
                             {typeof r.value === 'number' ? (
                               <div className="flex items-center gap-1">
                                 <div className="w-16 h-1.5 rounded-full bg-surface-raised overflow-hidden">
-                                  <div
-                                    className="h-full rounded-full"
-                                    style={{
-                                      width: `${(r.value / 10) * 100}%`,
-                                      backgroundColor: r.value >= 7 ? '#2e9e6b' : r.value >= 4 ? '#f5a623' : '#e85757',
-                                    }}
-                                  />
+                                  <div className="h-full rounded-full" style={{ width: `${(r.value / 10) * 100}%`, backgroundColor: r.value >= 7 ? '#2e9e6b' : r.value >= 4 ? '#f5a623' : '#e85757' }} />
                                 </div>
                                 <span className="text-xs font-medium w-5 text-right">{r.value}</span>
                               </div>

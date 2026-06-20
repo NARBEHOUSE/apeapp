@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Ruler, Camera, Film, Trash2, ClipboardCheck } from 'lucide-react';
-import type { Profile, Measurement, CheckInEntry, CheckInQuestion, DEFAULT_CHECKIN_QUESTIONS } from '../types';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { Ruler, Camera, Film, Trash2, ClipboardCheck, Plus, X, Settings2 } from 'lucide-react';
+import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip } from 'recharts';
+import type { Profile, Measurement, CheckInEntry, CheckInQuestion } from '../types';
 import { DEFAULT_CHECKIN_QUESTIONS as DEFAULT_QUESTIONS } from '../types';
 import { getDB } from '../db';
 import { useProgress } from '../hooks/useProgress';
@@ -63,10 +64,32 @@ export function Progress({ profile, onUpdateProfile }: Props) {
   const [checkIns, setCheckIns] = useState<CheckInEntry[]>([]);
   const [checkInResponses, setCheckInResponses] = useState<Record<string, number | string>>({});
   const [checkInNotes, setCheckInNotes] = useState('');
-  const questions: CheckInQuestion[] = JSON.parse(localStorage.getItem('fitos-checkin-questions') || 'null') || DEFAULT_QUESTIONS;
+  const [questions, setQuestions] = useState<CheckInQuestion[]>(() =>
+    JSON.parse(localStorage.getItem('fitos-checkin-questions') || 'null') || DEFAULT_QUESTIONS
+  );
+  const [showManageQuestions, setShowManageQuestions] = useState(false);
+  const [newQuestionLabel, setNewQuestionLabel] = useState('');
+
+  const saveQuestions = useCallback((updated: CheckInQuestion[]) => {
+    setQuestions(updated);
+    localStorage.setItem('fitos-checkin-questions', JSON.stringify(updated));
+  }, []);
 
   const today = new Date().toISOString().split('T')[0];
   const todayCheckIn = checkIns.find((c) => c.date === today);
+
+  const CHART_COLORS = ['#e8572a', '#5b6ef5', '#2e9e6b', '#f5a623', '#c44fc4', '#e85757', '#4ecdc4', '#ff6b6b'];
+
+  const trendData = useMemo(() => {
+    const sorted = [...checkIns].sort((a, b) => a.date.localeCompare(b.date)).slice(-30);
+    return sorted.map((ci) => {
+      const row: Record<string, string | number> = { date: ci.date.slice(5) };
+      for (const r of ci.responses) {
+        if (typeof r.value === 'number') row[r.questionId] = r.value;
+      }
+      return row;
+    });
+  }, [checkIns]);
 
   const loadCheckIns = useCallback(async () => {
     const db = await getDB();
@@ -260,6 +283,54 @@ export function Progress({ profile, onUpdateProfile }: Props) {
 
       {tab === 'checkin' && (
         <div className="space-y-4">
+          {/* Manage questions button */}
+          <div className="flex justify-end">
+            <button onClick={() => setShowManageQuestions(!showManageQuestions)} className="flex items-center gap-1 text-[11px] text-text-muted">
+              <Settings2 size={13} /> {showManageQuestions ? 'Done' : 'Edit Questions'}
+            </button>
+          </div>
+
+          {/* Question management */}
+          {showManageQuestions && (
+            <div className="card p-4 space-y-3">
+              <div className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Check-In Questions</div>
+              <div className="space-y-1.5">
+                {questions.map((q) => (
+                  <div key={q.id} className="flex items-center gap-2 p-2 rounded-lg bg-surface-raised">
+                    <span className="text-xs flex-1">{q.label}</span>
+                    <span className="text-[9px] text-text-muted">1-10</span>
+                    <button onClick={() => saveQuestions(questions.filter((x) => x.id !== q.id))} className="p-1 text-text-muted hover:text-danger">
+                      <X size={12} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <input
+                  className="input-field text-sm flex-1"
+                  placeholder="New question (1-10 scale)"
+                  value={newQuestionLabel}
+                  onChange={(e) => setNewQuestionLabel(e.target.value)}
+                />
+                <button
+                  onClick={() => {
+                    if (!newQuestionLabel.trim()) return;
+                    saveQuestions([...questions, { id: crypto.randomUUID(), label: newQuestionLabel.trim(), type: 'scale', min: 1, max: 10 }]);
+                    setNewQuestionLabel('');
+                  }}
+                  disabled={!newQuestionLabel.trim()}
+                  className="btn-primary px-3 text-sm disabled:opacity-30"
+                >
+                  <Plus size={14} />
+                </button>
+              </div>
+              <button onClick={() => saveQuestions(DEFAULT_QUESTIONS)} className="text-[10px] text-text-muted underline">
+                Reset to defaults
+              </button>
+            </div>
+          )}
+
+          {/* Today's check-in */}
           {todayCheckIn ? (
             <div className="card p-4 space-y-3">
               <div className="flex items-center justify-between">
@@ -295,30 +366,21 @@ export function Progress({ profile, onUpdateProfile }: Props) {
                 {questions.map((q) => (
                   <div key={q.id}>
                     <div className="text-xs font-medium text-text-secondary mb-2">{q.label}</div>
-                    {q.type === 'scale' ? (
-                      <div className="flex gap-1">
-                        {Array.from({ length: (q.max || 10) - (q.min || 1) + 1 }, (_, i) => i + (q.min || 1)).map((v) => (
-                          <button
-                            key={v}
-                            onClick={() => setCheckInResponses((prev) => ({ ...prev, [q.id]: v }))}
-                            className={`flex-1 py-2 rounded-lg text-xs font-medium transition-colors ${
-                              checkInResponses[q.id] === v
-                                ? 'bg-accent-blue text-white'
-                                : 'bg-surface-raised text-text-muted'
-                            }`}
-                          >
-                            {v}
-                          </button>
-                        ))}
-                      </div>
-                    ) : (
-                      <input
-                        className="input-field text-sm"
-                        value={(checkInResponses[q.id] as string) || ''}
-                        onChange={(e) => setCheckInResponses((prev) => ({ ...prev, [q.id]: e.target.value }))}
-                        placeholder="Your answer..."
-                      />
-                    )}
+                    <div className="flex gap-1">
+                      {Array.from({ length: 10 }, (_, i) => i + 1).map((v) => (
+                        <button
+                          key={v}
+                          onClick={() => setCheckInResponses((prev) => ({ ...prev, [q.id]: v }))}
+                          className={`flex-1 py-2 rounded-lg text-xs font-medium transition-colors ${
+                            checkInResponses[q.id] === v
+                              ? 'bg-accent-blue text-white'
+                              : 'bg-surface-raised text-text-muted'
+                          }`}
+                        >
+                          {v}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -339,6 +401,33 @@ export function Progress({ profile, onUpdateProfile }: Props) {
               >
                 Submit Check-In
               </button>
+            </div>
+          )}
+
+          {/* Trend charts */}
+          {trendData.length >= 2 && (
+            <div className="card p-4 space-y-3">
+              <div className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Trends (last 30 days)</div>
+              <div className="h-48">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={trendData}>
+                    <XAxis dataKey="date" tick={{ fontSize: 9 }} interval="preserveStartEnd" />
+                    <YAxis domain={[1, 10]} tick={{ fontSize: 9 }} width={20} />
+                    <Tooltip contentStyle={{ fontSize: 11, background: '#1a1a1f', border: '1px solid #333', borderRadius: 8 }} />
+                    {questions.map((q, i) => (
+                      <Line key={q.id} type="monotone" dataKey={q.id} name={q.label} stroke={CHART_COLORS[i % CHART_COLORS.length]} strokeWidth={1.5} dot={false} connectNulls />
+                    ))}
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="flex flex-wrap gap-x-3 gap-y-1">
+                {questions.map((q, i) => (
+                  <span key={q.id} className="text-[9px] flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }} />
+                    {q.label}
+                  </span>
+                ))}
+              </div>
             </div>
           )}
 
