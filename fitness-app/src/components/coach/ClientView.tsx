@@ -30,6 +30,7 @@ interface ClientData {
   programs: Program[];
   pendingChanges?: PendingCoachChanges | null;
   clientResponse?: PendingClientResponse | null;
+  coachPermission?: 'full' | 'readonly';
 }
 
 interface Props {
@@ -46,6 +47,7 @@ interface Props {
 export function ClientView({ data: initialData, fileId, onPushChanges, onCheckClientResponse, onAcknowledgeResponse, onRefresh, onClose, coachEmail }: Props) {
   const [data, setData] = useState<ClientData>(initialData);
   const [refreshing, setRefreshing] = useState(false);
+  const readonly = data.coachPermission === 'readonly';
   const [tab, setTab] = useState<'overview' | 'workouts' | 'nutrition' | 'progress' | 'programs' | 'checkins' | 'responses'>('overview');
   const [viewingPhoto, setViewingPhoto] = useState<{ url: string; date: string; pose: string; weight?: number } | null>(null);
   const [photoUrls, setPhotoUrls] = useState<Record<string, string>>({});
@@ -259,7 +261,7 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
         <button onClick={onClose} className="p-1 -ml-1"><ArrowLeft size={18} /></button>
         <div className="flex-1 min-w-0">
           <div className="text-sm font-semibold truncate">Coach Mode — {data.profile.name || 'Client'}</div>
-          <div className="text-[10px] opacity-80">Stage changes, then push all at once</div>
+          <div className="text-[10px] opacity-80">{readonly ? 'Read-only view' : 'Stage changes, then push all at once'}</div>
         </div>
         <button onClick={handleRefresh} disabled={refreshing} className="p-1.5 rounded-lg bg-white/20">
           <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
@@ -344,7 +346,7 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
             </div>
 
             {/* Stage macro changes */}
-            <div className="card p-4 space-y-3 border-2 border-accent-blue/20">
+            {!readonly && <div className="card p-4 space-y-3 border-2 border-accent-blue/20">
               <div className="text-xs font-semibold text-accent-blue uppercase tracking-wider">Macro Changes</div>
               <div className="bg-surface-raised rounded-xl p-3 text-center">
                 <div className="text-xl font-semibold">{editCalories}</div>
@@ -368,16 +370,16 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
               <button onClick={handleStageMacros} className="btn-secondary w-full text-sm flex items-center justify-center gap-1.5">
                 <Plus size={14} /> Stage Macro Changes
               </button>
-            </div>
+            </div>}
 
             {/* General note */}
-            <div className="card p-4 space-y-2">
+            {!readonly && <div className="card p-4 space-y-2">
               <div className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Leave a Note</div>
               <textarea className="input-field text-sm w-full resize-none" rows={2} placeholder="Feedback, instructions, encouragement..." value={generalNote} onChange={(e) => setGeneralNote(e.target.value)} />
               <button onClick={handleStageNote} disabled={!generalNote.trim()} className="btn-secondary w-full text-sm disabled:opacity-30 flex items-center justify-center gap-1.5">
                 <MessageSquare size={14} /> Stage Note
               </button>
-            </div>
+            </div>}
           </>
         )}
 
@@ -534,12 +536,14 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
                     <div className="text-sm font-semibold">{prog.name}</div>
                     <div className="text-xs text-text-muted">{prog.days.length} days · {prog.days.reduce((a, d) => a + d.exercises.length, 0)} exercises</div>
                   </div>
-                  <button
-                    onClick={() => setEditingProgram(prog)}
-                    className="px-3 py-1.5 rounded-lg text-[11px] font-medium bg-accent-blue/10 text-accent-blue"
-                  >
-                    Edit
-                  </button>
+                  {!readonly && (
+                    <button
+                      onClick={() => setEditingProgram(prog)}
+                      className="px-3 py-1.5 rounded-lg text-[11px] font-medium bg-accent-blue/10 text-accent-blue"
+                    >
+                      Edit
+                    </button>
+                  )}
                 </div>
                 {prog.days.map((day) => (
                   <div key={day.id} className="pl-3 border-l-2 border-border space-y-0.5">
@@ -560,7 +564,7 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
         {tab === 'checkins' && (
           <>
             {/* Coach question editing */}
-            <div className="card p-4 space-y-3 border-2 border-accent-blue/20">
+            {!readonly && <div className="card p-4 space-y-3 border-2 border-accent-blue/20">
               <div className="text-xs font-semibold text-accent-blue uppercase tracking-wider">Edit Client Questions</div>
               <p className="text-[10px] text-text-muted">Add or remove check-in questions. Changes will be staged and pushed to the client.</p>
               <div className="space-y-1.5">
@@ -590,7 +594,7 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
                   <Plus size={14} />
                 </button>
               </div>
-            </div>
+            </div>}
 
             {/* Trend chart */}
             {checkInTrend.length >= 2 && (
@@ -687,7 +691,7 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
       </div>
 
       {/* Staged changes floating bar */}
-      {stagedChanges.length > 0 && (
+      {!readonly && stagedChanges.length > 0 && (
         <div className="fixed bottom-0 left-0 right-0 z-40 bg-surface border-t border-border p-4 space-y-2">
           <div className="flex items-center justify-between">
             <div>

@@ -165,6 +165,7 @@ export interface CoachRelationship {
   clientEmail?: string;
   clientName?: string;
   role: 'client' | 'coach';
+  permission: 'full' | 'readonly';
   createdAt: string;
 }
 

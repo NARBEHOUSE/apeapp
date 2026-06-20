@@ -80,13 +80,14 @@ const REST_OPTIONS = [60, 90, 120];
 export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, onLogout }: Props) {
   const { user: googleUser, isSignedIn: googleSignedIn, signIn: googleSignIn, signOut: googleSignOut, deleteCloudDataAndSignOut, syncStatus, lastSynced, syncNow, isLoading: googleLoading } = useGoogleAuth();
   const {
-    myCoachRel, myClients, loading: coachLoading, pendingChanges,
+    myCoachRels, myClients, loading: coachLoading, pendingChanges,
     shareWithCoach, revokeCoachAccess,
     addClient, removeClient, getClientData, pushChangesToClient,
     checkForClientResponse, acknowledgeClientResponse,
   } = useCoach();
 
   const [coachEmail, setCoachEmail] = useState('');
+  const [coachPermission, setCoachPermission] = useState<'full' | 'readonly'>('full');
   const [clientCode, setClientCode] = useState('');
   const [clientName, setClientName] = useState('');
   const [viewingClient, setViewingClient] = useState<{ fileId: string; data: Record<string, unknown> } | null>(null);
@@ -622,72 +623,93 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
               </div>
             )}
 
-            {/* Client side — share with coach */}
+            {/* Client side — share with coaches */}
             <div className="space-y-2">
-              <div className="text-xs font-semibold text-text-secondary uppercase tracking-wider">My Coach</div>
-              {myCoachRel ? (
+              <div className="text-xs font-semibold text-text-secondary uppercase tracking-wider">My Coaches</div>
+
+              {/* Existing coaches */}
+              {myCoachRels.length > 0 && (
                 <div className="space-y-2">
-                  <div className="p-3 rounded-xl bg-surface-raised border border-border">
-                    <div className="text-sm font-medium">Shared with {myCoachRel.coachEmail}</div>
-                    <div className="text-[10px] text-text-muted mt-0.5">
-                      Your coach can view your data and push program/macro changes
-                    </div>
-                    <div className="flex items-center gap-2 mt-2">
-                      <div className="text-[9px] text-text-muted bg-surface rounded px-2 py-1 font-mono flex-1 truncate">
-                        {myCoachRel.fileId}
+                  {myCoachRels.map((rel) => (
+                    <div key={rel.fileId} className="p-3 rounded-xl bg-surface-raised border border-border space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="text-sm font-medium">{rel.coachEmail}</div>
+                          <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded-full ${
+                            rel.permission === 'full' ? 'bg-accent-blue/10 text-accent-blue' : 'bg-surface text-text-muted'
+                          }`}>
+                            {rel.permission === 'full' ? 'Full Access' : 'Read Only'}
+                          </span>
+                        </div>
+                        <button
+                          onClick={async () => { await revokeCoachAccess(rel.fileId); toast('Coach removed', 'success'); }}
+                          className="p-1.5 text-text-muted hover:text-danger"
+                        >
+                          <UserX size={14} />
+                        </button>
                       </div>
-                      <button
-                        onClick={() => { navigator.clipboard.writeText(myCoachRel.fileId); toast('Code copied', 'success'); }}
-                        className="p-1.5 rounded-lg hover:bg-surface text-text-muted"
-                      >
-                        <CopyIcon size={12} />
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <div className="text-[9px] text-text-muted bg-surface rounded px-2 py-1 font-mono flex-1 truncate">{rel.fileId}</div>
+                        <button onClick={() => { navigator.clipboard.writeText(rel.fileId); toast('Code copied', 'success'); }} className="p-1 text-text-muted">
+                          <CopyIcon size={11} />
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                  <button
-                    onClick={async () => { await revokeCoachAccess(); toast('Coach access revoked', 'success'); }}
-                    className="w-full flex items-center justify-center gap-1.5 py-2 text-[11px] text-danger font-medium"
-                  >
-                    <UserX size={12} /> Remove Coach
-                  </button>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  <p className="text-[11px] text-text-muted">
-                    Share your data with a coach so they can view your progress and push program changes.
-                  </p>
-                  <input
-                    type="email"
-                    className="input-field text-sm"
-                    placeholder="Coach's Gmail address"
-                    value={coachEmail}
-                    onChange={(e) => setCoachEmail(e.target.value)}
-                  />
-                  <button
-                    onClick={async () => {
-                      if (!coachEmail.trim()) return;
-                      try {
-                        const fileId = await shareWithCoach(coachEmail.trim());
-                        if (fileId) {
-                          toast('Shared with coach! Send them your code.', 'success');
-                          setCoachEmail('');
-                        }
-                      } catch (err) {
-                        const msg = err instanceof Error ? err.message : 'Failed to share';
-                        if (msg.includes('403') || msg.includes('TOKEN_EXPIRED') || msg.includes('Not signed in')) {
-                          toast('Sign out of Google and sign back in to grant file permissions', 'error');
-                        } else {
-                          toast(msg, 'error');
-                        }
-                      }
-                    }}
-                    disabled={!coachEmail.trim() || coachLoading}
-                    className="btn-primary w-full text-sm disabled:opacity-30"
-                  >
-                    Share with Coach
-                  </button>
+                  ))}
                 </div>
               )}
+
+              {/* Add new coach */}
+              <div className="space-y-2 pt-1">
+                <p className="text-[11px] text-text-muted">
+                  Share your data with coaches or friends. Full access lets them push changes. Read only is view-only.
+                </p>
+                <input
+                  type="email"
+                  className="input-field text-sm"
+                  placeholder="Coach's Gmail address"
+                  value={coachEmail}
+                  onChange={(e) => setCoachEmail(e.target.value)}
+                />
+                <div className="flex gap-2">
+                  {(['full', 'readonly'] as const).map((p) => (
+                    <button
+                      key={p}
+                      onClick={() => setCoachPermission(p)}
+                      className={`flex-1 py-2 text-xs font-medium rounded-lg transition-colors ${
+                        coachPermission === p
+                          ? p === 'full' ? 'bg-accent-blue/20 text-accent-blue' : 'bg-surface-raised text-text-primary'
+                          : 'bg-surface text-text-muted'
+                      }`}
+                    >
+                      {p === 'full' ? 'Full Access' : 'Read Only'}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  onClick={async () => {
+                    if (!coachEmail.trim()) return;
+                    try {
+                      const fileId = await shareWithCoach(coachEmail.trim(), coachPermission);
+                      if (fileId) {
+                        toast('Shared! Send them the code.', 'success');
+                        setCoachEmail('');
+                      }
+                    } catch (err) {
+                      const msg = err instanceof Error ? err.message : 'Failed to share';
+                      if (msg.includes('403') || msg.includes('TOKEN_EXPIRED') || msg.includes('Not signed in')) {
+                        toast('Sign out of Google and sign back in to grant file permissions', 'error');
+                      } else {
+                        toast(msg, 'error');
+                      }
+                    }
+                  }}
+                  disabled={!coachEmail.trim() || coachLoading}
+                  className="btn-primary w-full text-sm disabled:opacity-30"
+                >
+                  Add Coach
+                </button>
+              </div>
             </div>
 
             {/* Coach side — manage clients */}

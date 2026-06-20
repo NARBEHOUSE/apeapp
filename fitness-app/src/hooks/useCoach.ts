@@ -29,12 +29,16 @@ const LOG_KEY = 'fitos-coach-log';
 const UPLOADED_PHOTOS_KEY = 'fitos-coach-uploaded-photos';
 
 function loadRelationships(): CoachRelationship[] {
-  try { return JSON.parse(localStorage.getItem(COACH_KEY) || '[]'); } catch { return []; }
+  try {
+    return (JSON.parse(localStorage.getItem(COACH_KEY) || '[]') as CoachRelationship[]).map((r) => ({
+      ...r,
+      permission: r.permission || 'full',
+    }));
+  } catch { return []; }
 }
 function saveRelationships(rels: CoachRelationship[]) {
   localStorage.setItem(COACH_KEY, JSON.stringify(rels));
 }
-
 function loadLog(): CoachLogEntry[] {
   try { return JSON.parse(localStorage.getItem(LOG_KEY) || '[]'); } catch { return []; }
 }
@@ -47,22 +51,11 @@ function migrateFlatChanges(raw: Record<string, unknown>): PendingCoachChanges {
   const items: CoachChangeItem[] = [];
   if (raw.macroTargets) {
     const m = raw.macroTargets as MacroTargets;
-    items.push({
-      id: crypto.randomUUID(),
-      type: 'macros',
-      label: `Macros: ${m.protein}p / ${m.carbs}c / ${m.fat}f`,
-      data: m,
-      coachNote: raw.note as string | undefined,
-    });
+    items.push({ id: crypto.randomUUID(), type: 'macros', label: `Macros: ${m.protein}p / ${m.carbs}c / ${m.fat}f`, data: m, coachNote: raw.note as string | undefined });
   }
   if (raw.program) {
     const p = raw.program as Program;
-    items.push({
-      id: crypto.randomUUID(),
-      type: 'program',
-      label: `Program: ${p.name}`,
-      data: p,
-    });
+    items.push({ id: crypto.randomUUID(), type: 'program', label: `Program: ${p.name}`, data: p });
   }
   return { items, pushedAt: (raw.pushedAt as string) || new Date().toISOString() };
 }
@@ -71,20 +64,19 @@ export function useCoach() {
   const [relationships, setRelationships] = useState<CoachRelationship[]>(loadRelationships);
   const [loading, setLoading] = useState(false);
   const [pendingChanges, setPendingChanges] = useState<PendingCoachChanges | null>(null);
+  const [pendingCoachFileId, setPendingCoachFileId] = useState<string | null>(null);
   const [clientResponse, setClientResponse] = useState<PendingClientResponse | null>(null);
 
-  const myCoachRel = relationships.find((r) => r.role === 'client');
+  const myCoachRels = relationships.filter((r) => r.role === 'client');
   const myClients = relationships.filter((r) => r.role === 'coach');
 
   // --- Change log ---
-
   const addLogEntry = useCallback((entry: CoachLogEntry) => {
     const log = loadLog();
     log.unshift(entry);
     if (log.length > 100) log.length = 100;
     saveLog(log);
   }, []);
-
   const getLog = useCallback(() => loadLog(), []);
 
   // --- Client side ---
@@ -113,7 +105,6 @@ export function useCoach() {
       photoMeta.push({ photoId: photo.id, driveFileId, date: photo.date, pose: photo.pose, weight: photo.weight, notes: photo.notes });
     }
 
-    // Remove deleted photos
     const currentIds = new Set(myPhotos.map((p) => p.id));
     for (const pid of Object.keys(uploadedMap)) {
       if (!currentIds.has(pid)) {
@@ -121,30 +112,28 @@ export function useCoach() {
         delete uploadedMap[pid];
       }
     }
-
     localStorage.setItem(UPLOADED_PHOTOS_KEY, JSON.stringify(uploadedMap));
     return photoMeta;
   }, []);
 
-  const shareWithCoach = useCallback(async (coachEmail: string): Promise<string | null> => {
+  const shareWithCoach = useCallback(async (coachEmail: string, permission: 'full' | 'readonly'): Promise<string | null> => {
     const token = await requireAccessToken();
     setLoading(true);
     try {
-      // Create photo folder and share with coach
       const folderId = await createPhotoFolder(token);
       await sharePhotoFolderWithCoach(token, folderId, coachEmail);
       const photoMeta = await uploadAllPhotos(token, folderId);
 
-      // Build coach data with photo metadata
       const data = await gatherCoachData() as Record<string, unknown>;
       data.progressPhotos = [];
       data.photoMeta = photoMeta;
       data.photoFolderId = folderId;
+      data.coachPermission = permission;
 
       const content = JSON.stringify(data);
       const fileId = await createCoachShareFile(token, content, coachEmail);
-      const rel: CoachRelationship = { fileId, coachEmail, photoFolderId: folderId, role: 'client', createdAt: new Date().toISOString() };
-      const updated = [...relationships.filter((r) => r.role !== 'client'), rel];
+      const rel: CoachRelationship = { fileId, coachEmail, photoFolderId: folderId, permission, role: 'client', createdAt: new Date().toISOString() };
+      const updated = [...relationships, rel];
       saveRelationships(updated);
       setRelationships(updated);
       return fileId;
@@ -156,55 +145,63 @@ export function useCoach() {
     }
   }, [relationships, uploadAllPhotos]);
 
-  const syncCoachFile = useCallback(async () => {
-    if (!myCoachRel) return;
+  const syncCoachFiles = useCallback(async () => {
+    if (myCoachRels.length === 0) return;
     const token = getAccessToken() || await requireAccessToken();
-    try {
-      // Read existing file to preserve pendingChanges and clientResponse
-      let existing: Record<string, unknown> = {};
+    const freshData = await gatherCoachData() as Record<string, unknown>;
+
+    for (const rel of myCoachRels) {
       try {
-        const raw = await readSharedFile(token, myCoachRel.fileId);
-        existing = JSON.parse(raw);
-      } catch { /* file might not exist yet */ }
+        let existing: Record<string, unknown> = {};
+        try {
+          const raw = await readSharedFile(token, rel.fileId);
+          existing = JSON.parse(raw);
+        } catch { /* file might not exist */ }
 
-      // Ensure photo folder exists
-      let folderId = myCoachRel.photoFolderId;
-      if (!folderId) {
-        folderId = await createPhotoFolder(token);
-        const updatedRel = { ...myCoachRel, photoFolderId: folderId };
-        const updatedRels = relationships.map((r) => r.fileId === myCoachRel.fileId ? updatedRel : r);
-        saveRelationships(updatedRels);
-        setRelationships(updatedRels);
+        let folderId = rel.photoFolderId;
+        if (!folderId) {
+          folderId = await createPhotoFolder(token);
+          if (rel.coachEmail) await sharePhotoFolderWithCoach(token, folderId, rel.coachEmail);
+          const updatedRel = { ...rel, photoFolderId: folderId };
+          const updatedRels = relationships.map((r) => r.fileId === rel.fileId ? updatedRel : r);
+          saveRelationships(updatedRels);
+          setRelationships(updatedRels);
+        }
+
+        const photoMeta = await uploadAllPhotos(token, folderId);
+        const fileData = { ...freshData };
+        fileData.pendingChanges = existing.pendingChanges || null;
+        fileData.clientResponse = existing.clientResponse || null;
+        fileData.progressPhotos = [];
+        fileData.photoMeta = photoMeta;
+        fileData.photoFolderId = folderId;
+        fileData.coachPermission = rel.permission;
+        await writeSharedFile(token, rel.fileId, JSON.stringify(fileData));
+      } catch (err) {
+        console.error('Failed to sync coach file for', rel.coachEmail, err);
       }
-
-      // Upload photos to Drive folder
-      const photoMeta = await uploadAllPhotos(token, folderId);
-
-      const freshData = await gatherCoachData() as Record<string, unknown>;
-      freshData.pendingChanges = existing.pendingChanges || null;
-      freshData.clientResponse = existing.clientResponse || null;
-      freshData.progressPhotos = [];
-      freshData.photoMeta = photoMeta;
-      freshData.photoFolderId = folderId;
-      await writeSharedFile(token, myCoachRel.fileId, JSON.stringify(freshData));
-    } catch (err) {
-      console.error('Failed to sync coach file:', err);
     }
-  }, [myCoachRel, relationships]);
+  }, [myCoachRels, relationships, uploadAllPhotos]);
 
   const checkForCoachChanges = useCallback(async () => {
-    if (!myCoachRel) return;
+    const fullAccessRels = myCoachRels.filter((r) => r.permission === 'full');
+    if (fullAccessRels.length === 0) return;
     const token = getAccessToken() || await requireAccessToken();
-    try {
-      const raw = await readSharedFile(token, myCoachRel.fileId);
-      const data = JSON.parse(raw);
-      if (data.pendingChanges) {
-        setPendingChanges(migrateFlatChanges(data.pendingChanges));
+
+    for (const rel of fullAccessRels) {
+      try {
+        const raw = await readSharedFile(token, rel.fileId);
+        const data = JSON.parse(raw);
+        if (data.pendingChanges) {
+          setPendingChanges(migrateFlatChanges(data.pendingChanges));
+          setPendingCoachFileId(rel.fileId);
+          break;
+        }
+      } catch (err) {
+        console.error('Failed to check coach changes for', rel.coachEmail, err);
       }
-    } catch (err) {
-      console.error('Failed to check coach changes:', err);
     }
-  }, [myCoachRel]);
+  }, [myCoachRels]);
 
   const applyChangeItem = useCallback(async (
     item: CoachChangeItem,
@@ -229,7 +226,6 @@ export function useCoach() {
     profile: Profile,
     onUpdateProfile: (id: string, updates: Partial<Profile>) => void,
   ) => {
-    // Apply accepted items
     for (const resp of responses) {
       if (resp.action === 'accepted') {
         const item = changes.items.find((i) => i.id === resp.itemId);
@@ -237,57 +233,49 @@ export function useCoach() {
       }
     }
 
-    // Write fresh data + client response to shared file, clearing pendingChanges
-    if (myCoachRel) {
+    const targetFileId = pendingCoachFileId || myCoachRels[0]?.fileId;
+    if (targetFileId) {
       try {
         const token = await requireAccessToken();
-        // Re-gather fresh data so the coach sees the updated profile
         const freshData = await gatherCoachData() as Record<string, unknown>;
         freshData.pendingChanges = null;
         freshData.clientResponse = { responses, respondedAt: new Date().toISOString() } as PendingClientResponse;
-        await writeSharedFile(token, myCoachRel.fileId, JSON.stringify(freshData));
+        await writeSharedFile(token, targetFileId, JSON.stringify(freshData));
       } catch (err) {
         console.error('Failed to write client response:', err);
       }
     }
 
-    // Log it
+    const coachRel = pendingCoachFileId ? myCoachRels.find((r) => r.fileId === pendingCoachFileId) : myCoachRels[0];
     addLogEntry({
       id: crypto.randomUUID(),
       timestamp: new Date().toISOString(),
       direction: 'responded',
-      coachEmail: myCoachRel?.coachEmail,
+      coachEmail: coachRel?.coachEmail,
       items: changes.items.map((item) => {
         const resp = responses.find((r) => r.itemId === item.id);
-        return {
-          type: item.type,
-          label: item.label,
-          coachNote: item.coachNote,
-          action: resp?.action,
-          clientNote: resp?.clientNote,
-        };
+        return { type: item.type, label: item.label, coachNote: item.coachNote, action: resp?.action, clientNote: resp?.clientNote };
       }),
     });
 
     setPendingChanges(null);
-  }, [myCoachRel, applyChangeItem, addLogEntry]);
+    setPendingCoachFileId(null);
+  }, [myCoachRels, pendingCoachFileId, applyChangeItem, addLogEntry]);
 
-  const revokeCoachAccess = useCallback(async () => {
-    if (!myCoachRel) return;
+  const revokeCoachAccess = useCallback(async (fileId: string) => {
     try {
       const token = await requireAccessToken();
-      await deleteFile(token, myCoachRel.fileId);
+      await deleteFile(token, fileId);
     } catch { /* still remove locally */ }
-    const updated = relationships.filter((r) => r.role !== 'client');
+    const updated = relationships.filter((r) => r.fileId !== fileId);
     saveRelationships(updated);
     setRelationships(updated);
-    setPendingChanges(null);
-  }, [myCoachRel, relationships]);
+  }, [relationships]);
 
   // --- Coach side ---
 
   const addClient = useCallback((fileId: string, clientName?: string, clientEmail?: string) => {
-    const rel: CoachRelationship = { fileId, clientName: clientName || 'Client', clientEmail, role: 'coach', createdAt: new Date().toISOString() };
+    const rel: CoachRelationship = { fileId, clientName: clientName || 'Client', clientEmail, role: 'coach', permission: 'full', createdAt: new Date().toISOString() };
     const updated = [...relationships.filter((r) => !(r.role === 'coach' && r.fileId === fileId)), rel];
     saveRelationships(updated);
     setRelationships(updated);
@@ -326,14 +314,10 @@ export function useCoach() {
       const data = JSON.parse(raw);
       data.pendingChanges = changes;
       await writeSharedFile(token, fileId, JSON.stringify(data));
-
       addLogEntry({
-        id: crypto.randomUUID(),
-        timestamp: new Date().toISOString(),
-        direction: 'pushed',
+        id: crypto.randomUUID(), timestamp: new Date().toISOString(), direction: 'pushed',
         items: changes.items.map((item) => ({ type: item.type, label: item.label, coachNote: item.coachNote })),
       });
-
       return true;
     } catch (err) {
       console.error('Failed to push changes:', err);
@@ -349,9 +333,7 @@ export function useCoach() {
       const raw = await readSharedFile(token, fileId);
       const data = JSON.parse(raw);
       return data.clientResponse || null;
-    } catch {
-      return null;
-    }
+    } catch { return null; }
   }, []);
 
   const acknowledgeClientResponse = useCallback(async (fileId: string) => {
@@ -368,10 +350,10 @@ export function useCoach() {
   }, []);
 
   return {
-    relationships, myCoachRel, myClients, loading,
+    relationships, myCoachRels, myClients, loading,
     pendingChanges, clientResponse,
     // Client
-    shareWithCoach, syncCoachFile, checkForCoachChanges, finalizeResponses, revokeCoachAccess,
+    shareWithCoach, syncCoachFiles, checkForCoachChanges, finalizeResponses, revokeCoachAccess,
     // Coach
     addClient, removeClient, getClientData, pushChangesToClient,
     checkForClientResponse, acknowledgeClientResponse,
