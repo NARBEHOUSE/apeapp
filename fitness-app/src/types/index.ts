@@ -57,6 +57,7 @@ export interface Profile {
   profilePhoto?: string;
   fiberTarget?: number;
   lastKnownWeight?: number;
+  googleEmail?: string;
 }
 
 export interface MacroTargets {

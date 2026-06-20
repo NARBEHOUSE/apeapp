@@ -18,7 +18,7 @@ import {
 interface Props {
   profiles: Profile[];
   onSelect: (id: string) => void;
-  onCreate: (name: string, goal: string, bodyStats?: BodyStats, customMacros?: MacroTargets) => Profile | null;
+  onCreate: (name: string, goal: string, bodyStats?: BodyStats, customMacros?: MacroTargets, googleEmail?: string) => Profile | null;
   onDelete: (id: string) => void;
   onRefresh?: () => void;
 }
@@ -35,9 +35,10 @@ export function ProfileSelector({ profiles, onSelect, onCreate, onDelete, onRefr
     const success = await googleSignIn();
     if (success) {
       onRefresh?.();
-      const restored = JSON.parse(localStorage.getItem('fitos-profiles') || '[]') as { id: string }[];
-      if (restored.length > 0) {
-        onSelect(restored[0].id);
+      const restored = JSON.parse(localStorage.getItem('fitos-profiles') || '[]') as { id: string; googleEmail?: string }[];
+      const googleProfile = restored.find((p) => p.googleEmail);
+      if (googleProfile) {
+        onSelect(googleProfile.id);
       } else {
         setStep('name');
       }
@@ -121,7 +122,7 @@ export function ProfileSelector({ profiles, onSelect, onCreate, onDelete, onRefr
     if (!trimmedName) return;
     const goalLabel = GOAL_LABELS[fitnessGoal] || fitnessGoal;
     const stats = (age && feet && weight) ? bodyStats : undefined;
-    onCreate(trimmedName, goalLabel, stats || undefined);
+    onCreate(trimmedName, goalLabel, stats || undefined, undefined, isSignedIn ? googleUser?.email : undefined);
   };
 
   const handleCreateCustom = () => {
@@ -133,7 +134,7 @@ export function ProfileSelector({ profiles, onSelect, onCreate, onDelete, onRefr
       carbs: parseInt(customCarbs) || 200,
       fat: parseInt(customFat) || 65,
     };
-    onCreate(trimmedName, 'Custom', undefined, custom);
+    onCreate(trimmedName, 'Custom', undefined, custom, isSignedIn ? googleUser?.email : undefined);
   };
 
   const canProceedBody = name.trim().length > 0;
@@ -151,8 +152,8 @@ export function ProfileSelector({ profiles, onSelect, onCreate, onDelete, onRefr
         </div>
 
         <div className="w-full max-w-sm space-y-2">
-          {/* Google-linked profiles */}
-          {isSignedIn && profiles.length > 0 && profiles.map((profile) => (
+          {/* Google-linked profiles — only when signed in */}
+          {isSignedIn && profiles.filter((p) => p.googleEmail).map((profile) => (
             <div key={profile.id} className="bg-surface rounded-2xl overflow-hidden">
               <button
                 onClick={() => onSelect(profile.id)}
@@ -249,8 +250,8 @@ export function ProfileSelector({ profiles, onSelect, onCreate, onDelete, onRefr
             </div>
           )}
 
-          {/* Local profiles (not signed in with Google) */}
-          {!isSignedIn && profiles.map((profile) => (
+          {/* Local-only profiles (always visible, filtered to non-Google) */}
+          {profiles.filter((p) => !p.googleEmail).map((profile) => (
             <div key={profile.id} className="flex items-center gap-2">
               <button
                 onClick={() => onSelect(profile.id)}
@@ -287,7 +288,7 @@ export function ProfileSelector({ profiles, onSelect, onCreate, onDelete, onRefr
             </div>
           ))}
 
-          {!isSignedIn && profiles.length < 5 && (
+          {profiles.filter((p) => !p.googleEmail).length < 5 && !isSignedIn && (
             <div className="flex gap-2">
               <button
                 onClick={() => setStep('name')}

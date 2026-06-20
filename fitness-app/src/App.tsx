@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useProfile } from './hooks/useProfile';
 import { Layout } from './components/layout/Layout';
@@ -8,7 +9,7 @@ import Nutrition from './pages/Nutrition';
 import { Progress } from './pages/Progress';
 import { Settings } from './pages/Settings';
 import { ToastContainer } from './components/shared/Toast';
-import { GoogleAuthProvider } from './contexts/GoogleAuthContext';
+import { GoogleAuthProvider, useGoogleAuth } from './contexts/GoogleAuthContext';
 
 function AppContent() {
   const {
@@ -21,8 +22,16 @@ function AppContent() {
     logout,
     refreshProfiles,
   } = useProfile();
+  const { isSignedIn } = useGoogleAuth();
 
-  if (!activeProfile) {
+  // If signed out of Google while on a Google-linked profile, kick back to profile selector
+  useEffect(() => {
+    if (!isSignedIn && activeProfile?.googleEmail) {
+      logout();
+    }
+  }, [isSignedIn, activeProfile, logout]);
+
+  if (!activeProfile || (!isSignedIn && activeProfile?.googleEmail)) {
     return (
       <>
         <ProfileSelector
