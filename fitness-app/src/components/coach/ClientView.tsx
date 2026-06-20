@@ -9,6 +9,7 @@ import { DEFAULT_CHECKIN_QUESTIONS } from '../../types';
 import { ProgramEditor } from '../workout/ProgramEditor';
 import { CoachHistory } from './CoachHistory';
 import { fetchDriveImage } from '../../utils/googleDrive';
+import { getAllPrograms } from '../../db/programs';
 import { getAccessToken, requireAccessToken } from '../../utils/googleAuth';
 import { toast } from '../shared/Toast';
 
@@ -60,6 +61,11 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
   const [editingProgram, setEditingProgram] = useState<Program | null>(null);
   const [creatingProgram, setCreatingProgram] = useState(false);
   const importRef = useRef<HTMLInputElement>(null);
+  const [myPrograms, setMyPrograms] = useState<Program[]>([]);
+
+  useEffect(() => {
+    getAllPrograms().then((progs) => setMyPrograms(progs.filter((p) => !p.isBuiltIn)));
+  }, []);
 
   // Changes tab state — all edits happen here, pushed as one batch
   const [changeMacros, setChangeMacros] = useState(false);
@@ -355,14 +361,31 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
                 </div>
               ) : (
                 <div className="space-y-2">
-                  <p className="text-[10px] text-text-muted">Create a new program, edit an existing one, or import a JSON file.</p>
                   <div className="flex gap-2">
                     <button onClick={() => setCreatingProgram(true)} className="flex-1 btn-secondary text-sm flex items-center justify-center gap-1"><Plus size={14} /> Create New</button>
                     <label className="flex-1 btn-secondary text-sm flex items-center justify-center gap-1 cursor-pointer"><Upload size={14} /> Import JSON<input ref={importRef} type="file" accept=".json" onChange={handleImportProgram} className="hidden" /></label>
                   </div>
+                  {myPrograms.length > 0 && <>
+                    <div className="text-[10px] text-text-muted font-medium mt-1">Your programs:</div>
+                    {myPrograms.map((prog) => (
+                      <div key={prog.id} className="flex items-center gap-2">
+                        <button onClick={() => { setPendingProgram({ ...prog, id: crypto.randomUUID() }); toast(`Selected: ${prog.name}`, 'success'); }} className="flex-1 text-left p-2 rounded-lg bg-accent-blue/5 border border-accent-blue/20 text-xs hover:bg-accent-blue/10">
+                          <span className="font-medium">{prog.name}</span> — {prog.days.length} days
+                        </button>
+                        <button onClick={() => setEditingProgram({ ...prog, id: crypto.randomUUID() })} className="px-2 py-1.5 rounded-lg text-[10px] text-accent-blue bg-accent-blue/10">Edit</button>
+                      </div>
+                    ))}
+                  </>}
                   {data.programs.length > 0 && <>
-                    <div className="text-[10px] text-text-muted">Or edit an existing program:</div>
-                    {data.programs.map((prog) => <button key={prog.id} onClick={() => setEditingProgram(prog)} className="w-full text-left p-2 rounded-lg bg-surface-raised text-xs hover:bg-surface"><span className="font-medium">{prog.name}</span> — {prog.days.length} days</button>)}
+                    <div className="text-[10px] text-text-muted font-medium mt-1">Client's programs:</div>
+                    {data.programs.map((prog) => (
+                      <div key={prog.id} className="flex items-center gap-2">
+                        <button onClick={() => { setPendingProgram(prog); toast(`Selected: ${prog.name}`, 'success'); }} className="flex-1 text-left p-2 rounded-lg bg-surface-raised text-xs hover:bg-surface">
+                          <span className="font-medium">{prog.name}</span> — {prog.days.length} days
+                        </button>
+                        <button onClick={() => setEditingProgram(prog)} className="px-2 py-1.5 rounded-lg text-[10px] text-text-muted bg-surface-raised">Edit</button>
+                      </div>
+                    ))}
                   </>}
                 </div>
               )}
