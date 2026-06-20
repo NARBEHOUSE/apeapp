@@ -2,11 +2,12 @@ import { useState, useMemo, useCallback, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip } from 'recharts';
 import {
   ArrowLeft, Send, Dumbbell, Utensils, TrendingUp, Target,
-  ChevronDown, ChevronUp, Calendar, Plus, Trash2, Check, X, MessageSquare, Heart, RefreshCw, ClipboardCheck,
+  ChevronDown, ChevronUp, Calendar, Plus, Trash2, Check, X, MessageSquare, Heart, RefreshCw, ClipboardCheck, History,
 } from 'lucide-react';
-import type { PendingCoachChanges, CoachChangeItem, PendingClientResponse, CoachPhotoMeta, Program, MacroTargets, CheckInEntry, CheckInQuestion } from '../../types';
+import type { PendingCoachChanges, CoachChangeItem, PendingClientResponse, CoachPhotoMeta, CoachLogEntry, Program, MacroTargets, CheckInEntry, CheckInQuestion } from '../../types';
 import { DEFAULT_CHECKIN_QUESTIONS } from '../../types';
 import { ProgramEditor } from '../workout/ProgramEditor';
+import { CoachHistory } from './CoachHistory';
 import { fetchDriveImage } from '../../utils/googleDrive';
 import { getAccessToken, requireAccessToken } from '../../utils/googleAuth';
 import { toast } from '../shared/Toast';
@@ -42,13 +43,14 @@ interface Props {
   onRefresh: (fileId: string) => Promise<ClientData | null>;
   onClose: () => void;
   coachEmail?: string;
+  log: CoachLogEntry[];
 }
 
-export function ClientView({ data: initialData, fileId, onPushChanges, onCheckClientResponse, onAcknowledgeResponse, onRefresh, onClose, coachEmail }: Props) {
+export function ClientView({ data: initialData, fileId, onPushChanges, onCheckClientResponse, onAcknowledgeResponse, onRefresh, onClose, coachEmail, log }: Props) {
   const [data, setData] = useState<ClientData>(initialData);
   const [refreshing, setRefreshing] = useState(false);
   const readonly = data.coachPermission === 'readonly';
-  const [tab, setTab] = useState<'overview' | 'workouts' | 'nutrition' | 'progress' | 'programs' | 'checkins' | 'responses'>('overview');
+  const [tab, setTab] = useState<'overview' | 'workouts' | 'nutrition' | 'progress' | 'programs' | 'checkins' | 'history' | 'responses'>('overview');
   const [viewingPhoto, setViewingPhoto] = useState<{ url: string; date: string; pose: string; weight?: number } | null>(null);
   const [photoUrls, setPhotoUrls] = useState<Record<string, string>>({});
   const [photosLoading, setPhotosLoading] = useState(false);
@@ -228,6 +230,7 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
     { key: 'progress' as const, label: 'Progress', icon: TrendingUp },
     { key: 'programs' as const, label: 'Programs', icon: Calendar },
     { key: 'checkins' as const, label: 'Check-Ins', icon: ClipboardCheck },
+    { key: 'history' as const, label: 'History', icon: History },
     ...(responses ? [{ key: 'responses' as const, label: 'Responses', icon: MessageSquare }] : []),
   ];
 
@@ -676,6 +679,11 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
               </div>
             )}
           </>
+        )}
+
+        {/* HISTORY */}
+        {tab === 'history' && (
+          <CoachHistory log={log} perspective="coach" />
         )}
 
         {/* RESPONSES */}

@@ -34,6 +34,7 @@ import type { Profile, BodyStats, FitnessGoal, ActivityLevel, Gender } from '../
 import { useGoogleAuth } from '../contexts/GoogleAuthContext';
 import { useCoach } from '../hooks/useCoach';
 import { ClientView } from '../components/coach/ClientView';
+import { CoachHistory as CoachHistoryComponent } from '../components/coach/CoachHistory';
 import { testUSDAKey } from '../utils/usda';
 import { testClaudeKey } from '../utils/claudeVision';
 import {
@@ -83,7 +84,7 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
     myCoachRels, myClients, loading: coachLoading, pendingChanges,
     shareWithCoach, revokeCoachAccess, syncCoachFiles,
     addClient, removeClient, getClientData, pushChangesToClient,
-    checkForClientResponse, acknowledgeClientResponse,
+    checkForClientResponse, acknowledgeClientResponse, getLog,
   } = useCoach();
 
   const [coachEmail, setCoachEmail] = useState('');
@@ -778,6 +779,14 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
                 Add Client
               </button>
             </div>
+
+            {/* Coach/Client History */}
+            {getLog().length > 0 && (
+              <div className="border-t border-border pt-3 space-y-2">
+                <div className="text-xs font-semibold text-text-secondary uppercase tracking-wider">History</div>
+                <CoachHistoryComponent log={getLog()} perspective={myCoachRels.length > 0 ? 'client' : 'coach'} />
+              </div>
+            )}
 
           </div>
         )}
@@ -2041,6 +2050,7 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
             onRefresh={getClientData}
             onClose={() => setViewingClient(null)}
             coachEmail={googleUser?.email}
+            log={getLog()}
           />
         </div>
       )}
