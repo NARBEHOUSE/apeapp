@@ -216,7 +216,17 @@ export default function Dashboard({ profile }: DashboardProps) {
   return (
     <div className="pb-24 space-y-6">
       {/* Greeting */}
-      <div>
+      <div className="flex items-center gap-3">
+        {profile.profilePhoto ? (
+          <img src={profile.profilePhoto} alt={profile.name} className="w-10 h-10 rounded-full object-cover shrink-0" />
+        ) : (
+          <div
+            className="w-10 h-10 rounded-full flex items-center justify-center text-white font-medium text-sm shrink-0"
+            style={{ backgroundColor: profile.avatarColor }}
+          >
+            {profile.name[0]?.toUpperCase()}
+          </div>
+        )}
         <h1 className="text-lg font-semibold">
           {getGreeting()}, {profile.name}
         </h1>
