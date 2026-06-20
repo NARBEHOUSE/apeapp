@@ -160,43 +160,9 @@ export async function deleteFile(token: string, fileId: string): Promise<void> {
   await driveRequest(token, `https://www.googleapis.com/drive/v3/files/${fileId}`, { method: 'DELETE' });
 }
 
-export async function gatherCoachData(): Promise<object> {
+export async function gatherCoachData(profileId?: string): Promise<object> {
   const db = await getDB();
-  const [workoutSessions, foodEntries, measurements, programs] = await Promise.all([
-    db.getAll('workoutSessions'),
-    db.getAll('foodEntries'),
-    db.getAll('measurements'),
-    db.getAll('programs'),
-  ]);
-
-  const profiles = JSON.parse(localStorage.getItem('fitos-profiles') || '[]');
-  const profile = profiles[0] || {};
-
-  return {
-    _apeCoachShare: true,
-    version: 1,
-    updatedAt: new Date().toISOString(),
-    profile: {
-      name: profile.name,
-      goal: profile.goal,
-      macroTargets: profile.macroTargets,
-      bodyStats: profile.bodyStats,
-      tdee: profile.tdee,
-      activeProgram: profile.activeProgram,
-    },
-    workoutSessions,
-    foodEntries,
-    measurements,
-    programs: programs.filter((p: { isBuiltIn?: boolean }) => !p.isBuiltIn),
-    pendingChanges: null,
-  };
-}
-
-// --- Sync (appDataFolder) ---
-
-export async function gatherAllData(): Promise<object> {
-  const db = await getDB();
-  const [workoutSessions, foodEntries, measurements, progressPhotos, programs] = await Promise.all([
+  const [allWorkouts, allFood, allMeasurements, allPhotos, allPrograms] = await Promise.all([
     db.getAll('workoutSessions'),
     db.getAll('foodEntries'),
     db.getAll('measurements'),
@@ -205,6 +171,46 @@ export async function gatherAllData(): Promise<object> {
   ]);
 
   const profiles = JSON.parse(localStorage.getItem('fitos-profiles') || '[]');
+  const profile = profileId ? profiles.find((p: { id: string }) => p.id === profileId) : profiles[0];
+  const pid = profile?.id;
+
+  return {
+    _apeCoachShare: true,
+    version: 2,
+    updatedAt: new Date().toISOString(),
+    profile: profile || {},
+    workoutSessions: pid ? allWorkouts.filter((w: { profileId: string }) => w.profileId === pid) : allWorkouts,
+    foodEntries: pid ? allFood.filter((f: { profileId: string }) => f.profileId === pid) : allFood,
+    measurements: pid ? allMeasurements.filter((m: { profileId: string }) => m.profileId === pid) : allMeasurements,
+    progressPhotos: pid ? allPhotos.filter((p: { profileId: string }) => p.profileId === pid) : [],
+    programs: allPrograms.filter((p: { isBuiltIn?: boolean }) => !p.isBuiltIn),
+    pendingChanges: null,
+  };
+}
+
+// --- Sync (appDataFolder) ---
+
+export async function gatherAllData(googleEmail?: string): Promise<object> {
+  const db = await getDB();
+
+  const allProfiles = JSON.parse(localStorage.getItem('fitos-profiles') || '[]') as { id: string; googleEmail?: string }[];
+  const profiles = googleEmail
+    ? allProfiles.filter((p) => p.googleEmail === googleEmail)
+    : allProfiles;
+  const profileIds = new Set(profiles.map((p) => p.id));
+
+  const [allWorkouts, allFood, allMeasurements, allPhotos, allPrograms] = await Promise.all([
+    db.getAll('workoutSessions'),
+    db.getAll('foodEntries'),
+    db.getAll('measurements'),
+    db.getAll('progressPhotos'),
+    db.getAll('programs'),
+  ]);
+
+  const workoutSessions = allWorkouts.filter((w: { profileId: string }) => profileIds.has(w.profileId));
+  const foodEntries = allFood.filter((f: { profileId: string }) => profileIds.has(f.profileId));
+  const measurements = allMeasurements.filter((m: { profileId: string }) => profileIds.has(m.profileId));
+  const progressPhotos = allPhotos.filter((p: { profileId: string }) => profileIds.has(p.profileId));
 
   const settings: Record<string, string | null> = {};
   for (const key of ['fitos-theme', 'fitos-dashboard-cards']) {
@@ -212,7 +218,7 @@ export async function gatherAllData(): Promise<object> {
   }
 
   const profileExtras: Record<string, Record<string, string | null>> = {};
-  for (const p of profiles as { id: string }[]) {
+  for (const p of profiles) {
     profileExtras[p.id] = {
       foodHistory: localStorage.getItem(`fitos-food-history-${p.id}`),
       savedMeals: localStorage.getItem(`fitos-saved-meals-${p.id}`),
@@ -230,15 +236,19 @@ export async function gatherAllData(): Promise<object> {
     foodEntries,
     measurements,
     progressPhotos,
-    programs: programs.filter((p) => !p.isBuiltIn),
+    programs: allPrograms.filter((p) => !p.isBuiltIn),
   };
 }
 
-export async function restoreAllData(data: Record<string, unknown>): Promise<void> {
+export async function restoreAllData(data: Record<string, unknown>, googleEmail?: string): Promise<void> {
   const db = await getDB();
 
-  if (data.profiles) {
-    localStorage.setItem('fitos-profiles', JSON.stringify(data.profiles));
+  if (data.profiles && Array.isArray(data.profiles)) {
+    const existingProfiles = JSON.parse(localStorage.getItem('fitos-profiles') || '[]') as { id: string; googleEmail?: string }[];
+    // Keep local-only profiles, replace Google profiles for this account
+    const localProfiles = existingProfiles.filter((p) => !p.googleEmail || (googleEmail && p.googleEmail !== googleEmail));
+    const merged = [...localProfiles, ...(data.profiles as unknown[])];
+    localStorage.setItem('fitos-profiles', JSON.stringify(merged));
   }
 
   const SENSITIVE_KEYS = ['fitos-usda-key', 'fitos-claude-key', 'fitos-claude-enabled'];

@@ -33,6 +33,7 @@ import {
 import type { Profile, BodyStats, FitnessGoal, ActivityLevel, Gender, PendingCoachChanges } from '../types';
 import { useGoogleAuth } from '../contexts/GoogleAuthContext';
 import { useCoach } from '../hooks/useCoach';
+import { ClientView } from '../components/coach/ClientView';
 import { testUSDAKey } from '../utils/usda';
 import { testClaudeKey } from '../utils/claudeVision';
 import {
@@ -772,84 +773,6 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
               </button>
             </div>
 
-            {/* View client modal */}
-            {viewingClient && (
-              <div className="space-y-3 border-t border-border pt-3">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-sm font-semibold">
-                    {(viewingClient.data.profile as { name?: string })?.name || 'Client Data'}
-                  </h4>
-                  <button onClick={() => setViewingClient(null)} className="text-[11px] text-text-muted">Close</button>
-                </div>
-
-                {(() => {
-                  const p = viewingClient.data.profile as Record<string, unknown> | undefined;
-                  const mt = p?.macroTargets as { calories?: number; protein?: number; carbs?: number; fat?: number } | undefined;
-                  return p ? (
-                    <div className="p-3 rounded-xl bg-surface-raised border border-border text-xs space-y-1">
-                      <div>Goal: <span className="font-medium">{String(p.goal || '-')}</span></div>
-                      {mt && <div>Macros: {mt.calories} cal · {mt.protein}p / {mt.carbs}c / {mt.fat}f</div>}
-                      <div>Workouts: {Array.isArray(viewingClient.data.workoutSessions) ? viewingClient.data.workoutSessions.length : 0}</div>
-                      <div>Food entries: {Array.isArray(viewingClient.data.foodEntries) ? viewingClient.data.foodEntries.length : 0}</div>
-                      <div>Measurements: {Array.isArray(viewingClient.data.measurements) ? viewingClient.data.measurements.length : 0}</div>
-                    </div>
-                  ) : null;
-                })()}
-
-                <div className="space-y-2">
-                  <div className="text-[10px] font-semibold text-text-secondary uppercase tracking-wider">Push Changes</div>
-                  <div className="grid grid-cols-3 gap-2">
-                    <div>
-                      <label className="text-[9px] text-text-muted block">Protein</label>
-                      <input type="number" inputMode="numeric" className="input-field text-xs text-center" id={`coach-p-${viewingClient.fileId}`}
-                        defaultValue={((viewingClient.data.profile as Record<string, unknown>)?.macroTargets as { protein?: number })?.protein || ''}
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[9px] text-text-muted block">Carbs</label>
-                      <input type="number" inputMode="numeric" className="input-field text-xs text-center" id={`coach-c-${viewingClient.fileId}`}
-                        defaultValue={((viewingClient.data.profile as Record<string, unknown>)?.macroTargets as { carbs?: number })?.carbs || ''}
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[9px] text-text-muted block">Fat</label>
-                      <input type="number" inputMode="numeric" className="input-field text-xs text-center" id={`coach-f-${viewingClient.fileId}`}
-                        defaultValue={((viewingClient.data.profile as Record<string, unknown>)?.macroTargets as { fat?: number })?.fat || ''}
-                      />
-                    </div>
-                  </div>
-                  <input
-                    className="input-field text-sm"
-                    placeholder="Note to client (optional)"
-                    value={coachNote}
-                    onChange={(e) => setCoachNote(e.target.value)}
-                  />
-                  <button
-                    onClick={async () => {
-                      const pEl = document.getElementById(`coach-p-${viewingClient.fileId}`) as HTMLInputElement;
-                      const cEl = document.getElementById(`coach-c-${viewingClient.fileId}`) as HTMLInputElement;
-                      const fEl = document.getElementById(`coach-f-${viewingClient.fileId}`) as HTMLInputElement;
-                      const protein = parseInt(pEl?.value) || 0;
-                      const carbs = parseInt(cEl?.value) || 0;
-                      const fat = parseInt(fEl?.value) || 0;
-                      if (!protein && !carbs && !fat) { toast('Enter at least one macro', 'error'); return; }
-                      const changes: PendingCoachChanges = {
-                        macroTargets: { calories: protein * 4 + carbs * 4 + fat * 9, protein, carbs, fat },
-                        note: coachNote.trim() || undefined,
-                        pushedAt: new Date().toISOString(),
-                      };
-                      const ok = await pushChangesToClient(viewingClient.fileId, changes);
-                      if (ok) { toast('Changes pushed to client', 'success'); setCoachNote(''); }
-                      else toast('Failed to push changes', 'error');
-                    }}
-                    disabled={coachLoading}
-                    className="btn-primary w-full text-sm flex items-center justify-center gap-1.5 disabled:opacity-50"
-                  >
-                    <Send size={14} /> Push Macro Changes
-                  </button>
-                </div>
-              </div>
-            )}
           </div>
         )}
       </div>
@@ -2099,6 +2022,18 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
         confirmText="Delete"
         danger
       />
+
+      {/* Full-page coach client view */}
+      {viewingClient && (
+        <div className="fixed inset-0 z-[200] bg-bg overflow-y-auto">
+          <ClientView
+            data={viewingClient.data as never}
+            fileId={viewingClient.fileId}
+            onPushChanges={pushChangesToClient}
+            onClose={() => setViewingClient(null)}
+          />
+        </div>
+      )}
     </div>
   );
 }

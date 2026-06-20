@@ -67,11 +67,11 @@ export function GoogleAuthProvider({ children }: { children: ReactNode }) {
 
   const pushToCloud = useCallback(async () => {
     const token = getAccessToken();
-    if (!token) return;
+    if (!token || !user) return;
 
     setSyncStatus('syncing');
     try {
-      const data = await gatherAllData();
+      const data = await gatherAllData(user.email);
       const json = JSON.stringify(data);
 
       if (!syncFileIdRef.current) {
@@ -89,7 +89,7 @@ export function GoogleAuthProvider({ children }: { children: ReactNode }) {
       console.error('Sync push failed:', err);
       setSyncStatus('error');
     }
-  }, [markSynced]);
+  }, [markSynced, user]);
 
   const signIn = useCallback(async (): Promise<boolean> => {
     setIsLoading(true);
@@ -107,11 +107,12 @@ export function GoogleAuthProvider({ children }: { children: ReactNode }) {
         const content = await downloadSyncData(token, existing.id);
         const data = JSON.parse(content);
         if (data._apeSync) {
-          await restoreAllData(data);
+          await restoreAllData(data, googleUser.email);
         }
         markSynced();
       } else {
-        await pushToCloud();
+        // New account — don't push local data. User will create a fresh profile.
+        setSyncStatus('synced');
       }
       return true;
     } catch (err) {
@@ -121,7 +122,7 @@ export function GoogleAuthProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsLoading(false);
     }
-  }, [pushToCloud, markSynced]);
+  }, [markSynced]);
 
   const signOut = useCallback(() => {
     clearStoredUser();
