@@ -116,15 +116,11 @@ export async function silentRefresh(): Promise<string> {
   });
 }
 
-export async function getAccessToken(): Promise<string | null> {
+export function getAccessToken(): string | null {
   if (currentAccessToken && Date.now() < tokenExpiresAt - 60_000) {
     return currentAccessToken;
   }
-  try {
-    return await silentRefresh();
-  } catch {
-    return null;
-  }
+  return null;
 }
 
 export async function fetchGoogleUser(accessToken: string): Promise<GoogleUser> {

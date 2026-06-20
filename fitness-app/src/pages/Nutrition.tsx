@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import {
-  ChevronLeft, ChevronRight, Plus, Search, Camera, Copy,
+  ChevronLeft, ChevronRight, Plus, Search, Camera,
   Loader2, Star, Trash2, BookmarkPlus, Bookmark, GripVertical, Clock, Pencil,
 } from 'lucide-react';
 import {
@@ -179,7 +179,7 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
   const location = useLocation();
   const {
     entries, selectedDate, setSelectedDate, loading,
-    addEntry, deleteEntry, updateEntry, updateEntryTime, toggleFavorite, copyYesterday, getTodayTotals,
+    addEntry, deleteEntry, updateEntry, updateEntryTime, toggleFavorite, getTodayTotals,
   } = useNutrition(profile.id);
 
   useEffect(() => {
@@ -188,7 +188,6 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
   }, [location.state]);
 
   const [modal, setModal] = useState<ModalType>(null);
-  const [copying, setCopying] = useState(false);
   const [tab, setTab] = useState<Tab>('planner');
   const [savedMeals, setSavedMeals] = useState<SavedMeal[]>(() => getSavedMeals(profile.id));
   const [editingEntry, setEditingEntry] = useState<FoodEntry | null>(null);
@@ -253,11 +252,6 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
     setSelectedDate(d.toISOString().split('T')[0]);
   }
 
-  async function handleCopyYesterday() {
-    setCopying(true);
-    await copyYesterday();
-    setCopying(false);
-  }
 
   function handleEditTime(entry: FoodEntry) {
     setEditingEntry(entry);
@@ -443,9 +437,6 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
             </button>
             <button type="button" onClick={() => setModal('ai')} className="flex-1 bg-surface rounded-xl py-2.5 flex items-center justify-center gap-1.5 active:scale-[0.98] transition-transform">
               <Camera size={14} className="text-nutrition" /><span className="text-xs font-medium">Scan</span>
-            </button>
-            <button type="button" onClick={handleCopyYesterday} disabled={copying} className="bg-surface rounded-xl py-2.5 px-3 flex items-center justify-center active:scale-[0.98] transition-transform disabled:opacity-50">
-              {copying ? <Loader2 size={14} className="animate-spin text-text-muted" /> : <Copy size={14} className="text-success" />}
             </button>
           </div>
 

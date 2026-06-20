@@ -66,7 +66,7 @@ export function GoogleAuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const pushToCloud = useCallback(async () => {
-    const token = await getAccessToken();
+    const token = getAccessToken();
     if (!token) return;
 
     setSyncStatus('syncing');
@@ -137,7 +137,7 @@ export function GoogleAuthProvider({ children }: { children: ReactNode }) {
 
   const deleteCloudDataAndSignOut = useCallback(async () => {
     try {
-      const token = await getAccessToken();
+      const token = getAccessToken();
       if (token) {
         await deleteAllAppData(token);
       }
