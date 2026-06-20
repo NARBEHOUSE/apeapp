@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { getAccessToken, requireAccessToken } from '../utils/googleAuth';
 import {
   createCoachShareFile,
@@ -70,6 +70,7 @@ export function useCoach() {
 
   const myCoachRels = relationships.filter((r) => r.role === 'client');
   const myClients = relationships.filter((r) => r.role === 'coach');
+  const justFinalizedRef = useRef(false);
 
   // --- Change log ---
   const addLogEntry = useCallback((entry: CoachLogEntry) => {
@@ -186,6 +187,7 @@ export function useCoach() {
   }, [myCoachRels, relationships, uploadAllPhotos]);
 
   const checkForCoachChanges = useCallback(async () => {
+    if (justFinalizedRef.current) return;
     const fullAccessRels = myCoachRels.filter((r) => r.permission === 'full');
     if (fullAccessRels.length === 0) return;
     const token = getAccessToken() || await requireAccessToken();
@@ -194,15 +196,23 @@ export function useCoach() {
       try {
         const raw = await readSharedFile(token, rel.fileId);
         const data = JSON.parse(raw);
+        // Skip if we already responded or if there are no actual items
+        if (data.clientResponse) continue;
         if (data.pendingChanges) {
-          setPendingChanges(migrateFlatChanges(data.pendingChanges));
-          setPendingCoachFileId(rel.fileId);
-          break;
+          const migrated = migrateFlatChanges(data.pendingChanges);
+          if (migrated.items && migrated.items.length > 0) {
+            setPendingChanges(migrated);
+            setPendingCoachFileId(rel.fileId);
+            return;
+          }
         }
       } catch (err) {
         console.error('Failed to check coach changes for', rel.coachEmail, err);
       }
     }
+    // No pending changes found across any coach
+    setPendingChanges(null);
+    setPendingCoachFileId(null);
   }, [myCoachRels]);
 
   const applyChangeItem = useCallback(async (
@@ -269,6 +279,9 @@ export function useCoach() {
 
     setPendingChanges(null);
     setPendingCoachFileId(null);
+    justFinalizedRef.current = true;
+    // Reset after a delay so future checks work on next app open
+    setTimeout(() => { justFinalizedRef.current = false; }, 10_000);
   }, [myCoachRels, pendingCoachFileId, applyChangeItem, addLogEntry]);
 
   const revokeCoachAccess = useCallback(async (fileId: string) => {
