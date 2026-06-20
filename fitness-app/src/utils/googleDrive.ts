@@ -360,7 +360,7 @@ export async function gatherAllData(googleEmail?: string): Promise<object> {
   const checkIns = allCheckIns.filter((c: { profileId: string }) => profileIds.has(c.profileId));
 
   const settings: Record<string, string | null> = {};
-  for (const key of ['fitos-theme', 'fitos-dashboard-cards']) {
+  for (const key of ['fitos-theme', 'fitos-dashboard-cards', 'fitos-coach-relationships', 'fitos-checkin-questions', 'fitos-photo-folder-id', 'fitos-coach-uploaded-photos']) {
     settings[key] = localStorage.getItem(key);
   }
 
