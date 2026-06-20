@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { getAccessToken } from '../utils/googleAuth';
+import { getAccessToken, requireAccessToken } from '../utils/googleAuth';
 import {
   createCoachShareFile,
   readSharedFile,
@@ -35,8 +35,7 @@ export function useCoach() {
   // --- Client side ---
 
   const shareWithCoach = useCallback(async (coachEmail: string): Promise<string | null> => {
-    const token = getAccessToken();
-    if (!token) throw new Error('Not signed in. Sign out of Google and sign back in to refresh permissions.');
+    const token = await requireAccessToken();
     setLoading(true);
     try {
       const data = await gatherCoachData();
@@ -63,8 +62,7 @@ export function useCoach() {
 
   const syncCoachFile = useCallback(async () => {
     if (!myCoachRel) return;
-    const token = getAccessToken();
-    if (!token) return;
+    const token = await requireAccessToken();
     setLoading(true);
     try {
       const data = await gatherCoachData();
@@ -93,8 +91,7 @@ export function useCoach() {
 
   const clearPendingChanges = useCallback(async () => {
     if (!myCoachRel) return;
-    const token = getAccessToken();
-    if (!token) return;
+    const token = await requireAccessToken();
     try {
       const raw = await readSharedFile(token, myCoachRel.fileId);
       const data = JSON.parse(raw);
@@ -108,12 +105,10 @@ export function useCoach() {
 
   const revokeCoachAccess = useCallback(async () => {
     if (!myCoachRel) return;
-    const token = getAccessToken();
-    if (token) {
-      try {
-        await deleteFile(token, myCoachRel.fileId);
-      } catch { /* file may already be deleted */ }
-    }
+    try {
+      const token = await requireAccessToken();
+      await deleteFile(token, myCoachRel.fileId);
+    } catch { /* token or file issue — still remove locally */ }
     const updated = relationships.filter((r) => r.role !== 'client');
     saveRelationships(updated);
     setRelationships(updated);
@@ -142,8 +137,7 @@ export function useCoach() {
   }, [relationships]);
 
   const getClientData = useCallback(async (fileId: string) => {
-    const token = getAccessToken();
-    if (!token) return null;
+    const token = await requireAccessToken();
     try {
       const raw = await readSharedFile(token, fileId);
       return JSON.parse(raw);
@@ -154,8 +148,7 @@ export function useCoach() {
   }, []);
 
   const pushChangesToClient = useCallback(async (fileId: string, changes: PendingCoachChanges) => {
-    const token = getAccessToken();
-    if (!token) return false;
+    const token = await requireAccessToken();
     setLoading(true);
     try {
       const raw = await readSharedFile(token, fileId);

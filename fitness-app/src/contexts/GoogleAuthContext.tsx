@@ -7,6 +7,7 @@ import {
   storeUser,
   clearStoredUser,
   getAccessToken,
+  requireAccessToken,
   type GoogleUser,
 } from '../utils/googleAuth';
 import {
@@ -148,6 +149,26 @@ export function GoogleAuthProvider({ children }: { children: ReactNode }) {
     signOut();
   }, [signOut]);
 
+  const manualSync = useCallback(async () => {
+    if (!user) return;
+    const token = await requireAccessToken();
+    if (!token) return;
+    setSyncStatus('syncing');
+    try {
+      const data = await gatherAllData(user.email);
+      const json = JSON.stringify(data);
+      if (!syncFileIdRef.current) {
+        const existing = await findSyncFile(token);
+        syncFileIdRef.current = existing?.id || null;
+      }
+      syncFileIdRef.current = await uploadSyncData(token, json, syncFileIdRef.current || undefined);
+      markSynced();
+    } catch (err) {
+      console.error('Manual sync failed:', err);
+      setSyncStatus('error');
+    }
+  }, [user, markSynced]);
+
   useEffect(() => {
     if (!user) return;
     syncTimerRef.current = setInterval(() => {
@@ -178,7 +199,7 @@ export function GoogleAuthProvider({ children }: { children: ReactNode }) {
         deleteCloudDataAndSignOut,
         syncStatus,
         lastSynced,
-        syncNow: pushToCloud,
+        syncNow: manualSync,
       }}
     >
       {children}

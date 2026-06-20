@@ -123,6 +123,12 @@ export function getAccessToken(): string | null {
   return null;
 }
 
+export async function requireAccessToken(): Promise<string> {
+  const cached = getAccessToken();
+  if (cached) return cached;
+  return signInWithGoogle();
+}
+
 export async function fetchGoogleUser(accessToken: string): Promise<GoogleUser> {
   const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
     headers: { Authorization: `Bearer ${accessToken}` },
