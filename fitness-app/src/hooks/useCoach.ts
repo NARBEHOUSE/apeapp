@@ -124,6 +124,8 @@ export function useCoach() {
       let folderId = myCoachRel.photoFolderId;
       if (!folderId) {
         folderId = await createPhotoFolder(token);
+        // Clear old upload tracking so all photos get uploaded fresh
+        localStorage.removeItem(UPLOADED_PHOTOS_KEY);
         const updatedRel = { ...myCoachRel, photoFolderId: folderId };
         const updatedRels = relationships.map((r) => r.fileId === myCoachRel.fileId ? updatedRel : r);
         saveRelationships(updatedRels);

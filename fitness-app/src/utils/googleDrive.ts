@@ -183,7 +183,7 @@ export async function createPhotoFolder(token: string): Promise<string> {
 }
 
 export function drivePhotoUrl(fileId: string): string {
-  return `https://drive.google.com/uc?export=view&id=${fileId}`;
+  return `https://lh3.googleusercontent.com/d/${fileId}=s600`;
 }
 
 export async function findPhotoFolder(token: string): Promise<string | null> {
@@ -195,71 +195,40 @@ export async function findPhotoFolder(token: string): Promise<string | null> {
   return data.files?.[0]?.id || null;
 }
 
-function base64ToBlob(dataUrl: string): Blob {
-  const parts = dataUrl.split(',');
-  const mime = parts[0]?.match(/:(.*?);/)?.[1] || 'image/jpeg';
-  const raw = atob(parts[1] || '');
-  const arr = new Uint8Array(raw.length);
-  for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
-  return new Blob([arr], { type: mime });
-}
-
 export async function uploadPhotoToFolder(
   token: string,
   folderId: string,
-  photoId: string,
+  _photoId: string,
   imageData: string,
   fileName: string,
 ): Promise<string> {
   const compressed = await compressBase64Image(imageData, 600, 0.7);
-  const blob = base64ToBlob(compressed);
 
-  const metadata = { name: fileName, parents: [folderId] };
-  const boundary = 'ape_photo_boundary';
-  const metaStr = JSON.stringify(metadata);
+  // Convert data URL to binary
+  const b64 = compressed.split(',')[1] || '';
+  const binary = atob(b64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  const blob = new Blob([bytes], { type: 'image/jpeg' });
 
-  const bodyParts = new Uint8Array(
-    await new Blob([
-      `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metaStr}\r\n--${boundary}\r\nContent-Type: ${blob.type}\r\n\r\n`,
-    ]).arrayBuffer().then((a) => {
-      const combined = new Uint8Array(a.byteLength + blob.size + `\r\n--${boundary}--`.length);
-      combined.set(new Uint8Array(a), 0);
-      return combined;
-    }),
-  );
+  const metadata = JSON.stringify({ name: fileName, parents: [folderId] });
+  const boundary = 'ape_photo_upload';
 
-  // Use FormData-free approach: build multipart manually with blobs
-  const formBody = new Blob([
-    `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metaStr}\r\n--${boundary}\r\nContent-Type: ${blob.type}\r\n\r\n`,
+  const body = new Blob([
+    `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n`,
+    metadata,
+    `\r\n--${boundary}\r\nContent-Type: image/jpeg\r\n\r\n`,
     blob,
     `\r\n--${boundary}--`,
   ]);
 
-  const res = await driveRequest(token, 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+  const res = await driveRequest(token, 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webContentLink', {
     method: 'POST',
     headers: { 'Content-Type': `multipart/related; boundary=${boundary}` },
-    body: formBody,
+    body,
   });
   const file = await res.json();
   return file.id;
-}
-
-export async function listFolderFiles(token: string, folderId: string): Promise<{ id: string; name: string }[]> {
-  const res = await driveRequest(
-    token,
-    `https://www.googleapis.com/drive/v3/files?q='${folderId}' in parents and trashed=false&fields=files(id,name)&pageSize=100`,
-  );
-  const data = await res.json();
-  return data.files || [];
-}
-
-export async function fetchDriveImageUrl(token: string, fileId: string): Promise<string> {
-  const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  if (!res.ok) throw new Error('Failed to fetch image');
-  const blob = await res.blob();
-  return URL.createObjectURL(blob);
 }
 
 function compressBase64Image(dataUrl: string, maxWidth: number, quality: number): Promise<string> {
