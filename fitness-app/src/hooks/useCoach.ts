@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback } from 'react';
 import { getAccessToken, requireAccessToken } from '../utils/googleAuth';
 import {
   createCoachShareFile,
@@ -70,7 +70,6 @@ export function useCoach() {
 
   const myCoachRels = relationships.filter((r) => r.role === 'client');
   const myClients = relationships.filter((r) => r.role === 'coach');
-  const justFinalizedRef = useRef(false);
 
   // --- Change log ---
   const addLogEntry = useCallback((entry: CoachLogEntry) => {
@@ -187,20 +186,20 @@ export function useCoach() {
   }, [myCoachRels, relationships, uploadAllPhotos]);
 
   const checkForCoachChanges = useCallback(async () => {
-    if (justFinalizedRef.current) return;
     const fullAccessRels = myCoachRels.filter((r) => r.permission === 'full');
     if (fullAccessRels.length === 0) return;
     const token = getAccessToken() || await requireAccessToken();
+    const lastAccepted = localStorage.getItem('fitos-last-accepted-push');
 
     for (const rel of fullAccessRels) {
       try {
         const raw = await readSharedFile(token, rel.fileId);
         const data = JSON.parse(raw);
-        // Skip if we already responded AND there are no new pending changes
         if (data.clientResponse && !data.pendingChanges) continue;
         if (data.pendingChanges) {
           const migrated = migrateFlatChanges(data.pendingChanges);
-          console.log('Coach changes found:', migrated.items?.length, 'items', migrated.items?.map((i: CoachChangeItem) => i.type));
+          // Skip if we already accepted this exact push
+          if (lastAccepted && migrated.pushedAt === lastAccepted) continue;
           if (migrated.items && migrated.items.length > 0) {
             setPendingChanges(migrated);
             setPendingCoachFileId(rel.fileId);
@@ -211,7 +210,6 @@ export function useCoach() {
         console.error('Failed to check coach changes for', rel.coachEmail, err);
       }
     }
-    // No pending changes found across any coach
     setPendingChanges(null);
     setPendingCoachFileId(null);
   }, [myCoachRels]);
@@ -280,9 +278,8 @@ export function useCoach() {
 
     setPendingChanges(null);
     setPendingCoachFileId(null);
-    justFinalizedRef.current = true;
-    // Reset after a delay so future checks work on next app open
-    setTimeout(() => { justFinalizedRef.current = false; }, 10_000);
+    // Record the pushedAt timestamp we just handled so we never re-show it
+    localStorage.setItem('fitos-last-accepted-push', changes.pushedAt);
   }, [myCoachRels, pendingCoachFileId, applyChangeItem, addLogEntry]);
 
   const revokeCoachAccess = useCallback(async (fileId: string) => {

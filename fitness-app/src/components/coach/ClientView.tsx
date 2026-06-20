@@ -9,7 +9,7 @@ import { DEFAULT_CHECKIN_QUESTIONS } from '../../types';
 import { ProgramEditor } from '../workout/ProgramEditor';
 import { CoachHistory } from './CoachHistory';
 import { fetchDriveImage } from '../../utils/googleDrive';
-import { getAllPrograms } from '../../db/programs';
+import { getAllPrograms, initializePrograms } from '../../db/programs';
 import { getAccessToken, requireAccessToken } from '../../utils/googleAuth';
 import { toast } from '../shared/Toast';
 
@@ -64,7 +64,7 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
   const [myPrograms, setMyPrograms] = useState<Program[]>([]);
 
   useEffect(() => {
-    getAllPrograms().then((progs) => setMyPrograms(progs.filter((p) => !p.isBuiltIn)));
+    initializePrograms().then(() => getAllPrograms()).then((progs) => setMyPrograms(progs));
   }, []);
 
   // Changes tab state — all edits happen here, pushed as one batch

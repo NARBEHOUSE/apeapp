@@ -8,47 +8,109 @@ interface Props {
   perspective: 'client' | 'coach';
 }
 
-function generateHistoryPDF(log: CoachLogEntry[], perspective: string) {
-  const lines: string[] = [];
-  lines.push('COACH/CLIENT HISTORY REPORT');
-  lines.push(`Generated: ${new Date().toLocaleString()}`);
-  lines.push(`Perspective: ${perspective}`);
-  lines.push(`Total entries: ${log.length}`);
-  lines.push('');
+async function exportHistoryPDF(log: CoachLogEntry[], perspective: string) {
+  const { default: jsPDF } = await import('jspdf');
+  const { default: autoTable } = await import('jspdf-autotable');
+
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const pageWidth = doc.internal.pageSize.getWidth();
+  let y = 15;
+
+  // Header
+  doc.setFontSize(18);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Coach / Client History', 14, y);
+  y += 8;
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(120);
+  doc.text(`Generated ${new Date().toLocaleDateString()} · ${perspective} view · ${log.length} entries`, 14, y);
+  y += 4;
 
   // Summary stats
   const pushed = log.filter((e) => e.direction === 'pushed').length;
   const responded = log.filter((e) => e.direction === 'responded').length;
-  let totalAccepted = 0;
-  let totalDenied = 0;
-  for (const entry of log) {
-    for (const item of entry.items) {
-      if (item.action === 'accepted') totalAccepted++;
-      if (item.action === 'denied') totalDenied++;
-    }
-  }
-  lines.push(`SUMMARY: ${pushed} pushes, ${responded} responses, ${totalAccepted} accepted, ${totalDenied} denied`);
-  lines.push('═'.repeat(60));
-  lines.push('');
+  let totalAccepted = 0, totalDenied = 0;
+  for (const entry of log) for (const item of entry.items) { if (item.action === 'accepted') totalAccepted++; if (item.action === 'denied') totalDenied++; }
 
+  doc.setDrawColor(200);
+  doc.setFillColor(245, 245, 250);
+  doc.roundedRect(14, y, pageWidth - 28, 14, 2, 2, 'F');
+  y += 5;
+  doc.setFontSize(10);
+  doc.setTextColor(60);
+  doc.setFont('helvetica', 'bold');
+  const stats = [
+    { label: 'Pushes', value: pushed, color: [91, 110, 245] },
+    { label: 'Responses', value: responded, color: [245, 166, 35] },
+    { label: 'Accepted', value: totalAccepted, color: [46, 158, 107] },
+    { label: 'Denied', value: totalDenied, color: [232, 87, 87] },
+  ];
+  const statWidth = (pageWidth - 28) / 4;
+  stats.forEach((s, i) => {
+    const x = 14 + i * statWidth + statWidth / 2;
+    doc.setTextColor(s.color[0], s.color[1], s.color[2]);
+    doc.text(String(s.value), x, y, { align: 'center' });
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(140);
+    doc.text(s.label, x, y + 5, { align: 'center' });
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+  });
+  y += 16;
+
+  // Table of entries
+  const tableData: string[][] = [];
   for (const entry of log) {
     const date = new Date(entry.timestamp);
-    const dir = entry.direction === 'pushed'
-      ? perspective === 'coach' ? 'Coach pushed changes' : 'Coach pushed changes'
-      : perspective === 'client' ? 'Client responded' : 'Client responded';
-    lines.push(`[${date.toLocaleDateString()} ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}] ${dir}`);
-    if (entry.coachEmail) lines.push(`  Coach: ${entry.coachEmail}`);
+    const dateStr = `${date.toLocaleDateString()}\n${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+    const dir = entry.direction === 'pushed' ? 'Pushed' : 'Responded';
 
     for (const item of entry.items) {
-      const status = item.action ? ` [${item.action.toUpperCase()}]` : '';
-      lines.push(`  • ${item.label}${status}`);
-      if (item.coachNote) lines.push(`    Coach note: "${item.coachNote}"`);
-      if (item.clientNote) lines.push(`    Client note: "${item.clientNote}"`);
+      const status = item.action ? item.action.charAt(0).toUpperCase() + item.action.slice(1) : '—';
+      const notes: string[] = [];
+      if (item.coachNote) notes.push(`Coach: "${item.coachNote}"`);
+      if (item.clientNote) notes.push(`Client: "${item.clientNote}"`);
+      tableData.push([dateStr, dir, item.label, status, notes.join('\n') || '—']);
     }
-    lines.push('─'.repeat(40));
   }
 
-  return lines.join('\n');
+  autoTable(doc, {
+    startY: y,
+    head: [['Date', 'Action', 'Change', 'Status', 'Notes']],
+    body: tableData,
+    theme: 'grid',
+    styles: { fontSize: 8, cellPadding: 3, lineColor: [220, 220, 220], lineWidth: 0.2 },
+    headStyles: { fillColor: [40, 40, 50], textColor: 255, fontStyle: 'bold', fontSize: 8 },
+    columnStyles: {
+      0: { cellWidth: 22 },
+      1: { cellWidth: 18 },
+      2: { cellWidth: 55 },
+      3: { cellWidth: 20, halign: 'center' },
+      4: { cellWidth: 'auto', fontStyle: 'italic', textColor: [100, 100, 100] },
+    },
+    didParseCell: (data: unknown) => {
+      const d = data as { section: string; column: { index: number }; cell: { styles: { textColor: unknown }; text: string[] } };
+      if (d.section === 'body' && d.column.index === 3) {
+        const val = d.cell.text[0];
+        if (val === 'Accepted') d.cell.styles.textColor = [46, 158, 107];
+        else if (val === 'Denied') d.cell.styles.textColor = [232, 87, 87];
+      }
+    },
+    margin: { left: 14, right: 14 },
+  });
+
+  // Footer
+  const pageCount = doc.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFontSize(7);
+    doc.setTextColor(180);
+    doc.text(`APE — Coach History Report · Page ${i} of ${pageCount}`, pageWidth / 2, doc.internal.pageSize.getHeight() - 8, { align: 'center' });
+  }
+
+  doc.save(`coach-history-${new Date().toISOString().split('T')[0]}.pdf`);
 }
 
 export function CoachHistory({ log, perspective }: Props) {
@@ -58,16 +120,14 @@ export function CoachHistory({ log, perspective }: Props) {
     return <p className="text-sm text-text-muted text-center py-6">No history yet</p>;
   }
 
-  const handleExport = () => {
-    const text = generateHistoryPDF(log, perspective);
-    const blob = new Blob([text], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `coach-history-${new Date().toISOString().split('T')[0]}.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast('History exported', 'success');
+  const handleExport = async () => {
+    try {
+      await exportHistoryPDF(log, perspective);
+      toast('PDF exported', 'success');
+    } catch (err) {
+      console.error('Export failed:', err);
+      toast('Export failed', 'error');
+    }
   };
 
   const pushed = log.filter((e) => e.direction === 'pushed').length;
@@ -81,7 +141,7 @@ export function CoachHistory({ log, perspective }: Props) {
           {log.length} entries · {pushed} pushed · {responded} responded
         </div>
         <button onClick={handleExport} className="flex items-center gap-1 text-[10px] text-accent-blue font-medium">
-          <Download size={12} /> Export
+          <Download size={12} /> Export PDF
         </button>
       </div>
 
