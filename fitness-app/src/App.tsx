@@ -50,7 +50,7 @@ function AppContent() {
     <HashRouter>
       <Layout profileName={activeProfile.name} onLogout={logout}>
         <Routes>
-          <Route path="/dashboard" element={<Dashboard profile={activeProfile} />} />
+          <Route path="/dashboard" element={<Dashboard profile={activeProfile} onUpdateProfile={updateProfile} />} />
           <Route path="/workout/*" element={<Workout profile={activeProfile} onUpdateProfile={updateProfile} />} />
           <Route path="/nutrition" element={<Nutrition profile={activeProfile} onUpdateProfile={updateProfile} />} />
           <Route path="/progress" element={<Progress profile={activeProfile} onUpdateProfile={updateProfile} />} />

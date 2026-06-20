@@ -167,12 +167,38 @@ export interface CoachRelationship {
   createdAt: string;
 }
 
+export interface CoachChangeItem {
+  id: string;
+  type: 'macros' | 'program' | 'note';
+  label: string;
+  data: unknown;
+  coachNote?: string;
+}
+
 export interface PendingCoachChanges {
-  macroTargets?: { calories: number; protein: number; carbs: number; fat: number };
-  programId?: string;
-  program?: Program;
-  note?: string;
+  items: CoachChangeItem[];
   pushedAt: string;
+  coachEmail?: string;
+}
+
+export interface CoachChangeResponse {
+  itemId: string;
+  action: 'accepted' | 'denied';
+  clientNote?: string;
+  respondedAt: string;
+}
+
+export interface PendingClientResponse {
+  responses: CoachChangeResponse[];
+  respondedAt: string;
+}
+
+export interface CoachLogEntry {
+  id: string;
+  timestamp: string;
+  direction: 'pushed' | 'responded';
+  coachEmail?: string;
+  items: { type: string; label: string; action?: 'accepted' | 'denied'; clientNote?: string; coachNote?: string }[];
 }
 
 export interface CardioEntry {

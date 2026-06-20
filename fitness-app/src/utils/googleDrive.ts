@@ -185,6 +185,7 @@ export async function gatherCoachData(profileId?: string): Promise<object> {
     progressPhotos: pid ? allPhotos.filter((p: { profileId: string }) => p.profileId === pid) : [],
     programs: allPrograms.filter((p: { isBuiltIn?: boolean }) => !p.isBuiltIn),
     pendingChanges: null,
+    clientResponse: null,
   };
 }
 

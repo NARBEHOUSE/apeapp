@@ -30,7 +30,7 @@ import {
   Copy as CopyIcon,
   Send,
 } from 'lucide-react';
-import type { Profile, BodyStats, FitnessGoal, ActivityLevel, Gender, PendingCoachChanges } from '../types';
+import type { Profile, BodyStats, FitnessGoal, ActivityLevel, Gender } from '../types';
 import { useGoogleAuth } from '../contexts/GoogleAuthContext';
 import { useCoach } from '../hooks/useCoach';
 import { ClientView } from '../components/coach/ClientView';
@@ -81,8 +81,9 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
   const { user: googleUser, isSignedIn: googleSignedIn, signIn: googleSignIn, signOut: googleSignOut, deleteCloudDataAndSignOut, syncStatus, lastSynced, syncNow, isLoading: googleLoading } = useGoogleAuth();
   const {
     myCoachRel, myClients, loading: coachLoading, pendingChanges,
-    shareWithCoach, revokeCoachAccess, checkForCoachChanges, clearPendingChanges,
+    shareWithCoach, revokeCoachAccess,
     addClient, removeClient, getClientData, pushChangesToClient,
+    checkForClientResponse, acknowledgeClientResponse,
   } = useCoach();
 
   const [coachEmail, setCoachEmail] = useState('');
@@ -611,38 +612,13 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
         <SectionHeader section="coach" icon={UserPlus} title="Coach" />
         {expanded.has('coach') && (
           <div className="space-y-4 pt-2">
-            {/* Pending coach changes banner */}
-            {pendingChanges && (
+            {/* Pending coach changes — redirect to Dashboard for review */}
+            {pendingChanges && pendingChanges.items && pendingChanges.items.length > 0 && (
               <div className="p-3 rounded-xl bg-accent-orange/10 border border-accent-orange/30 space-y-2">
-                <div className="text-sm font-medium text-accent-orange">Your coach made changes</div>
-                {pendingChanges.note && <p className="text-xs text-text-secondary">{pendingChanges.note}</p>}
-                <div className="text-[10px] text-text-muted">
-                  {pendingChanges.macroTargets && `Macros: ${pendingChanges.macroTargets.protein}p / ${pendingChanges.macroTargets.carbs}c / ${pendingChanges.macroTargets.fat}f`}
-                  {pendingChanges.program && ` · Program: ${pendingChanges.program.name}`}
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={async () => {
-                      if (pendingChanges.macroTargets) {
-                        const cals = pendingChanges.macroTargets.protein * 4 + pendingChanges.macroTargets.carbs * 4 + pendingChanges.macroTargets.fat * 9;
-                        onUpdateProfile(profile.id, { macroTargets: { ...pendingChanges.macroTargets, calories: cals } });
-                      }
-                      if (pendingChanges.program) {
-                        const { getDB } = await import('../db');
-                        const db = await getDB();
-                        await db.put('programs', { ...pendingChanges.program, isBuiltIn: false });
-                      }
-                      await clearPendingChanges();
-                      toast('Coach changes accepted', 'success');
-                    }}
-                    className="btn-primary flex-1 text-sm py-2"
-                  >
-                    Accept
-                  </button>
-                  <button onClick={() => clearPendingChanges()} className="btn-secondary flex-1 text-sm py-2">
-                    Dismiss
-                  </button>
-                </div>
+                <div className="text-sm font-medium text-accent-orange">Coach changes pending</div>
+                <p className="text-xs text-text-muted">
+                  {pendingChanges.items.length} change{pendingChanges.items.length > 1 ? 's' : ''} to review — accept or deny each on your Dashboard.
+                </p>
               </div>
             )}
 
@@ -2038,7 +2014,10 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
             data={viewingClient.data as never}
             fileId={viewingClient.fileId}
             onPushChanges={pushChangesToClient}
+            onCheckClientResponse={checkForClientResponse}
+            onAcknowledgeResponse={acknowledgeClientResponse}
             onClose={() => setViewingClient(null)}
+            coachEmail={googleUser?.email}
           />
         </div>
       )}

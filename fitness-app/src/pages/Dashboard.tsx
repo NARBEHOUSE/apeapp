@@ -13,6 +13,7 @@ import { getDashboardConfig } from '../utils/dashboardConfig';
 import { daysSinceBackup } from '../utils/backupReminder';
 import { useGoogleAuth } from '../contexts/GoogleAuthContext';
 import { useCoach } from '../hooks/useCoach';
+import { CoachReviewCard } from '../components/dashboard/CoachReviewCard';
 
 import WeeklyRing from '../components/dashboard/WeeklyRing';
 import MacroSummary from '../components/dashboard/MacroSummary';
@@ -20,6 +21,7 @@ import TrendSnapshotCard from '../components/dashboard/TrendSnapshotCard';
 
 interface DashboardProps {
   profile: Profile;
+  onUpdateProfile: (id: string, updates: Partial<Profile>) => void;
 }
 
 const MEASUREMENT_LABELS: Record<string, string> = {
@@ -29,10 +31,10 @@ const MEASUREMENT_LABELS: Record<string, string> = {
   hips: 'Hips', neck: 'Neck',
 };
 
-export default function Dashboard({ profile }: DashboardProps) {
+export default function Dashboard({ profile, onUpdateProfile }: DashboardProps) {
   const navigate = useNavigate();
   const { isSignedIn: googleSignedIn } = useGoogleAuth();
-  const { pendingChanges, checkForCoachChanges, myCoachRel } = useCoach();
+  const { pendingChanges, checkForCoachChanges, finalizeResponses, myCoachRel } = useCoach();
 
   const [sessions, setSessions] = useState<WorkoutSession[]>([]);
   const [foodEntries, setFoodEntries] = useState<FoodEntry[]>([]);
@@ -249,21 +251,14 @@ export default function Dashboard({ profile }: DashboardProps) {
         </button>
       )}
 
-      {/* Coach changes banner */}
-      {pendingChanges && (
-        <button
-          onClick={() => navigate('/settings')}
-          className="bg-accent-orange/10 border border-accent-orange/30 rounded-2xl p-4 flex items-center gap-3 w-full text-left active:scale-[0.98] transition-transform"
-        >
-          <Zap size={16} className="text-accent-orange" />
-          <div className="flex-1 min-w-0">
-            <div className="text-sm font-medium text-accent-orange">Coach made changes</div>
-            <div className="text-[11px] text-text-muted truncate">
-              {pendingChanges.note || 'Open Settings → Coach to review and accept'}
-            </div>
-          </div>
-          <ChevronRight size={14} className="text-text-muted" />
-        </button>
+      {/* Coach changes review */}
+      {pendingChanges && pendingChanges.items.length > 0 && (
+        <CoachReviewCard
+          pendingChanges={pendingChanges}
+          profile={profile}
+          onUpdateProfile={onUpdateProfile}
+          onFinalize={finalizeResponses}
+        />
       )}
 
       {/* Backup reminder — only for local-only profiles */}
