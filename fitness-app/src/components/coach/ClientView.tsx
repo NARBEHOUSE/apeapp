@@ -59,7 +59,7 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
   const [pushing, setPushing] = useState(false);
   const [responses, setResponses] = useState<PendingClientResponse | null>(data.clientResponse || null);
   const [editingProgram, setEditingProgram] = useState<Program | null>(null);
-  const [creatingProgram, setCreatingProgram] = useState(false);
+  const [showNewProgramMenu, setShowNewProgramMenu] = useState(false);
   const [showProgramPicker, setShowProgramPicker] = useState(false);
   const importRef = useRef<HTMLInputElement>(null);
   const [myPrograms, setMyPrograms] = useState<Program[]>([]);
@@ -180,7 +180,6 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
   const handleSaveProgram = useCallback((prog: Program) => {
     setPendingProgram(prog);
     setEditingProgram(null);
-    setCreatingProgram(false);
     toast('Program ready to push', 'success');
   }, []);
 
@@ -215,15 +214,55 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
     { key: 'history' as const, label: 'History', icon: History },
   ];
 
-  if (editingProgram || creatingProgram) {
-    const prog = editingProgram || { id: crypto.randomUUID(), name: '', description: '', isBuiltIn: false, days: [], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+  // New program menu — pick blank or copy from template
+  if (showNewProgramMenu) {
     return (
       <div className="min-h-screen bg-bg">
         <div className="sticky top-0 z-30 bg-accent-blue text-white px-4 py-2 flex items-center gap-3">
-          <button onClick={() => { setEditingProgram(null); setCreatingProgram(false); }} className="p-1 -ml-1"><ArrowLeft size={18} /></button>
-          <div className="flex-1"><div className="text-sm font-semibold">{editingProgram ? `Editing: ${editingProgram.name}` : 'New Program for Client'}</div></div>
+          <button onClick={() => setShowNewProgramMenu(false)} className="p-1 -ml-1"><ArrowLeft size={18} /></button>
+          <div className="flex-1"><div className="text-sm font-semibold">New Program for Client</div></div>
         </div>
-        <ProgramEditor program={prog} fitnessGoal={(data.profile.bodyStats?.fitnessGoal as 'lose' | 'maintain' | 'build') || 'maintain'} onSave={handleSaveProgram} onClose={() => { setEditingProgram(null); setCreatingProgram(false); }} />
+        <div className="p-4 space-y-3">
+          <button onClick={() => { setShowNewProgramMenu(false); setEditingProgram({ id: crypto.randomUUID(), name: '', description: '', isBuiltIn: false, days: [], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }); }} className="w-full btn-primary text-sm py-3">
+            Start from Scratch
+          </button>
+
+          {myPrograms.length > 0 && (
+            <div className="space-y-2">
+              <div className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Copy from your programs</div>
+              {myPrograms.map((prog) => (
+                <button key={prog.id} onClick={() => { setShowNewProgramMenu(false); setEditingProgram({ ...prog, id: crypto.randomUUID(), isBuiltIn: false, name: `${prog.name} (for ${data.profile.name || 'client'})` }); }} className="w-full text-left p-3 rounded-xl bg-surface-raised hover:bg-surface transition-colors">
+                  <div className="text-sm font-medium">{prog.name}</div>
+                  <div className="text-[10px] text-text-muted">{prog.days.length} days · {prog.days.reduce((a, d) => a + d.exercises.length, 0)} exercises</div>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {data.programs.length > 0 && (
+            <div className="space-y-2">
+              <div className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Copy from client's programs</div>
+              {data.programs.map((prog) => (
+                <button key={prog.id} onClick={() => { setShowNewProgramMenu(false); setEditingProgram({ ...prog, id: crypto.randomUUID(), isBuiltIn: false }); }} className="w-full text-left p-3 rounded-xl bg-surface-raised hover:bg-surface transition-colors">
+                  <div className="text-sm font-medium">{prog.name}</div>
+                  <div className="text-[10px] text-text-muted">{prog.days.length} days · {prog.days.reduce((a, d) => a + d.exercises.length, 0)} exercises</div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  if (editingProgram) {
+    return (
+      <div className="min-h-screen bg-bg">
+        <div className="sticky top-0 z-30 bg-accent-blue text-white px-4 py-2 flex items-center gap-3">
+          <button onClick={() => setEditingProgram(null)} className="p-1 -ml-1"><ArrowLeft size={18} /></button>
+          <div className="flex-1"><div className="text-sm font-semibold">{editingProgram.name || 'New Program'}</div></div>
+        </div>
+        <ProgramEditor program={editingProgram} fitnessGoal={(data.profile.bodyStats?.fitnessGoal as 'lose' | 'maintain' | 'build') || 'maintain'} onSave={handleSaveProgram} onClose={() => setEditingProgram(null)} />
       </div>
     );
   }
@@ -362,30 +401,13 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
               {showProgramPicker && (
                 <div className="card p-4 space-y-3">
                   <div className="flex items-center justify-between">
-                    <div className="text-xs font-semibold uppercase tracking-wider">Choose a Program</div>
+                    <div className="text-xs font-semibold uppercase tracking-wider">New Program</div>
                     <button onClick={() => setShowProgramPicker(false)} className="text-text-muted"><X size={14} /></button>
                   </div>
 
-                  <button onClick={() => { setShowProgramPicker(false); setCreatingProgram(true); }} className="w-full btn-primary text-sm flex items-center justify-center gap-1">
-                    <Plus size={14} /> Create New Program
+                  <button onClick={() => { setShowProgramPicker(false); setShowNewProgramMenu(true); }} className="w-full btn-primary text-sm flex items-center justify-center gap-1">
+                    <Plus size={14} /> Create New
                   </button>
-
-                  {myPrograms.length > 0 && (
-                    <div className="space-y-1.5">
-                      <div className="text-[10px] text-text-muted font-medium">Your programs:</div>
-                      {myPrograms.map((prog) => (
-                        <button key={prog.id} onClick={() => {
-                          const copy = { ...prog, id: crypto.randomUUID() };
-                          setPendingProgram(copy);
-                          setShowProgramPicker(false);
-                          toast(`Selected: ${prog.name} — edit or push from Changes tab`, 'success');
-                        }} className="w-full text-left p-3 rounded-xl bg-surface-raised hover:bg-surface transition-colors">
-                          <div className="text-sm font-medium">{prog.name}</div>
-                          <div className="text-[10px] text-text-muted">{prog.days.length} days · {prog.days.reduce((a, d) => a + d.exercises.length, 0)} exercises</div>
-                        </button>
-                      ))}
-                    </div>
-                  )}
 
                   <label className="w-full btn-secondary text-sm flex items-center justify-center gap-1 cursor-pointer">
                     <Upload size={14} /> Import from JSON
@@ -452,39 +474,18 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
                 <div className="p-3 rounded-xl bg-success/10 border border-success/30 space-y-1">
                   <div className="text-sm font-medium text-success">{pendingProgram.name}</div>
                   <div className="text-xs text-text-muted">{pendingProgram.days.length} days · {pendingProgram.days.reduce((a, d) => a + d.exercises.length, 0)} exercises</div>
-                  <button onClick={() => setPendingProgram(null)} className="text-[10px] text-danger">Remove</button>
+                  <div className="flex gap-2 pt-1">
+                    <button onClick={() => setEditingProgram(pendingProgram)} className="text-[10px] text-accent-blue font-medium">Edit</button>
+                    <button onClick={() => setPendingProgram(null)} className="text-[10px] text-danger font-medium">Remove</button>
+                  </div>
+                  <input className="input-field text-sm mt-2" placeholder="Note about program (optional)" value={programNote} onChange={(e) => setProgramNote(e.target.value)} />
                 </div>
               ) : (
-                <div className="space-y-2">
-                  <div className="flex gap-2">
-                    <button onClick={() => setCreatingProgram(true)} className="flex-1 btn-secondary text-sm flex items-center justify-center gap-1"><Plus size={14} /> Create New</button>
-                    <label className="flex-1 btn-secondary text-sm flex items-center justify-center gap-1 cursor-pointer"><Upload size={14} /> Import JSON<input ref={importRef} type="file" accept=".json" onChange={handleImportProgram} className="hidden" /></label>
-                  </div>
-                  {myPrograms.length > 0 && <>
-                    <div className="text-[10px] text-text-muted font-medium mt-1">Your programs:</div>
-                    {myPrograms.map((prog) => (
-                      <div key={prog.id} className="flex items-center gap-2">
-                        <button onClick={() => { setPendingProgram({ ...prog, id: crypto.randomUUID() }); toast(`Selected: ${prog.name}`, 'success'); }} className="flex-1 text-left p-2 rounded-lg bg-accent-blue/5 border border-accent-blue/20 text-xs hover:bg-accent-blue/10">
-                          <span className="font-medium">{prog.name}</span> — {prog.days.length} days
-                        </button>
-                        <button onClick={() => setEditingProgram({ ...prog, id: crypto.randomUUID() })} className="px-2 py-1.5 rounded-lg text-[10px] text-accent-blue bg-accent-blue/10">Edit</button>
-                      </div>
-                    ))}
-                  </>}
-                  {data.programs.length > 0 && <>
-                    <div className="text-[10px] text-text-muted font-medium mt-1">Client's programs:</div>
-                    {data.programs.map((prog) => (
-                      <div key={prog.id} className="flex items-center gap-2">
-                        <button onClick={() => { setPendingProgram(prog); toast(`Selected: ${prog.name}`, 'success'); }} className="flex-1 text-left p-2 rounded-lg bg-surface-raised text-xs hover:bg-surface">
-                          <span className="font-medium">{prog.name}</span> — {prog.days.length} days
-                        </button>
-                        <button onClick={() => setEditingProgram(prog)} className="px-2 py-1.5 rounded-lg text-[10px] text-text-muted bg-surface-raised">Edit</button>
-                      </div>
-                    ))}
-                  </>}
+                <div className="flex gap-2">
+                  <button onClick={() => setShowNewProgramMenu(true)} className="flex-1 btn-secondary text-sm flex items-center justify-center gap-1"><Plus size={14} /> Create New</button>
+                  <label className="flex-1 btn-secondary text-sm flex items-center justify-center gap-1 cursor-pointer"><Upload size={14} /> Import JSON<input ref={importRef} type="file" accept=".json" onChange={handleImportProgram} className="hidden" /></label>
                 </div>
               )}
-              {pendingProgram && <input className="input-field text-sm" placeholder="Note about program (optional)" value={programNote} onChange={(e) => setProgramNote(e.target.value)} />}
             </div>
 
             {/* Push button */}
