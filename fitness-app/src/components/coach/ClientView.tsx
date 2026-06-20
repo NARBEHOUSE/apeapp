@@ -5,8 +5,7 @@ import {
 } from 'lucide-react';
 import type { PendingCoachChanges, CoachChangeItem, PendingClientResponse, CoachPhotoMeta, Program, MacroTargets } from '../../types';
 import { ProgramEditor } from '../workout/ProgramEditor';
-import { fetchDriveImageUrl } from '../../utils/googleDrive';
-import { getAccessToken, requireAccessToken } from '../../utils/googleAuth';
+import { drivePhotoUrl } from '../../utils/googleDrive';
 import { toast } from '../shared/Toast';
 
 interface ClientData {
@@ -58,29 +57,6 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
   const [generalNote, setGeneralNote] = useState('');
   const [pushing, setPushing] = useState(false);
   const [expandedWorkout, setExpandedWorkout] = useState<string | null>(null);
-
-  // Photo loading from Drive
-  const [photoUrls, setPhotoUrls] = useState<Record<string, string>>({});
-  const [photosLoading, setPhotosLoading] = useState(false);
-
-  useEffect(() => {
-    const photos = data.photoMeta;
-    if (!photos || photos.length === 0) return;
-    let cancelled = false;
-    setPhotosLoading(true);
-    (async () => {
-      const token = getAccessToken() || await requireAccessToken();
-      const urls: Record<string, string> = {};
-      for (const p of photos) {
-        if (cancelled) break;
-        try {
-          urls[p.photoId] = await fetchDriveImageUrl(token, p.driveFileId);
-        } catch { /* skip broken */ }
-      }
-      if (!cancelled) { setPhotoUrls(urls); setPhotosLoading(false); }
-    })();
-    return () => { cancelled = true; };
-  }, [data.photoMeta]);
 
   // Staging system
   const [stagedChanges, setStagedChanges] = useState<CoachChangeItem[]>([]);
@@ -468,19 +444,11 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
             {/* Drive-hosted photos */}
             {data.photoMeta && data.photoMeta.length > 0 && (
               <div className="space-y-2 mt-4">
-                <div className="text-xs font-semibold text-text-secondary uppercase tracking-wider">
-                  Progress Photos {photosLoading && <span className="text-text-muted">(loading...)</span>}
-                </div>
+                <div className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Progress Photos</div>
                 <div className="grid grid-cols-3 gap-2">
                   {data.photoMeta.map((p) => (
                     <div key={p.photoId} className="relative rounded-xl overflow-hidden aspect-square bg-surface-raised">
-                      {photoUrls[p.photoId] ? (
-                        <img src={photoUrls[p.photoId]} alt={p.pose} className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-text-muted">
-                          <RefreshCw size={16} className={photosLoading ? 'animate-spin' : ''} />
-                        </div>
-                      )}
+                      <img src={drivePhotoUrl(p.driveFileId)} alt={p.pose} className="w-full h-full object-cover" loading="lazy" />
                       <div className="absolute bottom-0 inset-x-0 bg-black/60 px-1.5 py-0.5 text-[8px] text-white">
                         {p.date} · {p.pose}{p.weight ? ` · ${p.weight}` : ''}
                       </div>
@@ -489,18 +457,10 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
                 </div>
               </div>
             )}
-            {/* Fallback for old embedded photos */}
             {(!data.photoMeta || data.photoMeta.length === 0) && data.progressPhotos.length > 0 && (
               <div className="space-y-2 mt-4">
                 <div className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Progress Photos</div>
-                <div className="grid grid-cols-3 gap-2">
-                  {data.progressPhotos.slice(0, 12).map((p) => (
-                    <div key={p.id} className="relative rounded-xl overflow-hidden aspect-square">
-                      <img src={p.imageData} alt={p.pose} className="w-full h-full object-cover" />
-                      <div className="absolute bottom-0 inset-x-0 bg-black/60 px-1.5 py-0.5 text-[8px] text-white">{p.date} · {p.pose}</div>
-                    </div>
-                  ))}
-                </div>
+                <p className="text-xs text-text-muted">Photos will appear after client syncs from their Dashboard.</p>
               </div>
             )}
           </>

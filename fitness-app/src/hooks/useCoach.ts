@@ -122,8 +122,8 @@ export function useCoach() {
 
       // Ensure photo folder exists
       let folderId = myCoachRel.photoFolderId;
-      if (!folderId && myCoachRel.coachEmail) {
-        folderId = await createPhotoFolder(token, myCoachRel.coachEmail);
+      if (!folderId) {
+        folderId = await createPhotoFolder(token);
         const updatedRel = { ...myCoachRel, photoFolderId: folderId };
         const updatedRels = relationships.map((r) => r.fileId === myCoachRel.fileId ? updatedRel : r);
         saveRelationships(updatedRels);

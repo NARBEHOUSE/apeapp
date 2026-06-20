@@ -164,7 +164,7 @@ export async function deleteFile(token: string, fileId: string): Promise<void> {
 
 const COACH_PHOTO_FOLDER = 'APE Coach Photos';
 
-export async function createPhotoFolder(token: string, coachEmail: string): Promise<string> {
+export async function createPhotoFolder(token: string): Promise<string> {
   const res = await driveRequest(token, 'https://www.googleapis.com/drive/v3/files', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -172,13 +172,18 @@ export async function createPhotoFolder(token: string, coachEmail: string): Prom
   });
   const folder = await res.json();
 
-  await driveRequest(token, `https://www.googleapis.com/drive/v3/files/${folder.id}/permissions?sendNotificationEmail=false`, {
+  // Anyone with the link can view — files inside inherit this
+  await driveRequest(token, `https://www.googleapis.com/drive/v3/files/${folder.id}/permissions`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ role: 'reader', type: 'user', emailAddress: coachEmail }),
+    body: JSON.stringify({ role: 'reader', type: 'anyone' }),
   });
 
   return folder.id;
+}
+
+export function drivePhotoUrl(fileId: string): string {
+  return `https://drive.google.com/uc?export=view&id=${fileId}`;
 }
 
 export async function findPhotoFolder(token: string): Promise<string | null> {
