@@ -38,7 +38,7 @@ import { CoachHistory as CoachHistoryComponent } from '../components/coach/Coach
 import { testUSDAKey } from '../utils/usda';
 import { testClaudeKey } from '../utils/claudeVision';
 import {
-  exportAllData, downloadJSON, importData, clearProfileData, clearAllData,
+  exportAllData, downloadJSON, importData, clearAllData,
   exportProgram, importProgram, exportAllPrograms, importProgramsBundle,
   exportCustomFoods, exportCoachUpdate, importCoachUpdate, exportCoachPackage,
 } from '../utils/exportImport';
@@ -314,9 +314,8 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
   const [cropperImage, setCropperImage] = useState<string | null>(null);
 
   // Confirm dialogs
-  const [showClearProfile, setShowClearProfile] = useState(false);
-  const [showClearAll, setShowClearAll] = useState(false);
-  const [deleteProfileId, setDeleteProfileId] = useState<string | null>(null);
+  const [showDeleteAccount, setShowDeleteAccount] = useState(false);
+  const [deleteConfirmChecked, setDeleteConfirmChecked] = useState(false);
 
   const toggleSection = (s: Section) => {
     setExpanded((prev) => {
@@ -478,13 +477,7 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
     setImportFile(null);
   };
 
-  const handleClearProfile = async () => {
-    await clearProfileData(profile.id);
-    if (googleSignedIn) await deleteCloudDataAndSignOut();
-    window.location.reload();
-  };
-
-  const handleClearAll = async () => {
+  const handleDeleteEverything = async () => {
     if (googleSignedIn) await deleteCloudDataAndSignOut();
     await clearAllData();
     window.location.reload();
@@ -1900,19 +1893,11 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
             <div className="border-t border-border pt-3 space-y-2">
               <div className="text-xs font-semibold text-danger uppercase tracking-wider">Danger Zone</div>
               <button
-                onClick={() => setShowClearProfile(true)}
-                className="btn-danger w-full flex items-center justify-center gap-2 text-sm"
-              >
-                <Trash2 size={14} />
-                Clear Profile Data
-              </button>
-
-              <button
-                onClick={() => setShowClearAll(true)}
+                onClick={() => { setShowDeleteAccount(true); setDeleteConfirmChecked(false); }}
                 className="w-full font-semibold rounded-xl px-6 py-3 active:scale-95 transition-transform bg-danger text-white flex items-center justify-center gap-2 text-sm"
               >
                 <Trash2 size={14} />
-                Clear All Data
+                Delete Account & All Data
               </button>
             </div>
           </div>
@@ -1953,14 +1938,6 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
                     )}
                   </div>
                 </div>
-                {p.id !== profile.id && (
-                  <button
-                    onClick={() => setDeleteProfileId(p.id)}
-                    className="p-1.5 rounded-lg hover:bg-danger/10 text-text-muted hover:text-danger transition-colors"
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                )}
               </div>
             ))}
 
@@ -2019,38 +1996,49 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
         </div>
       </Modal>
 
-      <ConfirmDialog
-        open={showClearProfile}
-        onClose={() => setShowClearProfile(false)}
-        onConfirm={handleClearProfile}
-        title="Clear Profile Data"
-        message={`This will permanently delete all workout sessions, food entries, measurements, and photos for "${profile.name}".${googleSignedIn ? ' This will also delete your data from Google Drive and sign you out.' : ''} This cannot be undone.`}
-        confirmText="Clear Data"
-        danger
-      />
+      <Modal open={showDeleteAccount} onClose={() => setShowDeleteAccount(false)} title="Delete Account & All Data">
+        <div className="space-y-4">
+          <div className="p-3 rounded-xl bg-danger/10 border border-danger/30 space-y-2">
+            <p className="text-sm text-text-primary font-medium">This will permanently delete:</p>
+            <ul className="text-xs text-text-secondary space-y-1 pl-4 list-disc">
+              <li>Your profile and all settings</li>
+              <li>All workout sessions and exercise history</li>
+              <li>All food entries and nutrition logs</li>
+              <li>All body measurements and check-ins</li>
+              <li>All progress photos</li>
+              <li>All programs (custom and enrolled)</li>
+              <li>All coach/client connections and history</li>
+              {googleSignedIn && <li className="font-medium text-danger">All data from your Google Drive (APE App folder, sync data, shared files)</li>}
+            </ul>
+            <p className="text-xs text-danger font-semibold">This action cannot be undone. All data on all devices will be erased.</p>
+          </div>
 
-      <ConfirmDialog
-        open={showClearAll}
-        onClose={() => setShowClearAll(false)}
-        onConfirm={handleClearAll}
-        title="Clear All Data"
-        message={`This will permanently delete ALL data for ALL profiles, including profiles themselves.${googleSignedIn ? ' This will also delete your data from Google Drive and sign you out.' : ''} This cannot be undone.`}
-        confirmText="Delete Everything"
-        danger
-      />
+          <label className="flex items-start gap-3 p-3 rounded-xl bg-surface-raised border border-border cursor-pointer">
+            <input
+              type="checkbox"
+              checked={deleteConfirmChecked}
+              onChange={(e) => setDeleteConfirmChecked(e.target.checked)}
+              className="mt-0.5 accent-danger"
+            />
+            <span className="text-xs text-text-secondary">
+              I understand that all my data will be permanently deleted from this device{googleSignedIn ? ' and Google Drive' : ''}, including all workouts, nutrition, progress photos, and coach connections. This cannot be recovered.
+            </span>
+          </label>
 
-      <ConfirmDialog
-        open={!!deleteProfileId}
-        onClose={() => setDeleteProfileId(null)}
-        onConfirm={() => {
-          if (deleteProfileId) onDeleteProfile(deleteProfileId);
-          setDeleteProfileId(null);
-        }}
-        title="Delete Profile"
-        message="This will permanently delete this profile and all its data."
-        confirmText="Delete"
-        danger
-      />
+          <div className="flex gap-3">
+            <button onClick={() => setShowDeleteAccount(false)} className="btn-secondary flex-1 text-sm">
+              Cancel
+            </button>
+            <button
+              onClick={handleDeleteEverything}
+              disabled={!deleteConfirmChecked}
+              className="flex-1 font-semibold rounded-xl px-6 py-3 active:scale-95 transition-transform bg-danger text-white text-sm disabled:opacity-30"
+            >
+              Delete Everything
+            </button>
+          </div>
+        </div>
+      </Modal>
 
       {/* Full-page coach client view */}
       {viewingClient && (
