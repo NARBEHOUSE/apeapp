@@ -35,6 +35,12 @@ export function ProfileSelector({ profiles, onSelect, onCreate, onDelete, onRefr
     const success = await googleSignIn();
     if (success) {
       onRefresh?.();
+      const restored = JSON.parse(localStorage.getItem('fitos-profiles') || '[]') as { id: string }[];
+      if (restored.length > 0) {
+        onSelect(restored[0].id);
+      } else {
+        setStep('name');
+      }
       toast('Signed in with Google', 'success');
     }
   };
