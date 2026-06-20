@@ -309,8 +309,31 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
         {/* PROGRESS */}
         {tab === 'progress' && (<>{recentMeasurements.length === 0 ? <p className="text-sm text-text-muted text-center py-8">No measurements</p> : <div className="space-y-2"><div className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Weight History</div>{recentMeasurements.filter((m) => m.weight).map((m) => <div key={m.id} className="card p-3 flex items-center justify-between"><span className="text-sm text-text-muted">{m.date}</span><span className="text-sm font-semibold">{m.weight} {m.weightUnit}</span></div>)}</div>}{data.photoMeta && data.photoMeta.length > 0 && <div className="space-y-2 mt-4"><div className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Progress Photos {photosLoading && <span className="text-text-muted">(loading...)</span>}</div><div className="grid grid-cols-3 gap-2">{data.photoMeta.map((p) => <button key={p.photoId} onClick={() => photoUrls[p.photoId] && setViewingPhoto({ url: photoUrls[p.photoId], date: p.date, pose: p.pose, weight: p.weight })} className="relative rounded-xl overflow-hidden aspect-square bg-surface-raised active:scale-95 transition-transform">{photoUrls[p.photoId] ? <img src={photoUrls[p.photoId]} alt={p.pose} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-text-muted"><RefreshCw size={14} className={photosLoading ? 'animate-spin' : ''} /></div>}<div className="absolute bottom-0 inset-x-0 bg-black/60 px-1.5 py-0.5 text-[8px] text-white">{p.date} · {p.pose}{p.weight ? ` · ${p.weight}` : ''}</div></button>)}</div></div>}</>)}
 
-        {/* PROGRAMS */}
-        {tab === 'programs' && (<>{data.programs.length === 0 ? <p className="text-sm text-text-muted text-center py-8">No programs</p> : data.programs.map((prog) => <div key={prog.id} className="card p-4 space-y-2"><div className="flex items-center justify-between"><div><div className="text-sm font-semibold">{prog.name}</div><div className="text-xs text-text-muted">{prog.days.length} days · {prog.days.reduce((a, d) => a + d.exercises.length, 0)} exercises</div></div>{!readonly && <button onClick={() => setEditingProgram(prog)} className="px-3 py-1.5 rounded-lg text-[11px] font-medium bg-accent-blue/10 text-accent-blue">Edit</button>}</div>{prog.days.map((day) => <div key={day.id} className="pl-3 border-l-2 border-border space-y-0.5"><div className="text-xs font-medium">{day.title}</div>{day.exercises.map((ex, i) => <div key={i} className="text-[10px] text-text-muted">{ex.name} — {ex.sets}×{ex.reps}</div>)}</div>)}</div>)}</>)}
+        {/* PROGRAMS — only show enrolled program */}
+        {tab === 'programs' && (() => {
+          const enrolledId = data.profile.activeProgram?.programId;
+          const enrolled = enrolledId ? data.programs.find((p) => p.id === enrolledId) : null;
+          return enrolled ? (
+            <div className="card p-4 space-y-2">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-sm font-semibold">{enrolled.name}</div>
+                  <div className="text-xs text-text-muted">{enrolled.days.length} days · {enrolled.days.reduce((a, d) => a + d.exercises.length, 0)} exercises</div>
+                  <div className="text-[10px] text-success font-medium mt-0.5">Currently enrolled</div>
+                </div>
+                {!readonly && <button onClick={() => setEditingProgram(enrolled)} className="px-3 py-1.5 rounded-lg text-[11px] font-medium bg-accent-blue/10 text-accent-blue">Edit</button>}
+              </div>
+              {enrolled.days.map((day) => (
+                <div key={day.id} className="pl-3 border-l-2 border-border space-y-0.5">
+                  <div className="text-xs font-medium">{day.title}</div>
+                  {day.exercises.map((ex, i) => <div key={i} className="text-[10px] text-text-muted">{ex.name} — {ex.sets}×{ex.reps}</div>)}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-text-muted text-center py-8">Client is not enrolled in a program</p>
+          );
+        })()}
 
         {/* CHECK-INS */}
         {tab === 'checkins' && (<>{checkInTrend.length >= 2 && <div className="card p-4 space-y-3"><div className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Trends (last 30 days)</div><div className="h-48"><ResponsiveContainer width="100%" height="100%"><LineChart data={checkInTrend}><XAxis dataKey="date" tick={{ fontSize: 9 }} interval="preserveStartEnd" /><YAxis domain={[1, 10]} tick={{ fontSize: 9 }} width={20} /><Tooltip contentStyle={{ fontSize: 11, background: '#1a1a1f', border: '1px solid #333', borderRadius: 8 }} />{DEFAULT_CHECKIN_QUESTIONS.map((q, i) => <Line key={q.id} type="monotone" dataKey={q.id} name={q.label} stroke={CHART_COLORS[i % CHART_COLORS.length]} strokeWidth={1.5} dot={false} connectNulls />)}</LineChart></ResponsiveContainer></div><div className="flex flex-wrap gap-x-3 gap-y-1">{DEFAULT_CHECKIN_QUESTIONS.map((q, i) => <span key={q.id} className="text-[9px] flex items-center gap-1"><span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }} />{q.label}</span>)}</div></div>}{(!data.checkIns || data.checkIns.length === 0) ? <p className="text-sm text-text-muted text-center py-8">No check-ins</p> : <div className="space-y-2"><div className="text-xs font-semibold text-text-secondary uppercase tracking-wider">History</div>{[...data.checkIns].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 21).map((ci) => <div key={ci.id} className="card p-3 space-y-2"><div className="text-xs font-semibold">{ci.date}</div><div className="space-y-1.5">{ci.responses.map((r) => { const q = DEFAULT_CHECKIN_QUESTIONS.find((qq) => qq.id === r.questionId); return <div key={r.questionId} className="flex items-center justify-between"><span className="text-xs text-text-secondary">{q?.label || r.questionId}</span>{typeof r.value === 'number' ? <div className="flex items-center gap-1"><div className="w-16 h-1.5 rounded-full bg-surface-raised overflow-hidden"><div className="h-full rounded-full" style={{ width: `${(r.value / 10) * 100}%`, backgroundColor: r.value >= 7 ? '#2e9e6b' : r.value >= 4 ? '#f5a623' : '#e85757' }} /></div><span className="text-xs font-medium w-5 text-right">{r.value}</span></div> : <span className="text-xs text-text-muted">{r.value}</span>}</div>; })}</div>{ci.notes && <p className="text-[10px] text-text-muted italic">{ci.notes}</p>}</div>)}</div>}</>)}
