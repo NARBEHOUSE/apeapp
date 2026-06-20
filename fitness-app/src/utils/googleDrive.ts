@@ -90,6 +90,7 @@ export async function deleteSyncFile(token: string, fileId: string): Promise<voi
 }
 
 export async function deleteAllAppData(token: string): Promise<void> {
+  // Delete appDataFolder files (sync data)
   const res = await driveRequest(
     token,
     'https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&fields=files(id)&pageSize=100',
@@ -98,6 +99,20 @@ export async function deleteAllAppData(token: string): Promise<void> {
   for (const file of data.files || []) {
     await deleteSyncFile(token, file.id);
   }
+
+  // Delete the APE App root folder and everything inside it (coach file, photos)
+  try {
+    const folderRes = await driveRequest(
+      token,
+      `https://www.googleapis.com/drive/v3/files?q=name='${APE_ROOT_FOLDER}' and mimeType='application/vnd.google-apps.folder' and 'root' in parents and trashed=false&fields=files(id)&pageSize=5`,
+    );
+    const folderData = await folderRes.json();
+    for (const folder of folderData.files || []) {
+      await driveRequest(token, `https://www.googleapis.com/drive/v3/files/${folder.id}`, { method: 'DELETE' });
+    }
+  } catch { /* folder may not exist */ }
+
+  cachedRootFolderId = null;
 }
 
 export async function downloadSyncData(token: string, fileId: string): Promise<string> {
