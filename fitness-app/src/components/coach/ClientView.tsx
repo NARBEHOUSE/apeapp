@@ -6,7 +6,8 @@ import {
 import type { PendingCoachChanges, CoachChangeItem, PendingClientResponse, CoachPhotoMeta, Program, MacroTargets, CheckInEntry, CheckInQuestion } from '../../types';
 import { DEFAULT_CHECKIN_QUESTIONS } from '../../types';
 import { ProgramEditor } from '../workout/ProgramEditor';
-import { drivePhotoUrl } from '../../utils/googleDrive';
+import { fetchDriveImage } from '../../utils/googleDrive';
+import { getAccessToken, requireAccessToken } from '../../utils/googleAuth';
 import { toast } from '../shared/Toast';
 
 interface ClientData {
@@ -46,6 +47,27 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
   const [refreshing, setRefreshing] = useState(false);
   const [tab, setTab] = useState<'overview' | 'workouts' | 'nutrition' | 'progress' | 'programs' | 'checkins' | 'responses'>('overview');
   const [viewingPhoto, setViewingPhoto] = useState<{ url: string; date: string; pose: string; weight?: number } | null>(null);
+  const [photoUrls, setPhotoUrls] = useState<Record<string, string>>({});
+  const [photosLoading, setPhotosLoading] = useState(false);
+
+  useEffect(() => {
+    const photos = data.photoMeta;
+    if (!photos || photos.length === 0) return;
+    let cancelled = false;
+    setPhotosLoading(true);
+    (async () => {
+      const token = getAccessToken() || await requireAccessToken();
+      const urls: Record<string, string> = {};
+      for (const p of photos) {
+        if (cancelled) break;
+        try {
+          urls[p.photoId] = await fetchDriveImage(token, p.driveFileId);
+        } catch { /* skip broken */ }
+      }
+      if (!cancelled) { setPhotoUrls(urls); setPhotosLoading(false); }
+    })();
+    return () => { cancelled = true; };
+  }, [data.photoMeta]);
   const [editProtein, setEditProtein] = useState(String(data.profile.macroTargets?.protein || ''));
   const [editCarbs, setEditCarbs] = useState(String(data.profile.macroTargets?.carbs || ''));
   const [editFat, setEditFat] = useState(String(data.profile.macroTargets?.fat || ''));
@@ -448,15 +470,23 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
             {/* Drive-hosted photos */}
             {data.photoMeta && data.photoMeta.length > 0 && (
               <div className="space-y-2 mt-4">
-                <div className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Progress Photos</div>
+                <div className="text-xs font-semibold text-text-secondary uppercase tracking-wider">
+                  Progress Photos {photosLoading && <span className="text-text-muted">(loading...)</span>}
+                </div>
                 <div className="grid grid-cols-3 gap-2">
                   {data.photoMeta.map((p) => (
                     <button
                       key={p.photoId}
-                      onClick={() => setViewingPhoto({ url: drivePhotoUrl(p.driveFileId), date: p.date, pose: p.pose, weight: p.weight })}
+                      onClick={() => photoUrls[p.photoId] && setViewingPhoto({ url: photoUrls[p.photoId], date: p.date, pose: p.pose, weight: p.weight })}
                       className="relative rounded-xl overflow-hidden aspect-square bg-surface-raised active:scale-95 transition-transform"
                     >
-                      <img src={drivePhotoUrl(p.driveFileId)} alt={p.pose} className="w-full h-full object-cover" loading="lazy" />
+                      {photoUrls[p.photoId] ? (
+                        <img src={photoUrls[p.photoId]} alt={p.pose} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-text-muted">
+                          <RefreshCw size={14} className={photosLoading ? 'animate-spin' : ''} />
+                        </div>
+                      )}
                       <div className="absolute bottom-0 inset-x-0 bg-black/60 px-1.5 py-0.5 text-[8px] text-white">
                         {p.date} · {p.pose}{p.weight ? ` · ${p.weight}` : ''}
                       </div>

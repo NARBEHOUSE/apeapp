@@ -7,6 +7,7 @@ import {
   deleteFile,
   gatherCoachData,
   createPhotoFolder,
+  sharePhotoFolderWithCoach,
   uploadPhotoToFolder,
 } from '../utils/googleDrive';
 import { getDB } from '../db';
@@ -129,8 +130,9 @@ export function useCoach() {
     const token = await requireAccessToken();
     setLoading(true);
     try {
-      // Create photo folder first
+      // Create photo folder and share with coach
       const folderId = await createPhotoFolder(token);
+      await sharePhotoFolderWithCoach(token, folderId, coachEmail);
       const photoMeta = await uploadAllPhotos(token, folderId);
 
       // Build coach data with photo metadata

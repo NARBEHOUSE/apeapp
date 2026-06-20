@@ -209,19 +209,24 @@ export async function createPhotoFolder(token: string): Promise<string> {
     body: JSON.stringify({ name: COACH_PHOTO_SUBFOLDER, mimeType: 'application/vnd.google-apps.folder', parents: [rootId] }),
   });
   const folder = await res.json();
-
-  // Anyone with the link can view — so coach can see photos via URL
-  await driveRequest(token, `https://www.googleapis.com/drive/v3/files/${folder.id}/permissions`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ role: 'reader', type: 'anyone' }),
-  });
-
   return folder.id;
 }
 
-export function drivePhotoUrl(fileId: string): string {
-  return `https://lh3.googleusercontent.com/d/${fileId}=s600`;
+export async function sharePhotoFolderWithCoach(token: string, folderId: string, coachEmail: string): Promise<void> {
+  await driveRequest(token, `https://www.googleapis.com/drive/v3/files/${folderId}/permissions?sendNotificationEmail=false`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ role: 'reader', type: 'user', emailAddress: coachEmail }),
+  });
+}
+
+export async function fetchDriveImage(token: string, fileId: string): Promise<string> {
+  const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error(`Photo fetch failed: ${res.status}`);
+  const blob = await res.blob();
+  return URL.createObjectURL(blob);
 }
 
 export async function uploadPhotoToFolder(
