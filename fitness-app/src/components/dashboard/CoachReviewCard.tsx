@@ -54,6 +54,19 @@ function ItemPreview({ item, profile }: { item: CoachChangeItem; profile: Profil
     );
   }
   if (item.type === 'note') {
+    try {
+      const parsed = JSON.parse(String(item.data));
+      if (parsed.action === 'set_questions' && Array.isArray(parsed.questions)) {
+        return (
+          <div className="space-y-1">
+            <div className="text-[10px] text-text-muted">{parsed.questions.length} questions:</div>
+            {parsed.questions.map((q: { id: string; label: string }) => (
+              <div key={q.id} className="text-xs text-text-secondary pl-2 border-l-2 border-border">{q.label}</div>
+            ))}
+          </div>
+        );
+      }
+    } catch { /* not structured */ }
     return <p className="text-xs text-text-secondary italic">{String(item.data)}</p>;
   }
   return null;

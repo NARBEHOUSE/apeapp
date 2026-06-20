@@ -94,7 +94,8 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
   // Client responses
   const [responses, setResponses] = useState<PendingClientResponse | null>(data.clientResponse || null);
 
-  // Coach question editing
+  // Coach question editing — start with defaults, editable
+  const [coachQuestions, setCoachQuestions] = useState<CheckInQuestion[]>([...DEFAULT_CHECKIN_QUESTIONS]);
   const [coachNewQuestion, setCoachNewQuestion] = useState('');
 
   const CHART_COLORS = ['#e8572a', '#5b6ef5', '#2e9e6b', '#f5a623', '#c44fc4', '#e85757', '#4ecdc4', '#ff6b6b'];
@@ -565,28 +566,26 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
           <>
             {/* Coach question editing */}
             {!readonly && <div className="card p-4 space-y-3 border-2 border-accent-blue/20">
-              <div className="text-xs font-semibold text-accent-blue uppercase tracking-wider">Edit Client Questions</div>
-              <p className="text-[10px] text-text-muted">Add or remove check-in questions. Changes will be staged and pushed to the client.</p>
+              <div className="text-xs font-semibold text-accent-blue uppercase tracking-wider">Edit Client Check-In Questions</div>
+              <p className="text-[10px] text-text-muted">Add or remove questions. Stage the full set when you're done.</p>
               <div className="space-y-1.5">
-                {DEFAULT_CHECKIN_QUESTIONS.map((q) => (
+                {coachQuestions.map((q) => (
                   <div key={q.id} className="flex items-center gap-2 p-2 rounded-lg bg-surface-raised">
                     <span className="text-xs flex-1">{q.label}</span>
                     <span className="text-[9px] text-text-muted">1-10</span>
+                    <button onClick={() => setCoachQuestions((prev) => prev.filter((x) => x.id !== q.id))} className="p-0.5 text-text-muted hover:text-danger">
+                      <X size={12} />
+                    </button>
                   </div>
                 ))}
               </div>
               <div className="flex gap-2">
-                <input className="input-field text-sm flex-1" placeholder="Add a question (1-10 scale)" value={coachNewQuestion} onChange={(e) => setCoachNewQuestion(e.target.value)} />
+                <input className="input-field text-sm flex-1" placeholder="New question (1-10 scale)" value={coachNewQuestion} onChange={(e) => setCoachNewQuestion(e.target.value)} />
                 <button
                   onClick={() => {
                     if (!coachNewQuestion.trim()) return;
-                    const newQ: CheckInQuestion = { id: crypto.randomUUID(), label: coachNewQuestion.trim(), type: 'scale', min: 1, max: 10 };
-                    setStagedChanges((prev) => [
-                      ...prev,
-                      { id: crypto.randomUUID(), type: 'note', label: `Add check-in question: "${newQ.label}"`, data: JSON.stringify({ action: 'add_question', question: newQ }) },
-                    ]);
+                    setCoachQuestions((prev) => [...prev, { id: crypto.randomUUID(), label: coachNewQuestion.trim(), type: 'scale', min: 1, max: 10 }]);
                     setCoachNewQuestion('');
-                    toast('Question change staged', 'success');
                   }}
                   disabled={!coachNewQuestion.trim()}
                   className="btn-primary px-3 text-sm disabled:opacity-30"
@@ -594,6 +593,18 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
                   <Plus size={14} />
                 </button>
               </div>
+              <button
+                onClick={() => {
+                  setStagedChanges((prev) => [
+                    ...prev.filter((c) => c.type !== 'note' || !c.label.startsWith('Check-in questions')),
+                    { id: crypto.randomUUID(), type: 'note', label: `Check-in questions: ${coachQuestions.length} questions`, data: JSON.stringify({ action: 'set_questions', questions: coachQuestions }), coachNote: 'Updated check-in questions' },
+                  ]);
+                  toast('Questions staged — push to apply', 'success');
+                }}
+                className="btn-secondary w-full text-sm flex items-center justify-center gap-1.5"
+              >
+                <ClipboardCheck size={14} /> Stage Question Changes
+              </button>
             </div>}
 
             {/* Trend chart */}

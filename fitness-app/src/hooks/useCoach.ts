@@ -217,6 +217,13 @@ export function useCoach() {
       const { getDB } = await import('../db');
       const db = await getDB();
       await db.put('programs', { ...prog, isBuiltIn: false });
+    } else if (item.type === 'note' && typeof item.data === 'string') {
+      try {
+        const parsed = JSON.parse(item.data);
+        if (parsed.action === 'set_questions' && Array.isArray(parsed.questions)) {
+          localStorage.setItem('fitos-checkin-questions', JSON.stringify(parsed.questions));
+        }
+      } catch { /* not a structured note */ }
     }
   }, []);
 
