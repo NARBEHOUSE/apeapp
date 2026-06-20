@@ -9,6 +9,11 @@ import {
   getPhotosByPose,
   deleteProgressPhoto as dbDeletePhoto,
 } from '../db/progress';
+import { getAccessToken } from '../utils/googleAuth';
+import { getOrCreateRootFolder, createPhotoFolder, uploadPhotoToFolder, deleteFile } from '../utils/googleDrive';
+
+const UPLOADED_PHOTOS_KEY = 'fitos-coach-uploaded-photos';
+const PHOTO_FOLDER_KEY = 'fitos-photo-folder-id';
 
 export function useProgress(profileId: string | null) {
   const [measurements, setMeasurements] = useState<Measurement[]>([]);
@@ -55,6 +60,24 @@ export function useProgress(profileId: string | null) {
       const full: ProgressPhoto = { ...photo, id: crypto.randomUUID(), profileId };
       await saveProgressPhoto(full);
       await loadData();
+
+      // Upload to Google Drive in background
+      const token = getAccessToken();
+      if (token) {
+        try {
+          let folderId = localStorage.getItem(PHOTO_FOLDER_KEY);
+          if (!folderId) {
+            folderId = await createPhotoFolder(token);
+            localStorage.setItem(PHOTO_FOLDER_KEY, folderId);
+          }
+          const driveFileId = await uploadPhotoToFolder(token, folderId, full.id, full.imageData, `${full.date}_${full.pose}.jpg`);
+          const map = JSON.parse(localStorage.getItem(UPLOADED_PHOTOS_KEY) || '{}');
+          map[full.id] = driveFileId;
+          localStorage.setItem(UPLOADED_PHOTOS_KEY, JSON.stringify(map));
+        } catch (err) {
+          console.error('Drive photo upload failed (will retry on sync):', err);
+        }
+      }
     },
     [profileId, loadData]
   );
@@ -63,6 +86,21 @@ export function useProgress(profileId: string | null) {
     async (id: string) => {
       await dbDeletePhoto(id);
       await loadData();
+
+      // Delete from Google Drive in background
+      const token = getAccessToken();
+      if (token) {
+        try {
+          const map = JSON.parse(localStorage.getItem(UPLOADED_PHOTOS_KEY) || '{}');
+          if (map[id]) {
+            await deleteFile(token, map[id]);
+            delete map[id];
+            localStorage.setItem(UPLOADED_PHOTOS_KEY, JSON.stringify(map));
+          }
+        } catch (err) {
+          console.error('Drive photo delete failed:', err);
+        }
+      }
     },
     [loadData]
   );
