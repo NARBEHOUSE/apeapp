@@ -173,7 +173,7 @@ export function useCoach() {
         const photoMeta = await uploadAllPhotos(token, folderId);
         const fileData = { ...freshData };
         // If client already responded, clear pendingChanges so they don't reappear
-        fileData.pendingChanges = existing.clientResponse ? null : (existing.pendingChanges || null);
+        fileData.pendingChanges = existing.pendingChanges || null;
         fileData.clientResponse = existing.clientResponse || null;
         fileData.progressPhotos = [];
         fileData.photoMeta = photoMeta;
@@ -196,8 +196,8 @@ export function useCoach() {
       try {
         const raw = await readSharedFile(token, rel.fileId);
         const data = JSON.parse(raw);
-        // Skip if we already responded or if there are no actual items
-        if (data.clientResponse) continue;
+        // Skip if we already responded AND there are no new pending changes
+        if (data.clientResponse && !data.pendingChanges) continue;
         if (data.pendingChanges) {
           const migrated = migrateFlatChanges(data.pendingChanges);
           if (migrated.items && migrated.items.length > 0) {
