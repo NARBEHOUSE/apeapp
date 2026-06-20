@@ -40,7 +40,7 @@ export function useCoach() {
     try {
       const data = await gatherCoachData();
       const content = JSON.stringify(data);
-      const fileId = await createCoachShareFile(token, content);
+      const fileId = await createCoachShareFile(token, content, coachEmail);
 
       const rel: CoachRelationship = {
         fileId,

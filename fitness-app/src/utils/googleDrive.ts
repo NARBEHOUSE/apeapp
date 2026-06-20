@@ -112,7 +112,7 @@ export async function downloadSyncData(token: string, fileId: string): Promise<s
 
 const COACH_FILE_NAME = 'ape-coach-share.json';
 
-export async function createCoachShareFile(token: string, content: string): Promise<string> {
+export async function createCoachShareFile(token: string, content: string, coachEmail: string): Promise<string> {
   const metadata = { name: COACH_FILE_NAME, mimeType: 'application/json' };
   const boundary = 'ape_coach_boundary';
   const body = `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n${content}\r\n--${boundary}--`;
@@ -124,11 +124,11 @@ export async function createCoachShareFile(token: string, content: string): Prom
   });
   const file = await res.json();
 
-  // Make it writable by anyone with the link
-  await driveRequest(token, `https://www.googleapis.com/drive/v3/files/${file.id}/permissions`, {
+  // Share with the coach's specific Google account only
+  await driveRequest(token, `https://www.googleapis.com/drive/v3/files/${file.id}/permissions?sendNotificationEmail=false`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ role: 'writer', type: 'anyone' }),
+    body: JSON.stringify({ role: 'writer', type: 'user', emailAddress: coachEmail }),
   });
 
   return file.id;
