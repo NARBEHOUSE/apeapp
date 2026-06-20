@@ -15,6 +15,7 @@ import {
   downloadSyncData,
   gatherAllData,
   restoreAllData,
+  deleteAllAppData,
 } from '../utils/googleDrive';
 
 type SyncStatus = 'idle' | 'syncing' | 'synced' | 'error';
@@ -25,6 +26,7 @@ interface GoogleAuthContextType {
   isLoading: boolean;
   signIn: () => Promise<boolean>;
   signOut: () => void;
+  deleteCloudDataAndSignOut: () => Promise<void>;
   syncStatus: SyncStatus;
   lastSynced: string | null;
   syncNow: () => Promise<void>;
@@ -36,6 +38,7 @@ const GoogleAuthContext = createContext<GoogleAuthContextType>({
   isLoading: false,
   signIn: async () => false,
   signOut: () => {},
+  deleteCloudDataAndSignOut: async () => {},
   syncStatus: 'idle',
   lastSynced: null,
   syncNow: async () => {},
@@ -132,6 +135,18 @@ export function GoogleAuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const deleteCloudDataAndSignOut = useCallback(async () => {
+    try {
+      const token = await getAccessToken();
+      if (token) {
+        await deleteAllAppData(token);
+      }
+    } catch (err) {
+      console.error('Failed to delete cloud data:', err);
+    }
+    signOut();
+  }, [signOut]);
+
   useEffect(() => {
     if (!user) return;
     syncTimerRef.current = setInterval(() => {
@@ -159,6 +174,7 @@ export function GoogleAuthProvider({ children }: { children: ReactNode }) {
         isLoading,
         signIn,
         signOut,
+        deleteCloudDataAndSignOut,
         syncStatus,
         lastSynced,
         syncNow: pushToCloud,

@@ -72,7 +72,7 @@ type Section = 'google' | 'theme' | 'api' | 'dashboard' | 'reports' | 'profile' 
 const REST_OPTIONS = [60, 90, 120];
 
 export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, onLogout }: Props) {
-  const { user: googleUser, isSignedIn: googleSignedIn, signIn: googleSignIn, signOut: googleSignOut, syncStatus, lastSynced, syncNow, isLoading: googleLoading } = useGoogleAuth();
+  const { user: googleUser, isSignedIn: googleSignedIn, signIn: googleSignIn, signOut: googleSignOut, deleteCloudDataAndSignOut, syncStatus, lastSynced, syncNow, isLoading: googleLoading } = useGoogleAuth();
 
   // Expanded sections
   const [expanded, setExpanded] = useState<Set<Section>>(new Set(['api']));
@@ -452,10 +452,12 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
 
   const handleClearProfile = async () => {
     await clearProfileData(profile.id);
+    if (googleSignedIn) await deleteCloudDataAndSignOut();
     window.location.reload();
   };
 
   const handleClearAll = async () => {
+    if (googleSignedIn) await deleteCloudDataAndSignOut();
     await clearAllData();
     window.location.reload();
   };
@@ -1795,7 +1797,7 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
         onClose={() => setShowClearProfile(false)}
         onConfirm={handleClearProfile}
         title="Clear Profile Data"
-        message={`This will permanently delete all workout sessions, food entries, measurements, and photos for "${profile.name}". This cannot be undone.`}
+        message={`This will permanently delete all workout sessions, food entries, measurements, and photos for "${profile.name}".${googleSignedIn ? ' This will also delete your data from Google Drive and sign you out.' : ''} This cannot be undone.`}
         confirmText="Clear Data"
         danger
       />
@@ -1805,7 +1807,7 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
         onClose={() => setShowClearAll(false)}
         onConfirm={handleClearAll}
         title="Clear All Data"
-        message="This will permanently delete ALL data for ALL profiles, including profiles themselves. This cannot be undone."
+        message={`This will permanently delete ALL data for ALL profiles, including profiles themselves.${googleSignedIn ? ' This will also delete your data from Google Drive and sign you out.' : ''} This cannot be undone.`}
         confirmText="Delete Everything"
         danger
       />

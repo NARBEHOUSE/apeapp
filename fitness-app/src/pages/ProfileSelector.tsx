@@ -29,7 +29,7 @@ export function ProfileSelector({ profiles, onSelect, onCreate, onDelete, onRefr
   const [step, setStep] = useState<Step>('list');
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const importRef = useRef<HTMLInputElement>(null);
-  const { isSignedIn, isLoading: googleLoading, signIn: googleSignIn, signOut: googleSignOut, user: googleUser } = useGoogleAuth();
+  const { isSignedIn, isLoading: googleLoading, signIn: googleSignIn, signOut: googleSignOut, deleteCloudDataAndSignOut, user: googleUser } = useGoogleAuth();
 
   const handleGoogleSignIn = async () => {
     const success = await googleSignIn();
@@ -314,9 +314,15 @@ export function ProfileSelector({ profiles, onSelect, onCreate, onDelete, onRefr
         <ConfirmDialog
           open={!!deleteId}
           onClose={() => setDeleteId(null)}
-          onConfirm={() => { if (deleteId) onDelete(deleteId); setDeleteId(null); }}
+          onConfirm={async () => {
+            if (deleteId) {
+              onDelete(deleteId);
+              if (isSignedIn) await deleteCloudDataAndSignOut();
+            }
+            setDeleteId(null);
+          }}
           title="Delete Profile"
-          message="This will permanently delete this profile and all its data."
+          message={`This will permanently delete this profile and all its data.${isSignedIn ? ' This will also delete your data from Google Drive and sign you out.' : ''}`}
           confirmText="Delete"
           danger
         />

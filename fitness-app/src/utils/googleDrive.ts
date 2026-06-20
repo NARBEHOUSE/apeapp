@@ -82,6 +82,24 @@ export async function uploadSyncData(
   return (await uploadRes.json()).id;
 }
 
+export async function deleteSyncFile(token: string, fileId: string): Promise<void> {
+  await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+export async function deleteAllAppData(token: string): Promise<void> {
+  const res = await driveRequest(
+    token,
+    'https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&fields=files(id)&pageSize=100',
+  );
+  const data = await res.json();
+  for (const file of data.files || []) {
+    await deleteSyncFile(token, file.id);
+  }
+}
+
 export async function downloadSyncData(token: string, fileId: string): Promise<string> {
   const res = await driveRequest(
     token,
