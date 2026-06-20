@@ -113,6 +113,7 @@ export async function deleteAllAppData(token: string): Promise<void> {
   } catch { /* folder may not exist */ }
 
   cachedRootFolderId = null;
+  cachedPhotoFolderId = null;
 }
 
 export async function downloadSyncData(token: string, fileId: string): Promise<string> {
@@ -201,14 +202,31 @@ export async function deleteFile(token: string, fileId: string): Promise<void> {
 
 // --- Coach photo folder (inside APE App root) ---
 
+let cachedPhotoFolderId: string | null = null;
+
 export async function createPhotoFolder(token: string): Promise<string> {
+  if (cachedPhotoFolderId) return cachedPhotoFolderId;
+
   const rootId = await getOrCreateRootFolder(token);
+
+  // Check if it already exists
+  const searchRes = await driveRequest(
+    token,
+    `https://www.googleapis.com/drive/v3/files?q=name='${COACH_PHOTO_SUBFOLDER}' and '${rootId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false&fields=files(id)&pageSize=1`,
+  );
+  const searchData = await searchRes.json();
+  if (searchData.files?.[0]) {
+    cachedPhotoFolderId = searchData.files[0].id;
+    return cachedPhotoFolderId!;
+  }
+
   const res = await driveRequest(token, 'https://www.googleapis.com/drive/v3/files', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name: COACH_PHOTO_SUBFOLDER, mimeType: 'application/vnd.google-apps.folder', parents: [rootId] }),
   });
   const folder = await res.json();
+  cachedPhotoFolderId = folder.id;
   return folder.id;
 }
 

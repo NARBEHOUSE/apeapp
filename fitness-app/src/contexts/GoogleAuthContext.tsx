@@ -72,27 +72,9 @@ export function GoogleAuthProvider({ children }: { children: ReactNode }) {
 
     setSyncStatus('syncing');
     try {
-      // Check if sync file still exists on Drive
       if (!syncFileIdRef.current) {
         const existing = await findSyncFile(token);
-        if (!existing) {
-          // No sync file on Drive — data was deleted on another device
-          // Check if we have a Google profile locally that should have been deleted
-          const profiles = JSON.parse(localStorage.getItem('fitos-profiles') || '[]') as { googleEmail?: string }[];
-          if (profiles.some((p) => p.googleEmail === user.email)) {
-            // Wipe local Google profile data — it was deleted elsewhere
-            const { clearAllData } = await import('../utils/exportImport');
-            await clearAllData();
-            clearStoredUser();
-            setUser(null);
-            setSyncStatus('idle');
-            window.location.reload();
-            return;
-          }
-          setSyncStatus('synced');
-          return;
-        }
-        syncFileIdRef.current = existing.id;
+        syncFileIdRef.current = existing?.id || null;
       }
 
       const data = await gatherAllData(user.email);
@@ -130,13 +112,7 @@ export function GoogleAuthProvider({ children }: { children: ReactNode }) {
         }
         markSynced();
       } else {
-        // No sync file on Drive — either new account or data was deleted on another device
-        // If we have a stale Google profile locally, wipe it
-        const profiles = JSON.parse(localStorage.getItem('fitos-profiles') || '[]') as { googleEmail?: string }[];
-        if (profiles.some((p) => p.googleEmail === googleUser.email)) {
-          const { clearAllData } = await import('../utils/exportImport');
-          await clearAllData();
-        }
+        // No sync file on Drive — new account, user will create a profile
         setSyncStatus('synced');
       }
       return true;
