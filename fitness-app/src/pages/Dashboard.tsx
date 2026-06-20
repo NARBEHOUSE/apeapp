@@ -11,6 +11,7 @@ import { getAllPrograms, initializePrograms } from '../db/programs';
 import { calculateAutoAdjustment, type AutoAdjustResult } from '../utils/tdee';
 import { getDashboardConfig } from '../utils/dashboardConfig';
 import { daysSinceBackup } from '../utils/backupReminder';
+import { useGoogleAuth } from '../contexts/GoogleAuthContext';
 
 import WeeklyRing from '../components/dashboard/WeeklyRing';
 import MacroSummary from '../components/dashboard/MacroSummary';
@@ -29,6 +30,7 @@ const MEASUREMENT_LABELS: Record<string, string> = {
 
 export default function Dashboard({ profile }: DashboardProps) {
   const navigate = useNavigate();
+  const { isSignedIn: googleSignedIn } = useGoogleAuth();
 
   const [sessions, setSessions] = useState<WorkoutSession[]>([]);
   const [foodEntries, setFoodEntries] = useState<FoodEntry[]>([]);
@@ -231,22 +233,24 @@ export default function Dashboard({ profile }: DashboardProps) {
         </button>
       )}
 
-      {/* Backup reminder — always visible */}
-      <button
-        onClick={() => navigate('/settings')}
-        className="bg-surface rounded-2xl p-4 flex items-center gap-3 w-full text-left active:scale-[0.98] transition-transform"
-      >
-        <HardDrive size={16} className="text-accent-blue" />
-        <div className="flex-1 min-w-0">
-          <div className="text-sm font-medium">Back up your data</div>
-          <div className="text-[11px] text-text-muted">
-            {daysSinceBackup() === null
-              ? "You haven't backed up yet — your data lives only on this device"
-              : `Last backup was ${daysSinceBackup()} days ago`}
+      {/* Backup reminder — only for local-only profiles */}
+      {!googleSignedIn && (
+        <button
+          onClick={() => navigate('/settings')}
+          className="bg-surface rounded-2xl p-4 flex items-center gap-3 w-full text-left active:scale-[0.98] transition-transform"
+        >
+          <HardDrive size={16} className="text-accent-blue" />
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-medium">Back up your data</div>
+            <div className="text-[11px] text-text-muted">
+              {daysSinceBackup() === null
+                ? "You haven't backed up yet — your data lives only on this device"
+                : `Last backup was ${daysSinceBackup()} days ago`}
+            </div>
           </div>
-        </div>
-        <ChevronRight size={14} className="text-text-muted" />
-      </button>
+          <ChevronRight size={14} className="text-text-muted" />
+        </button>
+      )}
 
       {/* Stats row */}
       <div className="flex items-center gap-4">

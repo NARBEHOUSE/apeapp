@@ -9,8 +9,10 @@ import {
   Plus,
   SkipForward,
   MessageSquare,
+  Heart,
+  Trash2,
 } from 'lucide-react';
-import type { WorkoutSession, WorkoutDay, SetLog, Exercise, ExerciseLastPerformance, ExerciseFeedback } from '../../types';
+import type { WorkoutSession, WorkoutDay, SetLog, Exercise, ExerciseLastPerformance, ExerciseFeedback, CardioEntry } from '../../types';
 import { RestTimer } from './RestTimer';
 import { toast } from '../shared/Toast';
 import { getAllPRs } from '../../db/workouts';
@@ -36,6 +38,7 @@ interface Props {
   durationWeeks: number;
   programDefaultRestTimer?: number;
   onSaveFeedback?: (feedback: Record<string, ExerciseFeedback>) => void;
+  onUpdateCardio?: (cardio: CardioEntry[]) => void;
 }
 
 interface SetInput {
@@ -338,6 +341,7 @@ export function ActiveWorkout({
   durationWeeks,
   programDefaultRestTimer,
   onSaveFeedback,
+  onUpdateCardio,
 }: Props) {
   const [elapsed, setElapsed] = useState(0);
   const [showRestTimer, setShowRestTimer] = useState(false);
@@ -347,6 +351,52 @@ export function ActiveWorkout({
     Record<string, { weight: number; reps: number; date: string }>
   >({});
   const [exerciseFeedback, setExerciseFeedback] = useState<Record<string, ExerciseFeedback>>({});
+
+  // Cardio tracking
+  const [cardioEntries, setCardioEntries] = useState<CardioEntry[]>(session.cardio || []);
+  const [showAddCardio, setShowAddCardio] = useState(false);
+  const [cardioType, setCardioType] = useState('');
+  const [cardioDuration, setCardioDuration] = useState('');
+  const [cardioIntensity, setCardioIntensity] = useState<'low' | 'moderate' | 'high'>('moderate');
+  const [cardioHeartRate, setCardioHeartRate] = useState('');
+  const [cardioDistance, setCardioDistance] = useState('');
+  const [cardioDistanceUnit, setCardioDistanceUnit] = useState<'mi' | 'km'>('mi');
+  const [cardioCalories, setCardioCalories] = useState('');
+  const [cardioNotes, setCardioNotes] = useState('');
+
+  const CARDIO_TYPES = ['Running', 'Walking', 'Cycling', 'Rowing', 'Stairmaster', 'Elliptical', 'Swimming', 'Jump Rope', 'HIIT'];
+
+  function addCardioEntry() {
+    if (!cardioType.trim() || !cardioDuration) return;
+    const entry: CardioEntry = {
+      type: cardioType.trim(),
+      durationMin: parseFloat(cardioDuration) || 0,
+      intensity: cardioIntensity,
+      heartRateAvg: cardioHeartRate ? parseInt(cardioHeartRate) : undefined,
+      distanceKm: cardioDistance ? (cardioDistanceUnit === 'mi' ? parseFloat(cardioDistance) * 1.60934 : parseFloat(cardioDistance)) : undefined,
+      distanceUnit: cardioDistance ? cardioDistanceUnit : undefined,
+      caloriesBurned: cardioCalories ? parseInt(cardioCalories) : undefined,
+      notes: cardioNotes.trim() || undefined,
+    };
+    const updated = [...cardioEntries, entry];
+    setCardioEntries(updated);
+    onUpdateCardio?.(updated);
+    setShowAddCardio(false);
+    setCardioType('');
+    setCardioDuration('');
+    setCardioIntensity('moderate');
+    setCardioHeartRate('');
+    setCardioDistance('');
+    setCardioCalories('');
+    setCardioNotes('');
+    toast(`Added ${entry.type} — ${entry.durationMin} min`, 'success');
+  }
+
+  function removeCardioEntry(idx: number) {
+    const updated = cardioEntries.filter((_, i) => i !== idx);
+    setCardioEntries(updated);
+    onUpdateCardio?.(updated);
+  }
 
   // Session-level modifications (don't touch the program)
   const [skippedExercises, setSkippedExercises] = useState<SkippedExercise[]>([]);
@@ -688,6 +738,143 @@ export function ActiveWorkout({
                     </div>
                   );
                 })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cardio tracking */}
+      <div className="px-4 pt-2">
+        <div className="bg-surface rounded-2xl p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-xs font-semibold text-text-secondary uppercase tracking-wider flex items-center gap-1.5">
+              <Heart size={13} /> Cardio
+            </h3>
+            <button
+              onClick={() => setShowAddCardio(true)}
+              className="text-[11px] text-accent-blue font-medium flex items-center gap-1"
+            >
+              <Plus size={12} /> Add
+            </button>
+          </div>
+
+          {cardioEntries.length === 0 ? (
+            <p className="text-xs text-text-muted text-center py-2">No cardio logged</p>
+          ) : (
+            <div className="space-y-2">
+              {cardioEntries.map((entry, idx) => (
+                <div key={idx} className="flex items-center justify-between p-2.5 rounded-xl bg-surface-raised">
+                  <div>
+                    <div className="text-sm font-medium">{entry.type}</div>
+                    <div className="flex gap-2 text-[11px] text-text-muted mt-0.5 flex-wrap">
+                      <span>{entry.durationMin} min</span>
+                      {entry.intensity && <span className="capitalize">{entry.intensity}</span>}
+                      {entry.heartRateAvg && <span>{entry.heartRateAvg} bpm</span>}
+                      {entry.distanceKm != null && (
+                        <span>
+                          {entry.distanceUnit === 'mi'
+                            ? (entry.distanceKm / 1.60934).toFixed(1) + ' mi'
+                            : entry.distanceKm.toFixed(1) + ' km'}
+                        </span>
+                      )}
+                      {entry.caloriesBurned && <span>{entry.caloriesBurned} cal</span>}
+                    </div>
+                    {entry.notes && <div className="text-[10px] text-text-muted italic mt-0.5">{entry.notes}</div>}
+                  </div>
+                  <button onClick={() => removeCardioEntry(idx)} className="p-1.5 text-text-muted hover:text-danger">
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Add cardio modal */}
+      {showAddCardio && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-bg rounded-t-3xl w-full max-w-lg p-5 space-y-3 safe-bottom animate-in slide-in-from-bottom">
+            <h3 className="font-bold text-base">Add Cardio</h3>
+
+            <div>
+              <label className="text-[9px] text-text-muted mb-1 block">Type</label>
+              <div className="flex flex-wrap gap-1.5 mb-1.5">
+                {CARDIO_TYPES.map((t) => (
+                  <button
+                    key={t}
+                    onClick={() => setCardioType(t)}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-colors ${
+                      cardioType === t ? 'bg-accent-orange/20 text-accent-orange' : 'bg-surface-raised text-text-muted'
+                    }`}
+                  >
+                    {t}
+                  </button>
+                ))}
+              </div>
+              <input
+                type="text"
+                className="input-field text-sm"
+                placeholder="Or type custom..."
+                value={cardioType}
+                onChange={(e) => setCardioType(e.target.value)}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-[9px] text-text-muted mb-0.5 block">Duration (min) *</label>
+                <input type="number" inputMode="numeric" className="input-field text-sm" placeholder="30" value={cardioDuration} onChange={(e) => setCardioDuration(e.target.value)} />
+              </div>
+              <div>
+                <label className="text-[9px] text-text-muted mb-0.5 block">Intensity</label>
+                <div className="flex gap-1">
+                  {(['low', 'moderate', 'high'] as const).map((i) => (
+                    <button
+                      key={i}
+                      onClick={() => setCardioIntensity(i)}
+                      className={`flex-1 py-2 rounded-lg text-[10px] font-medium capitalize transition-colors ${
+                        cardioIntensity === i
+                          ? i === 'low' ? 'bg-success/20 text-success' : i === 'moderate' ? 'bg-accent-orange/20 text-accent-orange' : 'bg-danger/20 text-danger'
+                          : 'bg-surface-raised text-text-muted'
+                      }`}
+                    >
+                      {i}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2">
+              <div>
+                <label className="text-[9px] text-text-muted mb-0.5 block">Avg HR (bpm)</label>
+                <input type="number" inputMode="numeric" className="input-field text-sm" placeholder="145" value={cardioHeartRate} onChange={(e) => setCardioHeartRate(e.target.value)} />
+              </div>
+              <div>
+                <label className="text-[9px] text-text-muted mb-0.5 block">Distance</label>
+                <div className="flex gap-1">
+                  <input type="number" inputMode="decimal" className="input-field text-sm flex-1" placeholder="3.0" value={cardioDistance} onChange={(e) => setCardioDistance(e.target.value)} />
+                  <select className="input-field text-[10px] py-0 w-12" value={cardioDistanceUnit} onChange={(e) => setCardioDistanceUnit(e.target.value as 'mi' | 'km')}>
+                    <option value="mi">mi</option>
+                    <option value="km">km</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="text-[9px] text-text-muted mb-0.5 block">Cal Burned</label>
+                <input type="number" inputMode="numeric" className="input-field text-sm" placeholder="300" value={cardioCalories} onChange={(e) => setCardioCalories(e.target.value)} />
+              </div>
+            </div>
+
+            <div>
+              <label className="text-[9px] text-text-muted mb-0.5 block">Notes</label>
+              <input type="text" className="input-field text-sm" placeholder="e.g. incline 5%, intervals..." value={cardioNotes} onChange={(e) => setCardioNotes(e.target.value)} />
+            </div>
+
+            <div className="flex gap-2 pt-1">
+              <button onClick={() => setShowAddCardio(false)} className="btn-secondary flex-1 text-sm">Cancel</button>
+              <button onClick={addCardioEntry} disabled={!cardioType.trim() || !cardioDuration} className="btn-primary flex-1 text-sm disabled:opacity-30">Add Cardio</button>
             </div>
           </div>
         </div>

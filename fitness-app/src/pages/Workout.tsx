@@ -106,6 +106,7 @@ export function Workout({ profile, onUpdateProfile }: Props) {
     startWorkout,
     logSet,
     updateSet,
+    updateCardio,
     finishWorkout,
     cancelWorkout,
     getPreviousSession,
@@ -323,6 +324,7 @@ export function Workout({ profile, onUpdateProfile }: Props) {
             import('../db/workouts').then(({ saveWorkoutSession }) => saveWorkoutSession(updated));
           }
         }}
+        onUpdateCardio={updateCardio}
       />
     );
   }

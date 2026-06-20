@@ -578,7 +578,7 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
             ))}
           </select>
         </div>
-        <ManualEntry onAdd={addEntryWithTime} onClose={() => { setModal(null); setAddAtTime(null); }} profileId={profile.id} />
+        <ManualEntry onAdd={addEntryWithTime} onClose={() => { setModal(null); setAddAtTime(null); }} profileId={profile.id} dailyTotals={totals} macroTargets={targets} />
       </Modal>
 
       <Modal open={modal === 'search'} onClose={() => setModal(null)} title="Search Foods">

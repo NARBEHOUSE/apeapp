@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import type { WorkoutSession, SetLog, Exercise, ExerciseLastPerformance } from '../types';
+import type { WorkoutSession, SetLog, Exercise, ExerciseLastPerformance, CardioEntry } from '../types';
 import { saveWorkoutSession, getSessionsByProfile } from '../db/workouts';
 import { getAllPrograms, initializePrograms } from '../db/programs';
 import type { Program } from '../types';
@@ -72,6 +72,14 @@ export function useWorkout(profileId: string | null) {
     [activeSession]
   );
 
+  const updateCardio = useCallback(
+    (cardio: CardioEntry[]) => {
+      if (!activeSession) return;
+      setActiveSession((prev) => prev ? { ...prev, cardio } : prev);
+    },
+    [activeSession]
+  );
+
   const finishWorkout = useCallback(async (): Promise<WorkoutSession | null> => {
     if (!activeSession) return null;
     const finished = { ...activeSession, endTime: Date.now() };
@@ -136,6 +144,7 @@ export function useWorkout(profileId: string | null) {
     startWorkout,
     logSet,
     updateSet,
+    updateCardio,
     finishWorkout,
     cancelWorkout,
     getPreviousSession,

@@ -153,6 +153,17 @@ export interface ExerciseFeedback {
   note?: string;
 }
 
+export interface CardioEntry {
+  type: string;
+  durationMin: number;
+  intensity?: 'low' | 'moderate' | 'high';
+  heartRateAvg?: number;
+  distanceKm?: number;
+  distanceUnit?: 'km' | 'mi';
+  caloriesBurned?: number;
+  notes?: string;
+}
+
 export interface WorkoutSession {
   id: string;
   profileId: string;
@@ -165,6 +176,7 @@ export interface WorkoutSession {
   notes?: string;
   bodyweight?: number;
   exerciseFeedback?: Record<string, ExerciseFeedback>;
+  cardio?: CardioEntry[];
 }
 
 export interface SetLog {

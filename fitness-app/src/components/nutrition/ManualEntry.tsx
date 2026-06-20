@@ -5,10 +5,19 @@ import { saveFoodToHistory } from '../../db/foodHistory';
 
 type ServingUnit = 'g' | 'oz' | 'cup' | 'serving';
 
+interface DailyTotals {
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+}
+
 interface ManualEntryProps {
   onAdd: (entry: Omit<FoodEntry, 'id' | 'profileId' | 'loggedAt'>) => void;
   onClose: () => void;
   profileId: string;
+  dailyTotals?: DailyTotals;
+  macroTargets?: DailyTotals;
 }
 
 function calcCalories(p: number, c: number, f: number): number {
@@ -23,7 +32,7 @@ interface BasePer100g {
   fiber: number;
 }
 
-export function ManualEntry({ onAdd, onClose, profileId }: ManualEntryProps) {
+export function ManualEntry({ onAdd, onClose, profileId, dailyTotals, macroTargets }: ManualEntryProps) {
   const [name, setName] = useState('');
   const [protein, setProtein] = useState('');
   const [carbs, setCarbs] = useState('');
@@ -299,6 +308,44 @@ export function ManualEntry({ onAdd, onClose, profileId }: ManualEntryProps) {
           <div className="text-[8px] text-text-muted text-center mt-0.5">g</div>
         </div>
       </div>
+
+      {/* Live remaining macros */}
+      {dailyTotals && macroTargets && (
+        <div className="bg-surface rounded-xl p-3 space-y-2">
+          <div className="text-[10px] text-text-muted uppercase tracking-wider font-medium">After adding this</div>
+          {([
+            { key: 'calories' as const, label: 'Cal', color: '#f5a623', value: Math.round(displayCal * numServings) },
+            { key: 'protein' as const, label: 'Protein', color: '#2e9e6b', value: Math.round(p * numServings) },
+            { key: 'carbs' as const, label: 'Carbs', color: '#5b6ef5', value: Math.round(c * numServings) },
+            { key: 'fat' as const, label: 'Fat', color: '#e8572a', value: Math.round(f * numServings) },
+          ]).map((m) => {
+            const current = dailyTotals[m.key] + m.value;
+            const target = macroTargets[m.key];
+            const remaining = target - current;
+            const pct = target > 0 ? Math.min((current / target) * 100, 100) : 0;
+            const over = current > target;
+            return (
+              <div key={m.key} className="space-y-0.5">
+                <div className="flex justify-between text-[11px]">
+                  <span className="text-text-secondary">{m.label}</span>
+                  <span className={over ? 'text-danger font-medium' : 'text-text-muted'}>
+                    {over ? `+${Math.abs(Math.round(remaining))} over` : `${Math.round(remaining)} left`}
+                  </span>
+                </div>
+                <div className="h-1.5 rounded-full bg-surface-raised overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all duration-200"
+                    style={{
+                      width: `${pct}%`,
+                      backgroundColor: over ? '#e85757' : m.color,
+                    }}
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Meal type */}
       <div>
