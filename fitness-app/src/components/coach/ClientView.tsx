@@ -60,6 +60,7 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
   const [responses, setResponses] = useState<PendingClientResponse | null>(data.clientResponse || null);
   const [editingProgram, setEditingProgram] = useState<Program | null>(null);
   const [creatingProgram, setCreatingProgram] = useState(false);
+  const [showProgramPicker, setShowProgramPicker] = useState(false);
   const importRef = useRef<HTMLInputElement>(null);
   const [myPrograms, setMyPrograms] = useState<Program[]>([]);
 
@@ -309,29 +310,90 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
         {/* PROGRESS */}
         {tab === 'progress' && (<>{recentMeasurements.length === 0 ? <p className="text-sm text-text-muted text-center py-8">No measurements</p> : <div className="space-y-2"><div className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Weight History</div>{recentMeasurements.filter((m) => m.weight).map((m) => <div key={m.id} className="card p-3 flex items-center justify-between"><span className="text-sm text-text-muted">{m.date}</span><span className="text-sm font-semibold">{m.weight} {m.weightUnit}</span></div>)}</div>}{data.photoMeta && data.photoMeta.length > 0 && <div className="space-y-2 mt-4"><div className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Progress Photos {photosLoading && <span className="text-text-muted">(loading...)</span>}</div><div className="grid grid-cols-3 gap-2">{data.photoMeta.map((p) => <button key={p.photoId} onClick={() => photoUrls[p.photoId] && setViewingPhoto({ url: photoUrls[p.photoId], date: p.date, pose: p.pose, weight: p.weight })} className="relative rounded-xl overflow-hidden aspect-square bg-surface-raised active:scale-95 transition-transform">{photoUrls[p.photoId] ? <img src={photoUrls[p.photoId]} alt={p.pose} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-text-muted"><RefreshCw size={14} className={photosLoading ? 'animate-spin' : ''} /></div>}<div className="absolute bottom-0 inset-x-0 bg-black/60 px-1.5 py-0.5 text-[8px] text-white">{p.date} · {p.pose}{p.weight ? ` · ${p.weight}` : ''}</div></button>)}</div></div>}</>)}
 
-        {/* PROGRAMS — only show enrolled program */}
+        {/* PROGRAMS */}
         {tab === 'programs' && (() => {
           const enrolledId = data.profile.activeProgram?.programId;
           const enrolled = enrolledId ? data.programs.find((p) => p.id === enrolledId) : null;
-          return enrolled ? (
-            <div className="card p-4 space-y-2">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-sm font-semibold">{enrolled.name}</div>
-                  <div className="text-xs text-text-muted">{enrolled.days.length} days · {enrolled.days.reduce((a, d) => a + d.exercises.length, 0)} exercises</div>
-                  <div className="text-[10px] text-success font-medium mt-0.5">Currently enrolled</div>
+          return (
+            <div className="space-y-4">
+              {enrolled ? (
+                <div className="card p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-sm font-semibold">{enrolled.name}</div>
+                      <div className="text-xs text-text-muted">{enrolled.days.length} days · {enrolled.days.reduce((a, d) => a + d.exercises.length, 0)} exercises</div>
+                      <div className="text-[10px] text-success font-medium mt-0.5">Currently enrolled</div>
+                    </div>
+                  </div>
+                  {enrolled.days.map((day) => (
+                    <div key={day.id} className="pl-3 border-l-2 border-border space-y-0.5">
+                      <div className="text-xs font-medium">{day.title}</div>
+                      {day.exercises.map((ex, i) => <div key={i} className="text-[10px] text-text-muted">{ex.name} — {ex.sets}×{ex.reps}</div>)}
+                    </div>
+                  ))}
+                  {!readonly && (
+                    <div className="flex gap-2 pt-1">
+                      <button onClick={() => setEditingProgram(enrolled)} className="flex-1 btn-secondary text-sm flex items-center justify-center gap-1"><Edit3 size={14} /> Edit Program</button>
+                      <button onClick={() => setShowProgramPicker(true)} className="flex-1 btn-secondary text-sm flex items-center justify-center gap-1 text-danger"><X size={14} /> Replace</button>
+                    </div>
+                  )}
                 </div>
-                {!readonly && <button onClick={() => setEditingProgram(enrolled)} className="px-3 py-1.5 rounded-lg text-[11px] font-medium bg-accent-blue/10 text-accent-blue">Edit</button>}
-              </div>
-              {enrolled.days.map((day) => (
-                <div key={day.id} className="pl-3 border-l-2 border-border space-y-0.5">
-                  <div className="text-xs font-medium">{day.title}</div>
-                  {day.exercises.map((ex, i) => <div key={i} className="text-[10px] text-text-muted">{ex.name} — {ex.sets}×{ex.reps}</div>)}
+              ) : (
+                <div className="card p-4 text-center space-y-3">
+                  <p className="text-sm text-text-muted">Client is not enrolled in a program</p>
+                  {!readonly && <button onClick={() => setShowProgramPicker(true)} className="btn-primary text-sm"><Plus size={14} className="inline mr-1" />Assign Program</button>}
                 </div>
-              ))}
+              )}
+
+              {/* Pending program change */}
+              {pendingProgram && (
+                <div className="card p-3 border-2 border-accent-blue/30 space-y-1">
+                  <div className="text-[9px] text-accent-blue uppercase font-semibold tracking-wider">Staged for push</div>
+                  <div className="text-sm font-medium">{pendingProgram.name}</div>
+                  <div className="text-xs text-text-muted">{pendingProgram.days.length} days · {pendingProgram.days.reduce((a, d) => a + d.exercises.length, 0)} exercises</div>
+                  <div className="flex gap-2 pt-1">
+                    <button onClick={() => setEditingProgram(pendingProgram)} className="text-[10px] text-accent-blue font-medium">Edit before pushing</button>
+                    <button onClick={() => setPendingProgram(null)} className="text-[10px] text-danger font-medium">Remove</button>
+                  </div>
+                </div>
+              )}
+
+              {/* Program picker */}
+              {showProgramPicker && (
+                <div className="card p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="text-xs font-semibold uppercase tracking-wider">Choose a Program</div>
+                    <button onClick={() => setShowProgramPicker(false)} className="text-text-muted"><X size={14} /></button>
+                  </div>
+
+                  <button onClick={() => { setShowProgramPicker(false); setCreatingProgram(true); }} className="w-full btn-primary text-sm flex items-center justify-center gap-1">
+                    <Plus size={14} /> Create New Program
+                  </button>
+
+                  {myPrograms.length > 0 && (
+                    <div className="space-y-1.5">
+                      <div className="text-[10px] text-text-muted font-medium">Your programs:</div>
+                      {myPrograms.map((prog) => (
+                        <button key={prog.id} onClick={() => {
+                          const copy = { ...prog, id: crypto.randomUUID() };
+                          setPendingProgram(copy);
+                          setShowProgramPicker(false);
+                          toast(`Selected: ${prog.name} — edit or push from Changes tab`, 'success');
+                        }} className="w-full text-left p-3 rounded-xl bg-surface-raised hover:bg-surface transition-colors">
+                          <div className="text-sm font-medium">{prog.name}</div>
+                          <div className="text-[10px] text-text-muted">{prog.days.length} days · {prog.days.reduce((a, d) => a + d.exercises.length, 0)} exercises</div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  <label className="w-full btn-secondary text-sm flex items-center justify-center gap-1 cursor-pointer">
+                    <Upload size={14} /> Import from JSON
+                    <input ref={importRef} type="file" accept=".json" onChange={(e) => { handleImportProgram(e); setShowProgramPicker(false); }} className="hidden" />
+                  </label>
+                </div>
+              )}
             </div>
-          ) : (
-            <p className="text-sm text-text-muted text-center py-8">Client is not enrolled in a program</p>
           );
         })()}
 
