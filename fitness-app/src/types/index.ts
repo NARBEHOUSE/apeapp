@@ -160,11 +160,21 @@ export interface ExerciseFeedback {
 
 export interface CoachRelationship {
   fileId: string;
+  photoFolderId?: string;
   coachEmail?: string;
   clientEmail?: string;
   clientName?: string;
   role: 'client' | 'coach';
   createdAt: string;
+}
+
+export interface CoachPhotoMeta {
+  photoId: string;
+  driveFileId: string;
+  date: string;
+  pose: string;
+  weight?: number;
+  notes?: string;
 }
 
 export interface CoachChangeItem {

@@ -160,6 +160,103 @@ export async function deleteFile(token: string, fileId: string): Promise<void> {
   await driveRequest(token, `https://www.googleapis.com/drive/v3/files/${fileId}`, { method: 'DELETE' });
 }
 
+// --- Coach photo folder ---
+
+const COACH_PHOTO_FOLDER = 'APE Coach Photos';
+
+export async function createPhotoFolder(token: string, coachEmail: string): Promise<string> {
+  const res = await driveRequest(token, 'https://www.googleapis.com/drive/v3/files', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: COACH_PHOTO_FOLDER, mimeType: 'application/vnd.google-apps.folder' }),
+  });
+  const folder = await res.json();
+
+  await driveRequest(token, `https://www.googleapis.com/drive/v3/files/${folder.id}/permissions?sendNotificationEmail=false`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ role: 'reader', type: 'user', emailAddress: coachEmail }),
+  });
+
+  return folder.id;
+}
+
+export async function findPhotoFolder(token: string): Promise<string | null> {
+  const res = await driveRequest(
+    token,
+    `https://www.googleapis.com/drive/v3/files?q=name='${COACH_PHOTO_FOLDER}' and mimeType='application/vnd.google-apps.folder' and 'me' in owners&fields=files(id)&pageSize=1`,
+  );
+  const data = await res.json();
+  return data.files?.[0]?.id || null;
+}
+
+function base64ToBlob(dataUrl: string): Blob {
+  const parts = dataUrl.split(',');
+  const mime = parts[0]?.match(/:(.*?);/)?.[1] || 'image/jpeg';
+  const raw = atob(parts[1] || '');
+  const arr = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+  return new Blob([arr], { type: mime });
+}
+
+export async function uploadPhotoToFolder(
+  token: string,
+  folderId: string,
+  photoId: string,
+  imageData: string,
+  fileName: string,
+): Promise<string> {
+  const compressed = await compressBase64Image(imageData, 600, 0.7);
+  const blob = base64ToBlob(compressed);
+
+  const metadata = { name: fileName, parents: [folderId] };
+  const boundary = 'ape_photo_boundary';
+  const metaStr = JSON.stringify(metadata);
+
+  const bodyParts = new Uint8Array(
+    await new Blob([
+      `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metaStr}\r\n--${boundary}\r\nContent-Type: ${blob.type}\r\n\r\n`,
+    ]).arrayBuffer().then((a) => {
+      const combined = new Uint8Array(a.byteLength + blob.size + `\r\n--${boundary}--`.length);
+      combined.set(new Uint8Array(a), 0);
+      return combined;
+    }),
+  );
+
+  // Use FormData-free approach: build multipart manually with blobs
+  const formBody = new Blob([
+    `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metaStr}\r\n--${boundary}\r\nContent-Type: ${blob.type}\r\n\r\n`,
+    blob,
+    `\r\n--${boundary}--`,
+  ]);
+
+  const res = await driveRequest(token, 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+    method: 'POST',
+    headers: { 'Content-Type': `multipart/related; boundary=${boundary}` },
+    body: formBody,
+  });
+  const file = await res.json();
+  return file.id;
+}
+
+export async function listFolderFiles(token: string, folderId: string): Promise<{ id: string; name: string }[]> {
+  const res = await driveRequest(
+    token,
+    `https://www.googleapis.com/drive/v3/files?q='${folderId}' in parents and trashed=false&fields=files(id,name)&pageSize=100`,
+  );
+  const data = await res.json();
+  return data.files || [];
+}
+
+export async function fetchDriveImageUrl(token: string, fileId: string): Promise<string> {
+  const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error('Failed to fetch image');
+  const blob = await res.blob();
+  return URL.createObjectURL(blob);
+}
+
 function compressBase64Image(dataUrl: string, maxWidth: number, quality: number): Promise<string> {
   return new Promise((resolve) => {
     const img = new Image();

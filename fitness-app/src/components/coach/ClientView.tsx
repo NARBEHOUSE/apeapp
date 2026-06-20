@@ -3,8 +3,10 @@ import {
   ArrowLeft, Send, Dumbbell, Utensils, TrendingUp, Target,
   ChevronDown, ChevronUp, Calendar, Plus, Trash2, Check, X, MessageSquare, Heart, RefreshCw,
 } from 'lucide-react';
-import type { PendingCoachChanges, CoachChangeItem, PendingClientResponse, Program, MacroTargets } from '../../types';
+import type { PendingCoachChanges, CoachChangeItem, PendingClientResponse, CoachPhotoMeta, Program, MacroTargets } from '../../types';
 import { ProgramEditor } from '../workout/ProgramEditor';
+import { fetchDriveImageUrl } from '../../utils/googleDrive';
+import { getAccessToken, requireAccessToken } from '../../utils/googleAuth';
 import { toast } from '../shared/Toast';
 
 interface ClientData {
@@ -20,6 +22,8 @@ interface ClientData {
   foodEntries: { id: string; date: string; name: string; calories: number; protein: number; carbs: number; fat: number; servingsConsumed: number; mealType: string; loggedAt: string }[];
   measurements: { id: string; date: string; weight?: number; weightUnit: string; measurements?: Record<string, number> }[];
   progressPhotos: { id: string; date: string; pose: string; imageData: string; weight?: number }[];
+  photoMeta?: CoachPhotoMeta[];
+  photoFolderId?: string;
   programs: Program[];
   pendingChanges?: PendingCoachChanges | null;
   clientResponse?: PendingClientResponse | null;
@@ -54,6 +58,29 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
   const [generalNote, setGeneralNote] = useState('');
   const [pushing, setPushing] = useState(false);
   const [expandedWorkout, setExpandedWorkout] = useState<string | null>(null);
+
+  // Photo loading from Drive
+  const [photoUrls, setPhotoUrls] = useState<Record<string, string>>({});
+  const [photosLoading, setPhotosLoading] = useState(false);
+
+  useEffect(() => {
+    const photos = data.photoMeta;
+    if (!photos || photos.length === 0) return;
+    let cancelled = false;
+    setPhotosLoading(true);
+    (async () => {
+      const token = getAccessToken() || await requireAccessToken();
+      const urls: Record<string, string> = {};
+      for (const p of photos) {
+        if (cancelled) break;
+        try {
+          urls[p.photoId] = await fetchDriveImageUrl(token, p.driveFileId);
+        } catch { /* skip broken */ }
+      }
+      if (!cancelled) { setPhotoUrls(urls); setPhotosLoading(false); }
+    })();
+    return () => { cancelled = true; };
+  }, [data.photoMeta]);
 
   // Staging system
   const [stagedChanges, setStagedChanges] = useState<CoachChangeItem[]>([]);
@@ -438,7 +465,32 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
                 ))}
               </div>
             )}
-            {data.progressPhotos.length > 0 && (
+            {/* Drive-hosted photos */}
+            {data.photoMeta && data.photoMeta.length > 0 && (
+              <div className="space-y-2 mt-4">
+                <div className="text-xs font-semibold text-text-secondary uppercase tracking-wider">
+                  Progress Photos {photosLoading && <span className="text-text-muted">(loading...)</span>}
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  {data.photoMeta.map((p) => (
+                    <div key={p.photoId} className="relative rounded-xl overflow-hidden aspect-square bg-surface-raised">
+                      {photoUrls[p.photoId] ? (
+                        <img src={photoUrls[p.photoId]} alt={p.pose} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-text-muted">
+                          <RefreshCw size={16} className={photosLoading ? 'animate-spin' : ''} />
+                        </div>
+                      )}
+                      <div className="absolute bottom-0 inset-x-0 bg-black/60 px-1.5 py-0.5 text-[8px] text-white">
+                        {p.date} · {p.pose}{p.weight ? ` · ${p.weight}` : ''}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {/* Fallback for old embedded photos */}
+            {(!data.photoMeta || data.photoMeta.length === 0) && data.progressPhotos.length > 0 && (
               <div className="space-y-2 mt-4">
                 <div className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Progress Photos</div>
                 <div className="grid grid-cols-3 gap-2">

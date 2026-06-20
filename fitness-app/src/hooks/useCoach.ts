@@ -6,10 +6,15 @@ import {
   writeSharedFile,
   deleteFile,
   gatherCoachData,
+  createPhotoFolder,
+  uploadPhotoToFolder,
+  listFolderFiles,
 } from '../utils/googleDrive';
+import { getDB } from '../db';
 import type {
   CoachRelationship,
   CoachChangeItem,
+  CoachPhotoMeta,
   PendingCoachChanges,
   CoachChangeResponse,
   PendingClientResponse,
@@ -21,6 +26,7 @@ import type {
 
 const COACH_KEY = 'fitos-coach-relationships';
 const LOG_KEY = 'fitos-coach-log';
+const UPLOADED_PHOTOS_KEY = 'fitos-coach-uploaded-photos';
 
 function loadRelationships(): CoachRelationship[] {
   try { return JSON.parse(localStorage.getItem(COACH_KEY) || '[]'); } catch { return []; }
@@ -114,14 +120,65 @@ export function useCoach() {
         existing = JSON.parse(raw);
       } catch { /* file might not exist yet */ }
 
+      // Ensure photo folder exists
+      let folderId = myCoachRel.photoFolderId;
+      if (!folderId && myCoachRel.coachEmail) {
+        folderId = await createPhotoFolder(token, myCoachRel.coachEmail);
+        const updatedRel = { ...myCoachRel, photoFolderId: folderId };
+        const updatedRels = relationships.map((r) => r.fileId === myCoachRel.fileId ? updatedRel : r);
+        saveRelationships(updatedRels);
+        setRelationships(updatedRels);
+      }
+
+      // Upload new photos, track which are already uploaded
+      const uploadedMap: Record<string, string> = JSON.parse(localStorage.getItem(UPLOADED_PHOTOS_KEY) || '{}');
+      const db = await getDB();
+      const allPhotos = await db.getAll('progressPhotos');
+      const myPhotos = allPhotos.filter((p: { profileId: string }) => {
+        const profiles = JSON.parse(localStorage.getItem('fitos-profiles') || '[]') as { id: string }[];
+        return profiles.some((pr) => pr.id === p.profileId);
+      });
+
+      const photoMeta: CoachPhotoMeta[] = [];
+
+      if (folderId) {
+        // Upload photos not yet in Drive
+        for (const photo of myPhotos as { id: string; imageData: string; date: string; pose: string; weight?: number; notes?: string }[]) {
+          let driveFileId = uploadedMap[photo.id];
+          if (!driveFileId) {
+            try {
+              driveFileId = await uploadPhotoToFolder(token, folderId, photo.id, photo.imageData, `${photo.date}_${photo.pose}.jpg`);
+              uploadedMap[photo.id] = driveFileId;
+            } catch (err) {
+              console.error('Failed to upload photo:', err);
+              continue;
+            }
+          }
+          photoMeta.push({ photoId: photo.id, driveFileId, date: photo.date, pose: photo.pose, weight: photo.weight, notes: photo.notes });
+        }
+
+        // Clean up deleted photos from the map
+        const currentIds = new Set(myPhotos.map((p: { id: string }) => p.id));
+        for (const pid of Object.keys(uploadedMap)) {
+          if (!currentIds.has(pid)) {
+            try { await deleteFile(token, uploadedMap[pid]); } catch { /* already gone */ }
+            delete uploadedMap[pid];
+          }
+        }
+        localStorage.setItem(UPLOADED_PHOTOS_KEY, JSON.stringify(uploadedMap));
+      }
+
       const freshData = await gatherCoachData() as Record<string, unknown>;
       freshData.pendingChanges = existing.pendingChanges || null;
       freshData.clientResponse = existing.clientResponse || null;
+      freshData.progressPhotos = []; // Don't embed base64
+      freshData.photoMeta = photoMeta; // Use Drive file references instead
+      freshData.photoFolderId = folderId || null;
       await writeSharedFile(token, myCoachRel.fileId, JSON.stringify(freshData));
     } catch (err) {
       console.error('Failed to sync coach file:', err);
     }
-  }, [myCoachRel]);
+  }, [myCoachRel, relationships]);
 
   const checkForCoachChanges = useCallback(async () => {
     if (!myCoachRel) return;
