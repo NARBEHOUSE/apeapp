@@ -139,10 +139,8 @@ export function GoogleAuthProvider({ children }: { children: ReactNode }) {
 
   const deleteCloudDataAndSignOut = useCallback(async () => {
     try {
-      const token = getAccessToken();
-      if (token) {
-        await deleteAllAppData(token);
-      }
+      const token = getAccessToken() || await signInWithGoogle();
+      await deleteAllAppData(token);
     } catch (err) {
       console.error('Failed to delete cloud data:', err);
     }
