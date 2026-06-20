@@ -287,9 +287,13 @@ export async function clearAllData(): Promise<void> {
     db.clear('progressPhotos'),
     db.clear('programs'),
   ]);
-  localStorage.removeItem('fitos-profiles');
-  localStorage.removeItem('fitos-active-profile');
-  localStorage.removeItem('fitos-settings');
+  // Remove ALL fitos-* keys from localStorage for a truly clean slate
+  const keysToRemove = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key && key.startsWith('fitos-')) keysToRemove.push(key);
+  }
+  for (const key of keysToRemove) localStorage.removeItem(key);
 }
 
 export async function exportCoachUpdate(

@@ -2,7 +2,7 @@ import { useState, useRef } from 'react';
 import { Plus, Trash2, ChevronRight, ChevronLeft, Upload, Loader2, LogOut } from 'lucide-react';
 import type { Profile, BodyStats, FitnessGoal, ActivityLevel, Gender, MacroTargets } from '../types';
 import { ConfirmDialog } from '../components/shared/ConfirmDialog';
-import { importBackupProfiles } from '../utils/exportImport';
+import { importBackupProfiles, clearAllData, clearProfileData } from '../utils/exportImport';
 import { toast } from '../components/shared/Toast';
 import { useGoogleAuth } from '../contexts/GoogleAuthContext';
 import {
@@ -317,14 +317,18 @@ export function ProfileSelector({ profiles, onSelect, onCreate, onDelete, onRefr
           onClose={() => setDeleteId(null)}
           onConfirm={async () => {
             if (deleteId) {
+              await clearProfileData(deleteId);
               onDelete(deleteId);
               if (isSignedIn) await deleteCloudDataAndSignOut();
+              // If no profiles left, wipe everything for a clean slate
+              const remaining = JSON.parse(localStorage.getItem('fitos-profiles') || '[]');
+              if (remaining.length === 0) await clearAllData();
             }
             setDeleteId(null);
           }}
           title="Delete Profile"
-          message={`This will permanently delete this profile and all its data.${isSignedIn ? ' This will also delete your data from Google Drive and sign you out.' : ''}`}
-          confirmText="Delete"
+          message={`This will permanently delete this profile and all associated data (workouts, nutrition, measurements, photos).${isSignedIn ? ' This will also delete your data from Google Drive and sign you out.' : ''}`}
+          confirmText="Delete Everything"
           danger
         />
       </div>
