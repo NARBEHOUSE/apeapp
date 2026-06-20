@@ -195,8 +195,10 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
     const ok = await onPushChanges(fileId, changes);
     setPushing(false);
     if (ok) {
+      const count = stagedChanges.length;
+      const types = stagedChanges.map((c) => c.type).filter((v, i, a) => a.indexOf(v) === i).join(', ');
       setStagedChanges([]);
-      toast('All changes pushed to client', 'success');
+      toast(`${count} change${count > 1 ? 's' : ''} pushed (${types})`, 'success');
     } else {
       toast('Failed to push changes', 'error');
     }

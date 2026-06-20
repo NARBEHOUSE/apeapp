@@ -1,11 +1,11 @@
-# Privacy Policy — APE (Aesthetic Physique Enthusiast)
+# Privacy Policy — Aesthetic Physique Enthusiast Application (APE)
 
 **Last updated:** June 20, 2026  
 **Developer:** NARBE LLC
 
 ## Overview
 
-APE is a fitness tracking application that runs entirely in your browser. NARBE LLC does not operate backend servers for this application. All user data is stored locally on your device or in your personal Google Drive account. NARBE LLC does not collect, store, access, or transmit any user data to its own servers.
+Aesthetic Physique Enthusiast Application (APE) is a fitness tracking application that runs entirely in your browser. NARBE LLC does not operate backend servers for this application. All user data is stored locally on your device or in your personal Google Drive account. NARBE LLC does not collect, store, access, or transmit any user data to its own servers.
 
 ## Data Storage
 
@@ -59,4 +59,4 @@ We may update this Privacy Policy from time to time. Changes will be reflected i
 
 ## Contact
 
-If you have questions about this Privacy Policy, contact NARBE LLC at privacy@narbe.com.
+If you have questions about this Privacy Policy, contact NARBE LLC at narbehousellc@gmail.com.

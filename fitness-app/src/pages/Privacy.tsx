@@ -7,7 +7,7 @@ export function Privacy() {
       <section className="space-y-2">
         <h2 className="text-lg font-semibold">Overview</h2>
         <p className="text-sm text-text-secondary leading-relaxed">
-          APE (Aesthetic Physique Enthusiast) is a fitness tracking application developed by NARBE LLC. This policy describes how the app collects, uses, and protects your information. APE does not operate backend servers. All user data is stored locally on your device or in your personal Google Drive account. NARBE LLC does not collect, store, access, or transmit any user data to its own servers.
+          Aesthetic Physique Enthusiast Application (APE) is a fitness tracking application developed by NARBE LLC. This policy describes how the app collects, uses, and protects your information. APE does not operate backend servers. All user data is stored locally on your device or in your personal Google Drive account. NARBE LLC does not collect, store, access, or transmit any user data to its own servers.
         </p>
       </section>
 
@@ -84,7 +84,7 @@ export function Privacy() {
       <section className="space-y-2">
         <h2 className="text-lg font-semibold">Contact</h2>
         <p className="text-sm text-text-secondary leading-relaxed">
-          If you have questions about this Privacy Policy, contact NARBE LLC at <a href="mailto:privacy@narbe.com" className="text-accent-blue underline">privacy@narbe.com</a>.
+          If you have questions about this Privacy Policy, contact NARBE LLC at <a href="mailto:narbehousellc@gmail.com" className="text-accent-blue underline">narbehousellc@gmail.com</a>.
         </p>
       </section>
 

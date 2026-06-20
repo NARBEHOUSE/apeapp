@@ -200,6 +200,7 @@ export function useCoach() {
         if (data.clientResponse && !data.pendingChanges) continue;
         if (data.pendingChanges) {
           const migrated = migrateFlatChanges(data.pendingChanges);
+          console.log('Coach changes found:', migrated.items?.length, 'items', migrated.items?.map((i: CoachChangeItem) => i.type));
           if (migrated.items && migrated.items.length > 0) {
             setPendingChanges(migrated);
             setPendingCoachFileId(rel.fileId);
