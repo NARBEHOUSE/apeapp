@@ -51,7 +51,7 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
   const [data, setData] = useState<ClientData>(initialData);
   const [refreshing, setRefreshing] = useState(false);
   const readonly = data.coachPermission === 'readonly';
-  const [tab, setTab] = useState<'overview' | 'workouts' | 'nutrition' | 'progress' | 'programs' | 'checkins' | 'changes' | 'history' | 'responses'>('overview');
+  const [tab, setTab] = useState<'overview' | 'workouts' | 'nutrition' | 'progress' | 'programs' | 'checkins' | 'changes' | 'history'>('overview');
   const [viewingPhoto, setViewingPhoto] = useState<{ url: string; date: string; pose: string; weight?: number } | null>(null);
   const [photoUrls, setPhotoUrls] = useState<Record<string, string>>({});
   const [photosLoading, setPhotosLoading] = useState(false);
@@ -63,7 +63,11 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
   const importRef = useRef<HTMLInputElement>(null);
   const [myPrograms, setMyPrograms] = useState<Program[]>([]);
 
+  // Auto-refresh client data on mount so coach always sees latest
   useEffect(() => {
+    onRefresh(fileId).then((fresh) => {
+      if (fresh) { setData(fresh); setResponses(fresh.clientResponse || null); }
+    });
     initializePrograms().then(() => getAllPrograms()).then((progs) => setMyPrograms(progs));
   }, []);
 
@@ -172,13 +176,6 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
     setRefreshing(false);
   }
 
-  async function handleCheckResponses() {
-    const resp = await onCheckClientResponse(fileId);
-    setResponses(resp);
-    if (resp) setTab('responses');
-    else toast('No new responses', 'success');
-  }
-
   const handleSaveProgram = useCallback((prog: Program) => {
     setPendingProgram(prog);
     setEditingProgram(null);
@@ -215,7 +212,6 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
     { key: 'checkins' as const, label: 'Check-Ins', icon: ClipboardCheck },
     ...(!readonly ? [{ key: 'changes' as const, label: 'Changes', icon: Edit3 }] : []),
     { key: 'history' as const, label: 'History', icon: History },
-    ...(responses ? [{ key: 'responses' as const, label: 'Responses', icon: MessageSquare }] : []),
   ];
 
   if (editingProgram || creatingProgram) {
@@ -242,7 +238,6 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
         <button onClick={handleRefresh} disabled={refreshing} className="p-1.5 rounded-lg bg-white/20">
           <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
         </button>
-        <button onClick={handleCheckResponses} className="px-2 py-1 rounded-lg bg-white/20 text-[10px] font-medium">Responses</button>
       </div>
 
       <div className="flex border-b border-border bg-surface sticky top-[52px] z-20 overflow-x-auto">
@@ -287,6 +282,21 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
                 <div key={s.l} className="card p-3 text-center"><div className="text-lg font-bold">{s.v}</div><div className="text-[9px] text-text-muted uppercase">{s.l}</div></div>
               ))}
             </div>
+
+            {/* Denied changes notification */}
+            {responses && responses.responses.some((r) => r.action === 'denied') && (
+              <div className="card p-4 space-y-2 border-l-4 border-l-danger">
+                <div className="text-sm font-semibold text-danger">Client denied changes</div>
+                <div className="text-[10px] text-text-muted">{new Date(responses.respondedAt).toLocaleString()}</div>
+                {responses.responses.filter((r) => r.action === 'denied').map((resp) => (
+                  <div key={resp.itemId} className="p-2 rounded-lg bg-danger/5 space-y-1">
+                    <div className="flex items-center gap-1.5 text-xs"><X size={12} className="text-danger" /><span className="font-medium">Denied</span></div>
+                    {resp.clientNote && <p className="text-xs text-text-secondary italic pl-5">"{resp.clientNote}"</p>}
+                  </div>
+                ))}
+                <button onClick={async () => { await onAcknowledgeResponse(fileId); setResponses(null); toast('Dismissed', 'success'); }} className="text-[10px] text-text-muted underline">Dismiss</button>
+              </div>
+            )}
           </>
         )}
 
@@ -402,8 +412,6 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
         {/* HISTORY */}
         {tab === 'history' && <CoachHistory log={log} perspective="coach" />}
 
-        {/* RESPONSES */}
-        {tab === 'responses' && responses && (<><div className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Client Responses</div><div className="text-[10px] text-text-muted mb-2">Responded: {new Date(responses.respondedAt).toLocaleString()}</div>{responses.responses.map((resp) => <div key={resp.itemId} className={`card p-3 space-y-1 border-l-4 ${resp.action === 'accepted' ? 'border-l-success' : 'border-l-danger'}`}><div className="flex items-center gap-2">{resp.action === 'accepted' ? <Check size={14} className="text-success" /> : <X size={14} className="text-danger" />}<span className="text-sm font-medium capitalize">{resp.action}</span></div>{resp.clientNote && <div className="text-xs text-text-secondary bg-surface-raised rounded-lg p-2 italic">"{resp.clientNote}"</div>}</div>)}<button onClick={async () => { await onAcknowledgeResponse(fileId); setResponses(null); setTab('overview'); toast('Acknowledged', 'success'); }} className="btn-primary w-full text-sm mt-2">Acknowledge</button></>)}
       </div>
 
       {/* Fullscreen photo viewer */}

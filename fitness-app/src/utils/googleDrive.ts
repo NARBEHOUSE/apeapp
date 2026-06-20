@@ -345,7 +345,7 @@ export async function gatherCoachData(profileId?: string): Promise<object> {
     progressPhotos: await compressPhotosForSync(
       (pid ? allPhotos.filter((p: { profileId: string }) => p.profileId === pid) : []) as unknown as { imageData: string; [key: string]: unknown }[]
     ),
-    programs: allPrograms.filter((p: { isBuiltIn?: boolean }) => !p.isBuiltIn),
+    programs: allPrograms,
     pendingChanges: null,
     clientResponse: null,
   };
