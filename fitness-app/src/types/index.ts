@@ -286,6 +286,7 @@ export interface FoodEntry {
   carbs: number;
   fat: number;
   fiber?: number;
+  micronutrients?: Record<string, number>;
   source: 'manual' | 'usda' | 'ai_vision' | 'builtin';
   fdcId?: string;
   loggedAt: string;
@@ -299,6 +300,8 @@ export interface Measurement {
   date: string;
   weight?: number;
   weightUnit: 'lbs' | 'kg';
+  bodyFatPercent?: number;
+  bodyFatSource?: 'scale' | 'visual' | 'manual';
   measurements?: {
     chest?: number;
     waist?: number;
@@ -309,8 +312,27 @@ export interface Measurement {
     rightThigh?: number;
     neck?: number;
     shoulders?: number;
+    bust?: number;
+    leftAnkle?: number;
+    rightAnkle?: number;
+    leftBicep?: number;
+    rightBicep?: number;
+    leftCalf?: number;
+    rightCalf?: number;
+    leftForearm?: number;
+    rightForearm?: number;
+    leftWrist?: number;
+    rightWrist?: number;
   };
   notes?: string;
+}
+
+export interface StepEntry {
+  id: string;
+  profileId: string;
+  date: string;
+  steps: number;
+  source?: 'manual' | 'macrofactor';
 }
 
 export interface ProgressPhoto {

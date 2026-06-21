@@ -13,17 +13,29 @@ const BODY_FIELDS: { key: keyof NonNullable<Measurement['measurements']>; label:
   { key: 'chest', label: 'Chest' },
   { key: 'waist', label: 'Waist' },
   { key: 'hips', label: 'Hips' },
+  { key: 'shoulders', label: 'Shoulders' },
+  { key: 'neck', label: 'Neck' },
   { key: 'leftArm', label: 'Left Arm' },
   { key: 'rightArm', label: 'Right Arm' },
+  { key: 'leftBicep', label: 'Left Bicep' },
+  { key: 'rightBicep', label: 'Right Bicep' },
+  { key: 'leftForearm', label: 'Left Forearm' },
+  { key: 'rightForearm', label: 'Right Forearm' },
   { key: 'leftThigh', label: 'Left Thigh' },
   { key: 'rightThigh', label: 'Right Thigh' },
-  { key: 'neck', label: 'Neck' },
-  { key: 'shoulders', label: 'Shoulders' },
+  { key: 'leftCalf', label: 'Left Calf' },
+  { key: 'rightCalf', label: 'Right Calf' },
+  { key: 'leftAnkle', label: 'Left Ankle' },
+  { key: 'rightAnkle', label: 'Right Ankle' },
+  { key: 'leftWrist', label: 'Left Wrist' },
+  { key: 'rightWrist', label: 'Right Wrist' },
+  { key: 'bust', label: 'Bust' },
 ];
 
 export function MeasurementLog({ onSave, weightUnit, measurementUnit }: Props) {
   const [date, setDate] = useState(today());
   const [weight, setWeight] = useState('');
+  const [bodyFat, setBodyFat] = useState('');
   const [bodyMeasurements, setBodyMeasurements] = useState<Record<string, string>>({});
   const [notes, setNotes] = useState('');
   const [showBody, setShowBody] = useState(false);
@@ -44,17 +56,21 @@ export function MeasurementLog({ onSave, weightUnit, measurementUnit }: Props) {
     }
 
     const weightVal = parseFloat(weight);
-    if (isNaN(weightVal) && !hasBodyMeasurement) return;
+    const bodyFatVal = parseFloat(bodyFat);
+    if (isNaN(weightVal) && !hasBodyMeasurement && isNaN(bodyFatVal)) return;
 
     onSave({
       date,
       weight: isNaN(weightVal) ? undefined : weightVal,
       weightUnit,
+      bodyFatPercent: isNaN(bodyFatVal) ? undefined : bodyFatVal,
+      bodyFatSource: isNaN(bodyFatVal) ? undefined : 'manual',
       measurements: hasBodyMeasurement ? measurements : undefined,
       notes: notes.trim() || undefined,
     });
 
     setWeight('');
+    setBodyFat('');
     setBodyMeasurements({});
     setNotes('');
     setShowBody(false);
@@ -76,16 +92,29 @@ export function MeasurementLog({ onSave, weightUnit, measurementUnit }: Props) {
         />
       </div>
 
-      <div>
-        <label className="label mb-1.5 block">Weight ({weightUnit})</label>
-        <input
-          type="number"
-          inputMode="decimal"
-          className="input-field"
-          placeholder={`e.g. ${weightUnit === 'lbs' ? '185' : '84'}`}
-          value={weight}
-          onChange={(e) => setWeight(e.target.value)}
-        />
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="label mb-1.5 block">Weight ({weightUnit})</label>
+          <input
+            type="number"
+            inputMode="decimal"
+            className="input-field"
+            placeholder={`e.g. ${weightUnit === 'lbs' ? '185' : '84'}`}
+            value={weight}
+            onChange={(e) => setWeight(e.target.value)}
+          />
+        </div>
+        <div>
+          <label className="label mb-1.5 block">Body Fat %</label>
+          <input
+            type="number"
+            inputMode="decimal"
+            className="input-field"
+            placeholder="e.g. 15"
+            value={bodyFat}
+            onChange={(e) => setBodyFat(e.target.value)}
+          />
+        </div>
       </div>
 
       <button
