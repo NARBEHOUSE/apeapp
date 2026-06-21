@@ -13,6 +13,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import type { WorkoutSession, WorkoutDay, SetLog, Exercise, ExerciseLastPerformance, ExerciseFeedback, CardioEntry, Program } from '../../types';
+import { searchExerciseLibrary, getSimilarExercises } from '../../data/exerciseLibrary';
 import { RestTimer } from './RestTimer';
 import { toast } from '../shared/Toast';
 import { getAllPRs } from '../../db/workouts';
@@ -104,6 +105,8 @@ function ExerciseCard({
   const [collapsed, setCollapsed] = useState(false);
   const [deviationNote, setDeviationNote] = useState('');
   const [showNote, setShowNote] = useState(false);
+  const [showSwaps, setShowSwaps] = useState(false);
+  const swapSuggestions = useMemo(() => showSwaps ? getSimilarExercises(exercise.name, 5) : [], [showSwaps, exercise.name]);
   const lastSets = lastPerformance?.sets.filter((s) => s.completed);
   const [inputs, setInputs] = useState<SetInput[]>(() =>
     Array.from({ length: exercise.sets }, (_, i) => {
@@ -365,6 +368,24 @@ function ExerciseCard({
             <p className="text-[10px] text-warning px-0.5">
               {exercise.flag}
             </p>
+          )}
+
+          {/* Swap suggestions */}
+          <button
+            onClick={() => setShowSwaps(!showSwaps)}
+            className="text-[10px] text-accent-blue font-medium px-0.5"
+          >
+            {showSwaps ? 'Hide alternatives' : 'Similar exercises'}
+          </button>
+          {showSwaps && swapSuggestions.length > 0 && (
+            <div className="space-y-1 mt-1">
+              {swapSuggestions.map((swap) => (
+                <div key={swap.name} className="text-[10px] text-text-muted bg-surface-raised rounded-md px-2 py-1">
+                  <span className="font-medium text-text-secondary">{swap.name}</span>
+                  <span className="ml-1">· {swap.muscles.join(', ')} · {swap.equipment}</span>
+                </div>
+              ))}
+            </div>
           )}
         </div>
       )}
@@ -767,16 +788,35 @@ export function ActiveWorkout({
       {/* Add exercise modal */}
       {showAddExercise && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
-          <div className="bg-bg rounded-t-3xl w-full max-w-lg p-5 space-y-3 safe-bottom animate-in slide-in-from-bottom">
+          <div className="bg-bg rounded-t-3xl w-full max-w-lg p-5 space-y-3 safe-bottom animate-in slide-in-from-bottom max-h-[80vh] overflow-y-auto">
             <h3 className="font-bold text-base">Add Exercise</h3>
-            <p className="text-xs text-text-muted">This only applies to today's session — your program stays the same.</p>
+            <p className="text-xs text-text-muted">Search the library or type a custom exercise name.</p>
             <input
               type="text"
               className="input-field text-sm"
-              placeholder="Exercise name"
+              placeholder="Search exercises..."
               value={newExName}
               onChange={(e) => setNewExName(e.target.value)}
+              autoFocus
             />
+            {/* Library suggestions */}
+            {newExName.trim().length >= 2 && (
+              <div className="space-y-1 max-h-36 overflow-y-auto">
+                {searchExerciseLibrary(newExName).slice(0, 8).map((ex) => (
+                  <button
+                    key={ex.name}
+                    onClick={() => {
+                      setNewExName(ex.name);
+                      setNewExMuscle(ex.muscles[0] || '');
+                    }}
+                    className="w-full text-left bg-surface-raised rounded-lg px-3 py-2 hover:bg-border transition-colors"
+                  >
+                    <div className="text-xs font-medium">{ex.name}</div>
+                    <div className="text-[10px] text-text-muted">{ex.muscles.join(', ')} · {ex.equipment} · {ex.type}</div>
+                  </button>
+                ))}
+              </div>
+            )}
             <div className="grid grid-cols-3 gap-2">
               <div>
                 <label className="text-[9px] text-text-muted mb-0.5 block">Sets</label>
