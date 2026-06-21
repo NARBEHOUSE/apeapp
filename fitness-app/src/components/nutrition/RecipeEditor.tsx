@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { Plus, Trash2, ChevronUp, ChevronDown, Search, AlertCircle, Pencil } from 'lucide-react';
 import type { Recipe, RecipeIngredient } from '../../db/recipes';
 import { searchSavedFoods, saveFoodToHistory, type SavedFood } from '../../db/foodHistory';
+import { FOOD_DATABASE } from '../../data/foods';
 import { searchFoods } from '../../utils/usda';
 import { getFoodEmoji } from '../../utils/foodEmoji';
 
@@ -10,6 +11,48 @@ interface Props {
   profileId: string;
   onSave: (data: Omit<Recipe, 'id' | 'profileId' | 'createdAt' | 'updatedAt'>) => void;
   onCancel: () => void;
+}
+
+interface FoodResult {
+  name: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  fiber?: number;
+  servingSize: number;
+  servingUnit: string;
+  source: 'history' | 'builtin';
+}
+
+function combinedFoodSearch(profileId: string, query: string): FoodResult[] {
+  const q = query.toLowerCase().trim();
+  if (!q) return [];
+
+  const historyResults = searchSavedFoods(profileId, query).slice(0, 5).map((f) => ({
+    name: f.name, calories: f.calories, protein: f.protein, carbs: f.carbs, fat: f.fat,
+    fiber: f.fiber, servingSize: f.servingSize, servingUnit: f.servingUnit, source: 'history' as const,
+  }));
+
+  const builtinResults = FOOD_DATABASE
+    .filter((f) => f.name.toLowerCase().includes(q))
+    .slice(0, 8)
+    .map((f) => ({
+      name: f.name,
+      calories: Math.round(f.per100g.calories * f.commonServing.grams / 100),
+      protein: Math.round(f.per100g.protein * f.commonServing.grams / 100 * 10) / 10,
+      carbs: Math.round(f.per100g.carbs * f.commonServing.grams / 100 * 10) / 10,
+      fat: Math.round(f.per100g.fat * f.commonServing.grams / 100 * 10) / 10,
+      fiber: f.per100g.fiber ? Math.round(f.per100g.fiber * f.commonServing.grams / 100 * 10) / 10 : undefined,
+      servingSize: f.commonServing.grams,
+      servingUnit: 'g',
+      source: 'builtin' as const,
+    }));
+
+  // Deduplicate by name, prefer history (user's data)
+  const seen = new Set(historyResults.map((r) => r.name.toLowerCase()));
+  const combined = [...historyResults, ...builtinResults.filter((r) => !seen.has(r.name.toLowerCase()))];
+  return combined.slice(0, 10);
 }
 
 const UNIT_OPTIONS = ['g', 'oz', 'cup', 'tbsp', 'tsp', 'ml', 'piece', 'slice', 'whole', 'scoop', 'serving', 'lb'];
@@ -56,7 +99,7 @@ export function RecipeEditor({ initial, profileId, onSave, onCancel }: Props) {
 
   const editIngSearchResults = useMemo(() => {
     if (!editIngQuery.trim() || editingIngIdx === null) return [];
-    return searchSavedFoods(profileId, editIngQuery).slice(0, 5);
+    return combinedFoodSearch(profileId, editIngQuery).slice(0, 8);
   }, [editIngQuery, editingIngIdx, profileId]);
 
   const startEditIngredient = (idx: number) => {
@@ -115,7 +158,7 @@ export function RecipeEditor({ initial, profileId, onSave, onCancel }: Props) {
 
   const searchResults = useMemo(() => {
     if (!ingQuery.trim() || ingMode !== 'search') return [];
-    return searchSavedFoods(profileId, ingQuery).slice(0, 8);
+    return combinedFoodSearch(profileId, ingQuery).slice(0, 8);
   }, [ingQuery, ingMode, profileId]);
 
   const ingredientCal = ingredients.reduce((s, i) => s + i.calories, 0);
@@ -130,7 +173,7 @@ export function RecipeEditor({ initial, profileId, onSave, onCancel }: Props) {
   const totalF = hasIngredientMacros ? ingredientF : (parseFloat(manualF) || 0);
   const servingCount = parseInt(servings) || 1;
 
-  const selectSearchResult = (food: SavedFood) => {
+  const selectSearchResult = (food: FoodResult) => {
     setIngName(food.name);
     setIngCal(String(food.calories));
     setIngP(String(food.protein));
@@ -302,7 +345,8 @@ export function RecipeEditor({ initial, profileId, onSave, onCancel }: Props) {
                             if (food.servingSize > 0) { setEditIngAmount(String(food.servingSize)); setEditIngUnit(food.servingUnit); }
                           }} className="w-full text-left bg-surface-raised rounded-md px-2 py-1 text-[10px] hover:bg-border">
                             <span className="font-medium">{food.name}</span>
-                            <span className="text-text-muted ml-1">{food.calories}cal · P{food.protein}g</span>
+                            <span className={`text-[8px] px-1 rounded ml-1 ${food.source === 'builtin' ? 'bg-accent-blue/15 text-accent-blue' : 'bg-surface text-text-muted'}`}>{food.source === 'builtin' ? 'DB' : 'My Foods'}</span>
+                            <div className="text-text-muted">{food.calories}cal · P{food.protein}g · C{food.carbs}g · F{food.fat}g · {food.servingSize}{food.servingUnit}</div>
                           </button>
                         ))}
                       </div>
@@ -412,10 +456,15 @@ export function RecipeEditor({ initial, profileId, onSave, onCancel }: Props) {
                         onClick={() => selectSearchResult(food)}
                         className="w-full text-left bg-surface-raised rounded-lg px-2.5 py-1.5 hover:bg-border transition-colors"
                       >
-                        <div className="text-xs font-medium truncate">{food.name}</div>
+                        <div className="text-xs font-medium truncate flex items-center gap-1">
+                          {food.name}
+                          <span className={`text-[8px] px-1 rounded ${food.source === 'builtin' ? 'bg-accent-blue/15 text-accent-blue' : 'bg-surface text-text-muted'}`}>
+                            {food.source === 'builtin' ? 'DB' : 'My Foods'}
+                          </span>
+                        </div>
                         <div className="text-[10px] text-text-muted">
                           {food.calories}cal · P{food.protein}g · C{food.carbs}g · F{food.fat}g
-                          {food.servingSize > 0 ? ` · ${food.servingSize} ${food.servingUnit}` : ''}
+                          {food.servingSize > 0 ? ` · ${food.servingSize}${food.servingUnit}` : ''}
                         </div>
                       </button>
                     ))}
