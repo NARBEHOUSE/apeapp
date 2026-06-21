@@ -115,6 +115,13 @@ export function PhotoGallery({ photos, onDelete }: Props) {
         </button>
       </div>
 
+      {/* Compare mode hint */}
+      {compareMode && (
+        <div className="bg-accent/10 border border-accent/30 rounded-xl px-3 py-2 text-xs text-center text-accent font-medium">
+          Select 2 photos to compare{compareSelection.length > 0 ? ` (${compareSelection.length}/2 selected)` : ''}
+        </div>
+      )}
+
       {/* Grid */}
       <div className="grid grid-cols-3 gap-2">
         {filtered.map((photo) => {
@@ -133,9 +140,13 @@ export function PhotoGallery({ photos, onDelete }: Props) {
                 alt={`${photo.pose} - ${photo.date}`}
                 className="w-full h-full object-cover"
               />
-              {compareMode && isSelected && (
-                <div className="absolute top-2 right-2 w-6 h-6 rounded-full bg-accent text-white text-xs font-bold flex items-center justify-center">
-                  {selIndex + 1}
+              {compareMode && (
+                <div className={`absolute top-2 right-2 w-6 h-6 rounded-full flex items-center justify-center transition-colors ${
+                  isSelected ? 'bg-accent text-white' : 'bg-black/40 border-2 border-white/60'
+                }`}>
+                  {isSelected ? (
+                    <span className="text-xs font-bold">{selIndex + 1}</span>
+                  ) : null}
                 </div>
               )}
               <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent p-1.5">
