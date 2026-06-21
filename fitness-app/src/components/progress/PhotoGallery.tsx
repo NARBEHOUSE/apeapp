@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { X, Trash2, ImageIcon, Share2, ArrowLeftRight } from 'lucide-react';
-import type { ProgressPhoto } from '../../types';
+import type { ProgressPhoto, Measurement } from '../../types';
 import { formatDate } from '../../utils/dateHelpers';
 import { renderProgressCard, shareOrDownload } from '../../utils/shareCards';
 import { ConfirmDialog } from '../shared/ConfirmDialog';
@@ -8,6 +8,9 @@ import { ConfirmDialog } from '../shared/ConfirmDialog';
 interface Props {
   photos: ProgressPhoto[];
   onDelete: (id: string) => void;
+  measurements?: Measurement[];
+  weightUnit?: 'lbs' | 'kg';
+  measurementUnit?: 'in' | 'cm';
 }
 
 type PoseFilter = 'all' | 'front' | 'side_left' | 'side_right' | 'back';
@@ -32,13 +35,46 @@ function getImageSrc(imageData: string): string {
   return `data:image/jpeg;base64,${imageData}`;
 }
 
-export function PhotoGallery({ photos, onDelete }: Props) {
+type StatOption = 'none' | 'weight' | 'bodyFat' | 'waist' | 'chest' | 'hips' | 'shoulders' | 'leftArm' | 'rightArm' | 'leftBicep' | 'rightBicep' | 'leftThigh' | 'rightThigh' | 'neck';
+
+const STAT_OPTIONS: { value: StatOption; label: string }[] = [
+  { value: 'none', label: 'No stat' },
+  { value: 'weight', label: 'Weight' },
+  { value: 'bodyFat', label: 'Body Fat %' },
+  { value: 'waist', label: 'Waist' },
+  { value: 'chest', label: 'Chest' },
+  { value: 'hips', label: 'Hips' },
+  { value: 'shoulders', label: 'Shoulders' },
+  { value: 'neck', label: 'Neck' },
+  { value: 'leftArm', label: 'Left Arm' },
+  { value: 'rightArm', label: 'Right Arm' },
+  { value: 'leftBicep', label: 'Left Bicep' },
+  { value: 'rightBicep', label: 'Right Bicep' },
+  { value: 'leftThigh', label: 'Left Thigh' },
+  { value: 'rightThigh', label: 'Right Thigh' },
+];
+
+function findClosestMeasurement(date: string, measurements: Measurement[]): Measurement | null {
+  if (measurements.length === 0) return null;
+  const target = new Date(date + 'T00:00:00').getTime();
+  let closest = measurements[0];
+  let closestDiff = Math.abs(new Date(closest.date + 'T00:00:00').getTime() - target);
+  for (const m of measurements) {
+    const diff = Math.abs(new Date(m.date + 'T00:00:00').getTime() - target);
+    if (diff < closestDiff) { closest = m; closestDiff = diff; }
+  }
+  if (closestDiff > 14 * 86400000) return null;
+  return closest;
+}
+
+export function PhotoGallery({ photos, onDelete, measurements = [], weightUnit = 'lbs', measurementUnit = 'in' }: Props) {
   const [filter, setFilter] = useState<PoseFilter>('all');
   const [selectedPhoto, setSelectedPhoto] = useState<ProgressPhoto | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [compareMode, setCompareMode] = useState(false);
   const [compareSelection, setCompareSelection] = useState<ProgressPhoto[]>([]);
   const [sharing, setSharing] = useState(false);
+  const [compareStat, setCompareStat] = useState<StatOption>('weight');
 
   const filtered = useMemo(() => {
     const sorted = [...photos].sort((a, b) => b.date.localeCompare(a.date));
@@ -54,6 +90,20 @@ export function PhotoGallery({ photos, onDelete }: Props) {
     }
   };
 
+  const getStatForDate = (date: string): string | undefined => {
+    if (compareStat === 'none') return undefined;
+    const m = findClosestMeasurement(date, measurements);
+    if (!m) return undefined;
+    if (compareStat === 'weight') return m.weight != null ? `${m.weight} ${weightUnit}` : undefined;
+    if (compareStat === 'bodyFat') return m.bodyFatPercent != null ? `${m.bodyFatPercent}% BF` : undefined;
+    const bodyVal = m.measurements?.[compareStat as keyof NonNullable<typeof m.measurements>];
+    if (bodyVal != null) {
+      const label = STAT_OPTIONS.find((o) => o.value === compareStat)?.label || compareStat;
+      return `${label}: ${bodyVal} ${measurementUnit}`;
+    }
+    return undefined;
+  };
+
   const handleShareComparison = async () => {
     if (compareSelection.length !== 2) return;
     setSharing(true);
@@ -64,8 +114,8 @@ export function PhotoGallery({ photos, onDelete }: Props) {
         afterImage: getImageSrc(after.imageData),
         beforeDate: before.date,
         afterDate: after.date,
-        beforeWeight: before.weight ? `${before.weight} lbs` : undefined,
-        afterWeight: after.weight ? `${after.weight} lbs` : undefined,
+        beforeStat: getStatForDate(before.date),
+        afterStat: getStatForDate(after.date),
         pose: POSE_LABELS[before.pose] || before.pose,
       });
       shareOrDownload(canvas, `progress-${before.date}-to-${after.date}.png`);
@@ -164,14 +214,28 @@ export function PhotoGallery({ photos, onDelete }: Props) {
 
       {/* Compare share bar */}
       {compareMode && compareSelection.length === 2 && (
-        <button
-          onClick={handleShareComparison}
-          disabled={sharing}
-          className="w-full bg-accent text-white font-semibold rounded-xl py-3 flex items-center justify-center gap-2 active:scale-[0.98] transition-transform disabled:opacity-50"
-        >
-          <Share2 size={16} />
-          {sharing ? 'Generating...' : 'Share Before & After'}
-        </button>
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] text-text-muted font-semibold uppercase whitespace-nowrap">Show stat:</span>
+            <select
+              className="input-field text-xs flex-1 py-1.5"
+              value={compareStat}
+              onChange={(e) => setCompareStat(e.target.value as StatOption)}
+            >
+              {STAT_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+          </div>
+          <button
+            onClick={handleShareComparison}
+            disabled={sharing}
+            className="w-full bg-accent text-white font-semibold rounded-xl py-3 flex items-center justify-center gap-2 active:scale-[0.98] transition-transform disabled:opacity-50"
+          >
+            <Share2 size={16} />
+            {sharing ? 'Generating...' : 'Share Before & After'}
+          </button>
+        </div>
       )}
 
       {/* Enlarged View */}

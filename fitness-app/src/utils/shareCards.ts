@@ -25,8 +25,8 @@ interface ProgressCardData {
   afterImage: string;
   beforeDate: string;
   afterDate: string;
-  beforeWeight?: string;
-  afterWeight?: string;
+  beforeStat?: string;
+  afterStat?: string;
   pose: string;
 }
 
@@ -382,15 +382,15 @@ export async function renderProgressCard(data: ProgressCardData): Promise<HTMLCa
   ctx.fillText(formatCardDate(data.beforeDate), 60 + imgW / 2, labelY + 38);
   ctx.fillText(formatCardDate(data.afterDate), 60 + imgW + 20 + imgW / 2, labelY + 38);
 
-  if (data.beforeWeight) {
+  if (data.beforeStat) {
     ctx.fillStyle = TEXT_MUTED;
     ctx.font = `400 24px ${font}`;
-    ctx.fillText(data.beforeWeight, 60 + imgW / 2, labelY + 70);
+    ctx.fillText(data.beforeStat, 60 + imgW / 2, labelY + 70);
   }
-  if (data.afterWeight) {
+  if (data.afterStat) {
     ctx.fillStyle = TEXT_MUTED;
     ctx.font = `400 24px ${font}`;
-    ctx.fillText(data.afterWeight, 60 + imgW + 20 + imgW / 2, labelY + 70);
+    ctx.fillText(data.afterStat, 60 + imgW + 20 + imgW / 2, labelY + 70);
   }
 
   drawBranding(ctx);
