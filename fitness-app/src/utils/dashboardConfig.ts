@@ -9,6 +9,7 @@ export interface DashboardCardConfig {
   workoutCounter: boolean;
   checkInReminder: boolean;
   checkInFrequency: 'daily' | 'weekly' | 'biweekly';
+  aiCoach: boolean;
 }
 
 const STORAGE_KEY = 'fitos-dashboard-cards';
@@ -24,6 +25,7 @@ const DEFAULTS: DashboardCardConfig = {
   workoutCounter: true,
   checkInReminder: true,
   checkInFrequency: 'daily',
+  aiCoach: false,
 };
 
 export function getDashboardConfig(): DashboardCardConfig {

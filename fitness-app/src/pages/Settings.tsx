@@ -1218,6 +1218,26 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
                 </select>
               )}
             </div>
+
+            {/* AI Coach toggle */}
+            <div className="flex items-center justify-between py-2">
+              <div>
+                <div className="text-sm font-medium">AI Coach</div>
+                <div className="text-[11px] text-text-muted">Data-driven suggestions using your Claude API key (~$0.02/use)</div>
+              </div>
+              <button
+                onClick={() => updateDashCards({ aiCoach: !dashCards.aiCoach })}
+                className={`w-11 h-6 rounded-full transition-colors relative ${
+                  dashCards.aiCoach ? 'bg-accent-blue' : 'bg-surface-raised'
+                }`}
+              >
+                <div
+                  className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform ${
+                    dashCards.aiCoach ? 'translate-x-5' : 'translate-x-0.5'
+                  }`}
+                />
+              </button>
+            </div>
           </div>
         )}
       </div>

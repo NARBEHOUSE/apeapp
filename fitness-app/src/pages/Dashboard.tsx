@@ -20,6 +20,7 @@ import WeeklyRing from '../components/dashboard/WeeklyRing';
 import MacroSummary from '../components/dashboard/MacroSummary';
 import TrendSnapshotCard from '../components/dashboard/TrendSnapshotCard';
 import { WeeklyInsights } from '../components/dashboard/WeeklyInsights';
+import { AICoachCard } from '../components/dashboard/AICoachCard';
 
 interface DashboardProps {
   profile: Profile;
@@ -408,6 +409,19 @@ export default function Dashboard({ profile, onUpdateProfile }: DashboardProps) 
         macroTargets={profile.macroTargets}
         units={profile.units}
       />
+
+      {/* AI Coach */}
+      {dashConfig.aiCoach && localStorage.getItem('fitos-claude-key') && (
+        <AICoachCard
+          profile={profile}
+          sessions={sessions}
+          allFoodEntries={allFoodEntries}
+          measurements={measurements}
+          checkIns={checkIns}
+          programs={programs}
+          onUpdateProfile={onUpdateProfile}
+        />
+      )}
 
       {/* Snapshot Cards — driven by dashboard config */}
 
