@@ -421,8 +421,12 @@ function parseMFFoodLibrary(text: string, profileId: string): { count: number; e
   if (rows.length < 2) return { count: 0, errors: ['No data rows found'] };
   const headers = rows[0].map((h) => h.toLowerCase());
   const col = (name: string) => headers.findIndex((h) => h.includes(name));
+  const colExact = (name: string) => headers.findIndex((h) => h === name || h.startsWith(name + ' (') || h.startsWith(name + ','));
   const iName = col('food name'), iServSize = col('serving size'), iServQty = col('serving qty');
-  const iCal = col('calories'), iProt = col('protein'), iCarbs = col('carbs'), iFat = col('fat');
+  const iCal = col('calories (kcal)') >= 0 ? col('calories (kcal)') : col('calories');
+  const iProt = colExact('protein');
+  const iCarbs = colExact('carbs');
+  const iFat = colExact('fat');
   const iServWeight = col('serving weight');
   if (iName < 0) return { count: 0, errors: ['Could not find Food Name column'] };
 
@@ -472,9 +476,14 @@ function parseMFRecipes(text: string, profileId: string): { count: number; error
   if (rows.length < 2) return { count: 0, errors: ['No data rows found'] };
   const headers = rows[0].map((h) => h.toLowerCase());
   const col = (name: string) => headers.findIndex((h) => h.includes(name));
+  const colExact = (name: string) => headers.findIndex((h) => h === name || h.startsWith(name + ' (') || h.startsWith(name + ','));
   const iName = col('recipe name'), iServQty = col('serving qty'), iIngredients = col('ingredients');
   const iPrepTime = col('preparation time'), iCookTime = col('cooking time'), iDesc = col('description');
-  const iCal = col('calories'), iProt = col('protein'), iFat = col('fat'), iCarbs = col('carbs'), iFiber = col('fiber');
+  const iCal = col('calories (kcal)') >= 0 ? col('calories (kcal)') : col('calories');
+  const iProt = colExact('protein');
+  const iFat = colExact('fat');
+  const iCarbs = colExact('carbs');
+  const iFiber = colExact('fiber');
   const stepCols = [0,1,2,3,4].map((n) => headers.findIndex((h) => h === `step ${n + 1}`));
   if (iName < 0) return { count: 0, errors: ['Could not find Recipe Name column'] };
 
@@ -488,7 +497,7 @@ function parseMFRecipes(text: string, profileId: string): { count: number; error
     if (!name || existing.has(name.toLowerCase())) continue;
 
     const ingredientText = iIngredients >= 0 ? r[iIngredients] || '' : '';
-    const ingredients = ingredientText.split('\n').filter((l) => l.trim()).map((line) => {
+    const ingredients = ingredientText.split(/\r?\n/).filter((l) => l.trim()).map((line) => {
       const match = line.match(/^(.+?)\s*\((.+)\)$/);
       return {
         name: match ? match[1].trim() : line.trim(),
@@ -497,7 +506,8 @@ function parseMFRecipes(text: string, profileId: string): { count: number; error
       };
     });
 
-    const steps = stepCols.map((c) => c >= 0 ? (r[c] || '').trim() : '').filter(Boolean);
+    const rawSteps = stepCols.map((c) => c >= 0 ? (r[c] || '').trim() : '').filter(Boolean);
+    const steps = rawSteps.flatMap((s) => s.split(/\r?\n/).map((l) => l.trim()).filter(Boolean));
 
     saveRecipe(profileId, {
       name, emoji: '🍽️',
