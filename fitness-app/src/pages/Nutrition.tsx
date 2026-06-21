@@ -199,6 +199,7 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
   const [editingRecipe, setEditingRecipe] = useState<Recipe | null>(null);
   const [deleteRecipeId, setDeleteRecipeId] = useState<string | null>(null);
   const [viewingRecipe, setViewingRecipe] = useState<Recipe | null>(null);
+  const [logServingCount, setLogServingCount] = useState('1');
   const [editingEntry, setEditingEntry] = useState<FoodEntry | null>(null);
   const [dailyNote, setDailyNote] = useState(() => {
     const notes = JSON.parse(localStorage.getItem(`fitos-food-notes-${profile.id}`) || '{}');
@@ -997,13 +998,21 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
       </Modal>
 
       {/* Recipe Detail View */}
-      {viewingRecipe && (
+      {viewingRecipe && (() => {
+        const per = recipePerServing(viewingRecipe);
+        const logCount = parseFloat(logServingCount) || 1;
+        const logCal = Math.round(per.calories * logCount);
+        const logP = Math.round(per.protein * logCount * 10) / 10;
+        const logC = Math.round(per.carbs * logCount * 10) / 10;
+        const logF = Math.round(per.fat * logCount * 10) / 10;
+
+        return (
         <div className="fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center">
           <div className="bg-bg w-full max-w-md max-h-[90vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl">
             <div className="sticky top-0 bg-bg border-b border-border px-4 py-3 flex items-center justify-between z-10">
               <h2 className="font-semibold text-base">{viewingRecipe.emoji} {viewingRecipe.name}</h2>
-              <button onClick={() => setViewingRecipe(null)} className="p-1.5 rounded-lg hover:bg-surface">
-                <Trash2 size={0} /><span className="text-text-muted text-sm">✕</span>
+              <button onClick={() => { setViewingRecipe(null); setLogServingCount('1'); }} className="p-1.5 rounded-lg hover:bg-surface">
+                <span className="text-text-muted text-sm">✕</span>
               </button>
             </div>
             <div className="p-4 space-y-4">
@@ -1017,7 +1026,7 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
                   { label: 'Servings', value: viewingRecipe.servings },
                   { label: 'Prep', value: viewingRecipe.prepTime ? `${viewingRecipe.prepTime}m` : '—' },
                   { label: 'Cook', value: viewingRecipe.cookTime ? `${viewingRecipe.cookTime}m` : '—' },
-                  { label: 'Cal/srv', value: recipePerServing(viewingRecipe).calories },
+                  { label: 'Cal/srv', value: per.calories },
                 ].map((s) => (
                   <div key={s.label} className="bg-surface rounded-xl p-2 text-center">
                     <div className="text-sm font-bold">{s.value}</div>
@@ -1027,30 +1036,35 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
               </div>
 
               {/* Macros per serving */}
-              {(() => { const p = recipePerServing(viewingRecipe); return (
-                <div className="bg-surface rounded-xl p-3 text-xs">
-                  <div className="text-[10px] text-text-muted font-semibold uppercase mb-1">Per Serving</div>
-                  <div className="font-semibold">{p.calories} cal · P{p.protein}g · C{p.carbs}g · F{p.fat}g</div>
-                </div>
-              ); })()}
+              <div className="bg-surface rounded-xl p-3 text-xs">
+                <div className="text-[10px] text-text-muted font-semibold uppercase mb-1">Per Serving</div>
+                <div className="font-semibold">{per.calories} cal · P{per.protein}g · C{per.carbs}g · F{per.fat}g</div>
+                {viewingRecipe.totalCalories > 0 && viewingRecipe.servings > 1 && (
+                  <div className="text-[10px] text-text-muted mt-1">
+                    Total recipe: {viewingRecipe.totalCalories} cal · P{Math.round(viewingRecipe.totalProtein)}g · C{Math.round(viewingRecipe.totalCarbs)}g · F{Math.round(viewingRecipe.totalFat)}g
+                  </div>
+                )}
+              </div>
 
               {/* Ingredients */}
-              <div>
-                <h3 className="text-xs font-semibold uppercase text-text-secondary mb-2">Ingredients</h3>
-                <div className="space-y-1">
-                  {viewingRecipe.ingredients.map((ing, i) => (
-                    <div key={i} className="flex justify-between text-sm py-1 border-b border-border/50 last:border-0">
-                      <span>{ing.amount}{ing.unit} {ing.name}</span>
-                      <span className="text-text-muted text-xs">{ing.calories} cal</span>
-                    </div>
-                  ))}
+              {viewingRecipe.ingredients.length > 0 && (
+                <div>
+                  <h3 className="text-xs font-semibold uppercase text-text-secondary mb-2">Ingredients</h3>
+                  <div className="space-y-1">
+                    {viewingRecipe.ingredients.map((ing, i) => (
+                      <div key={i} className="flex justify-between text-sm py-1 border-b border-border/50 last:border-0">
+                        <span>{ing.amount > 0 ? `${ing.amount} ${ing.unit}` : ''} {ing.name}</span>
+                        {ing.calories > 0 && <span className="text-text-muted text-xs">{ing.calories} cal</span>}
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Steps */}
               {viewingRecipe.steps.length > 0 && (
                 <div>
-                  <h3 className="text-xs font-semibold uppercase text-text-secondary mb-2">Steps</h3>
+                  <h3 className="text-xs font-semibold uppercase text-text-secondary mb-2">Instructions</h3>
                   <div className="space-y-2">
                     {viewingRecipe.steps.map((step, i) => (
                       <div key={i} className="flex gap-2">
@@ -1062,10 +1076,31 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
                 </div>
               )}
 
-              {/* Log button */}
+              {/* Log with adjustable servings */}
+              <div className="bg-surface rounded-xl p-3 space-y-2">
+                <div className="flex items-center gap-3">
+                  <label className="text-xs font-semibold text-text-secondary">Servings to log:</label>
+                  <div className="flex items-center gap-1">
+                    <button onClick={() => setLogServingCount(String(Math.max(0.5, logCount - 0.5)))} className="w-7 h-7 rounded-lg bg-surface-raised text-text-muted text-sm font-bold">−</button>
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      className="w-14 text-center input-field text-sm py-1"
+                      value={logServingCount}
+                      onChange={(e) => setLogServingCount(e.target.value)}
+                      step="0.5"
+                      min="0.25"
+                    />
+                    <button onClick={() => setLogServingCount(String(logCount + 0.5))} className="w-7 h-7 rounded-lg bg-surface-raised text-text-muted text-sm font-bold">+</button>
+                  </div>
+                </div>
+                <div className="text-xs text-text-muted">
+                  {logCal} cal · P{logP}g · C{logC}g · F{logF}g
+                </div>
+              </div>
+
               <button
                 onClick={() => {
-                  const per = recipePerServing(viewingRecipe);
                   addEntry({
                     date: selectedDate,
                     name: viewingRecipe.name,
@@ -1076,24 +1111,27 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
                     fiber: per.fiber,
                     servingSize: 1,
                     servingUnit: `serving (of ${viewingRecipe.servings})`,
-                    servingsConsumed: 1,
+                    servingsConsumed: logCount,
                     source: 'manual',
                     mealType: 'snack',
                   });
-                  toast(`Logged 1 serving of ${viewingRecipe.name}`, 'success');
+                  toast(`Logged ${logCount} serving${logCount !== 1 ? 's' : ''} of ${viewingRecipe.name}`, 'success');
                   setViewingRecipe(null);
+                  setLogServingCount('1');
                 }}
                 className="w-full bg-accent-blue text-white font-semibold rounded-xl py-3 active:scale-[0.98] transition-transform"
               >
-                + Log 1 Serving
+                + Log {logCount !== 1 ? `${logCount} Servings` : '1 Serving'} ({logCal} cal)
               </button>
 
-              <button onClick={() => setViewingRecipe(null)} className="w-full bg-surface text-text-primary font-medium rounded-xl py-3">
+              <button onClick={() => { setViewingRecipe(null); setLogServingCount('1'); }} className="w-full bg-surface text-text-primary font-medium rounded-xl py-3">
                 Close
               </button>
             </div>
           </div>
         </div>
+        );
+      })()}
       )}
 
       {/* Delete recipe confirm */}
