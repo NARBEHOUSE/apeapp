@@ -42,6 +42,7 @@ import {
   exportProgram, importProgram, exportAllPrograms, importProgramsBundle,
   exportCustomFoods, exportCoachUpdate, importCoachUpdate, exportCoachPackage,
 } from '../utils/exportImport';
+import { importCSV, detectSource, getSourceLabel, type ImportResult } from '../utils/csvImport';
 import { getDashboardConfig, saveDashboardConfig, type DashboardCardConfig } from '../utils/dashboardConfig';
 import { getActiveThemeId, setActiveTheme, type ThemeId } from '../utils/themes';
 import { markBackupDone, getLastBackupDate } from '../utils/backupReminder';
@@ -224,6 +225,10 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
   const [importStatus, setImportStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [importError, setImportError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // CSV import from other apps
+  const [csvImportResult, setCsvImportResult] = useState<ImportResult | null>(null);
+  const [csvImporting, setCsvImporting] = useState(false);
 
   // Dashboard card config
   const [dashCards, setDashCards] = useState<DashboardCardConfig>(() => getDashboardConfig());
@@ -1826,6 +1831,80 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
                 <Download size={14} />
                 Export Custom Foods
               </button>
+            </div>
+
+            {/* Import from Other Apps */}
+            <div className="border-t border-border pt-3 space-y-2">
+              <div className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Import from Other Apps</div>
+              <p className="text-[11px] text-text-muted">
+                Import workout history or nutrition data from other fitness apps. Supports Strong, Hevy, FitNotes, MyFitnessPal, and MacroFactor CSV exports.
+              </p>
+              <label className={`btn-secondary w-full flex items-center justify-center gap-2 cursor-pointer text-sm ${csvImporting ? 'opacity-50 pointer-events-none' : ''}`}>
+                <Upload size={14} />
+                {csvImporting ? 'Importing...' : 'Import CSV File'}
+                <input
+                  type="file"
+                  accept=".csv,.txt"
+                  className="hidden"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    setCsvImporting(true);
+                    setCsvImportResult(null);
+                    const reader = new FileReader();
+                    reader.onload = async () => {
+                      try {
+                        const text = reader.result as string;
+                        const result = await importCSV(text, profile.id);
+                        setCsvImportResult(result);
+                        if (result.count > 0) {
+                          toast(`Imported ${result.count} ${result.type === 'workouts' ? 'workout sessions' : 'nutrition entries'} from ${getSourceLabel(result.source)}`, 'success');
+                        } else if (result.errors.length > 0) {
+                          toast(result.errors[0], 'error');
+                        } else if (result.skipped > 0) {
+                          toast(`All ${result.skipped} entries already exist`, 'info');
+                        }
+                      } catch (err) {
+                        toast(err instanceof Error ? err.message : 'Import failed', 'error');
+                      } finally {
+                        setCsvImporting(false);
+                      }
+                    };
+                    reader.readAsText(file);
+                    e.target.value = '';
+                  }}
+                />
+              </label>
+
+              {csvImportResult && (
+                <div className={`rounded-xl p-3 text-xs space-y-1 ${
+                  csvImportResult.count > 0 ? 'bg-success/10 border border-success/20' :
+                  csvImportResult.errors.length > 0 ? 'bg-danger/10 border border-danger/20' :
+                  'bg-surface-raised border border-border-light'
+                }`}>
+                  <div className="font-semibold">
+                    {getSourceLabel(csvImportResult.source)} — {csvImportResult.type === 'workouts' ? 'Workouts' : 'Nutrition'}
+                  </div>
+                  {csvImportResult.count > 0 && (
+                    <div className="text-text-secondary">
+                      {csvImportResult.count} {csvImportResult.type === 'workouts' ? 'sessions' : 'entries'} imported
+                      {csvImportResult.dateRange && ` (${csvImportResult.dateRange.from} to ${csvImportResult.dateRange.to})`}
+                    </div>
+                  )}
+                  {csvImportResult.skipped > 0 && (
+                    <div className="text-text-muted">{csvImportResult.skipped} duplicates skipped</div>
+                  )}
+                  {csvImportResult.errors.length > 0 && (
+                    <div className="text-danger">{csvImportResult.errors.join('; ')}</div>
+                  )}
+                </div>
+              )}
+
+              <div className="text-[10px] text-text-muted space-y-1">
+                <p><span className="font-semibold">Workouts:</span> Strong, Hevy, FitNotes — export CSV from those apps and import here</p>
+                <p><span className="font-semibold">Nutrition:</span> MyFitnessPal, MacroFactor — export your data and import the CSV</p>
+                <p>Existing data on matching dates will not be overwritten.</p>
+              </div>
             </div>
 
             {/* Coach Exchange */}
