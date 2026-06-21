@@ -866,6 +866,7 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
       <Modal open={modal === 'recipe-editor'} onClose={() => { setModal(null); setEditingRecipe(null); }} title={editingRecipe ? 'Edit Recipe' : 'New Recipe'}>
         <RecipeEditor
           initial={editingRecipe || undefined}
+          profileId={profile.id}
           onSave={(data) => {
             if (editingRecipe) {
               const updated = { ...editingRecipe, ...data, updatedAt: new Date().toISOString() };
