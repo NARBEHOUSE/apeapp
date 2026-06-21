@@ -50,11 +50,12 @@ export function RecipeEditor({ initial, profileId, onSave, onCancel }: Props) {
   const ingredientP = ingredients.reduce((s, i) => s + i.protein, 0);
   const ingredientC = ingredients.reduce((s, i) => s + i.carbs, 0);
   const ingredientF = ingredients.reduce((s, i) => s + i.fat, 0);
+  const hasIngredientMacros = ingredientCal > 0 || ingredientP > 0;
 
-  const totalCal = ingredients.length > 0 ? ingredientCal : (parseFloat(manualCal) || 0);
-  const totalP = ingredients.length > 0 ? ingredientP : (parseFloat(manualP) || 0);
-  const totalC = ingredients.length > 0 ? ingredientC : (parseFloat(manualC) || 0);
-  const totalF = ingredients.length > 0 ? ingredientF : (parseFloat(manualF) || 0);
+  const totalCal = hasIngredientMacros ? ingredientCal : (parseFloat(manualCal) || 0);
+  const totalP = hasIngredientMacros ? ingredientP : (parseFloat(manualP) || 0);
+  const totalC = hasIngredientMacros ? ingredientC : (parseFloat(manualC) || 0);
+  const totalF = hasIngredientMacros ? ingredientF : (parseFloat(manualF) || 0);
   const servingCount = parseInt(servings) || 1;
 
   const selectSearchResult = (food: SavedFood) => {
@@ -168,10 +169,10 @@ export function RecipeEditor({ initial, profileId, onSave, onCancel }: Props) {
       <div>
         <div className="flex items-center justify-between mb-2">
           <h3 className="text-xs font-semibold uppercase text-text-secondary">
-            {ingredients.length > 0 ? 'Total Macros (from ingredients)' : 'Total Macros'}
+            {hasIngredientMacros ? 'Total Macros (from ingredients)' : 'Total Macros'}
           </h3>
         </div>
-        {ingredients.length > 0 ? (
+        {hasIngredientMacros ? (
           <div className="bg-surface rounded-xl p-3">
             <div className="flex justify-between text-[10px] text-text-muted mb-1">
               <span>Total Recipe</span>
