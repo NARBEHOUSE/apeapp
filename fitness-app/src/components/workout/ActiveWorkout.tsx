@@ -21,6 +21,7 @@ import {
   getAdaptiveTarget,
   analyzeExerciseProgression,
   buildExerciseMap,
+  estimate1RM,
   type ExerciseProgression,
   type WeeklyTarget,
   type ProgressionSuggestion,
@@ -304,10 +305,17 @@ function ExerciseCard({
             />
           )}
 
-          {/* Last performance hint */}
+          {/* Last performance hint + estimated 1RM */}
           {lastPerformance && lastPerformance.sets.filter((s) => s.completed).length > 0 && (
             <p className="text-[10px] text-text-muted px-0.5">
               Last: {formatLastPerformance(lastPerformance.sets, lastPerformance.date)}
+              {(() => {
+                const best = lastPerformance.sets.filter((s) => s.completed).reduce<{ weight: number; reps: number } | null>((top, s) => (!top || s.weight > top.weight) ? s : top, null);
+                if (best && best.weight > 0 && best.reps > 1) {
+                  return ` · Est. 1RM: ${estimate1RM(best.weight, best.reps)}`;
+                }
+                return null;
+              })()}
             </p>
           )}
 

@@ -831,6 +831,16 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
                 ☀️ Light
                 {activeTheme === 'light' && <Check size={14} />}
               </button>
+              <button
+                onClick={() => handleThemeChange('auto')}
+                className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-medium transition-all ${
+                  activeTheme === 'auto' ? 'ring-2 ring-accent-orange' : ''
+                }`}
+                style={{ backgroundColor: '#333340', color: '#ccccdd', border: '1px solid #555' }}
+              >
+                🔄 Auto
+                {activeTheme === 'auto' && <Check size={14} />}
+              </button>
             </div>
           </div>
         )}
@@ -1218,6 +1228,26 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
                   <option value="biweekly">Every 2 weeks</option>
                 </select>
               )}
+            </div>
+
+            {/* Water toggle */}
+            <div className="flex items-center justify-between py-2">
+              <div>
+                <div className="text-sm font-medium">Water Intake</div>
+                <div className="text-[11px] text-text-muted">Daily water tracking with quick-add buttons</div>
+              </div>
+              <button
+                onClick={() => updateDashCards({ water: !dashCards.water })}
+                className={`w-11 h-6 rounded-full transition-colors relative ${
+                  dashCards.water ? 'bg-accent-blue' : 'bg-surface-raised'
+                }`}
+              >
+                <div
+                  className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform ${
+                    dashCards.water ? 'translate-x-5' : 'translate-x-0.5'
+                  }`}
+                />
+              </button>
             </div>
 
             {/* Steps toggle */}

@@ -242,6 +242,20 @@ function round(n: number): number {
   return Math.round(n * 2) / 2;
 }
 
+export function estimate1RM(weight: number, reps: number): number {
+  if (reps <= 0 || weight <= 0) return 0;
+  if (reps === 1) return weight;
+  // Brzycki formula
+  return round(weight * (36 / (37 - reps)));
+}
+
+export function getPercentages1RM(oneRM: number): { pct: number; weight: number }[] {
+  return [100, 95, 90, 85, 80, 75, 70, 65, 60].map((pct) => ({
+    pct,
+    weight: round(oneRM * pct / 100),
+  }));
+}
+
 export function getAdaptiveTarget(
   planned: WeeklyTarget,
   previousTarget: WeeklyTarget | null,

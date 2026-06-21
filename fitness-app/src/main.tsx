@@ -2,7 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import './index.css';
 import App from './App';
-import { applyTheme } from './utils/themes';
+import { applyTheme, listenForSystemThemeChange } from './utils/themes';
 
 // crypto.randomUUID() requires a secure context (HTTPS/localhost).
 // Polyfill it for local network testing over plain HTTP.
@@ -16,6 +16,7 @@ if (typeof crypto !== 'undefined' && typeof crypto.randomUUID !== 'function') {
 }
 
 applyTheme();
+listenForSystemThemeChange(() => {});
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

@@ -362,7 +362,7 @@ export async function gatherAllData(googleEmail?: string): Promise<object> {
     : allProfiles;
   const profileIds = new Set(profiles.map((p) => p.id));
 
-  const [allWorkouts, allFood, allMeasurements, allPhotos, allPrograms, allCheckIns, allSteps] = await Promise.all([
+  const [allWorkouts, allFood, allMeasurements, allPhotos, allPrograms, allCheckIns, allSteps, allWater] = await Promise.all([
     db.getAll('workoutSessions'),
     db.getAll('foodEntries'),
     db.getAll('measurements'),
@@ -370,6 +370,7 @@ export async function gatherAllData(googleEmail?: string): Promise<object> {
     db.getAll('programs'),
     db.getAll('checkIns'),
     db.getAll('steps'),
+    db.getAll('water'),
   ]);
 
   const workoutSessions = allWorkouts.filter((w: { profileId: string }) => profileIds.has(w.profileId));
@@ -378,6 +379,7 @@ export async function gatherAllData(googleEmail?: string): Promise<object> {
   const progressPhotos = allPhotos.filter((p: { profileId: string }) => profileIds.has(p.profileId));
   const checkIns = allCheckIns.filter((c: { profileId: string }) => profileIds.has(c.profileId));
   const steps = allSteps.filter((s: { profileId: string }) => profileIds.has(s.profileId));
+  const waterEntries = allWater.filter((w: { profileId: string }) => profileIds.has(w.profileId));
 
   // Sync all fitos-* localStorage keys except sensitive/device-specific ones
   const SKIP_SYNC = new Set([
@@ -419,6 +421,7 @@ export async function gatherAllData(googleEmail?: string): Promise<object> {
     progressPhotos,
     checkIns,
     steps,
+    water: waterEntries,
     programs: allPrograms.filter((p) => !p.isBuiltIn),
   };
 }
@@ -450,7 +453,7 @@ export async function restoreAllData(data: Record<string, unknown>, googleEmail?
     }
   }
 
-  const stores = ['workoutSessions', 'foodEntries', 'measurements', 'progressPhotos', 'checkIns', 'steps'] as const;
+  const stores = ['workoutSessions', 'foodEntries', 'measurements', 'progressPhotos', 'checkIns', 'steps', 'water'] as const;
   for (const store of stores) {
     const items = data[store];
     if (Array.isArray(items)) {

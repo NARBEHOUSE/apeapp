@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Flame, Trophy, Loader2, Zap, ChevronRight, Dumbbell, HardDrive, ClipboardCheck, Check } from 'lucide-react';
 
-import type { Profile, WorkoutSession, FoodEntry, Measurement, Program, CheckInEntry, StepEntry } from '../types';
+import type { Profile, WorkoutSession, FoodEntry, Measurement, Program, CheckInEntry, StepEntry, WaterEntry } from '../types';
 import { getGreeting, today, getWeekDates } from '../utils/dateHelpers';
 import { getSessionsByProfile } from '../db/workouts';
 import { getFoodEntriesByDate, getFoodEntriesByProfile } from '../db/nutrition';
@@ -22,6 +22,7 @@ import TrendSnapshotCard from '../components/dashboard/TrendSnapshotCard';
 import { WeeklyInsights } from '../components/dashboard/WeeklyInsights';
 import { AICoachCard } from '../components/dashboard/AICoachCard';
 import { StepsCard } from '../components/dashboard/StepsCard';
+import { WaterCard } from '../components/dashboard/WaterCard';
 
 interface DashboardProps {
   profile: Profile;
@@ -47,6 +48,7 @@ export default function Dashboard({ profile, onUpdateProfile }: DashboardProps) 
   const [programs, setPrograms] = useState<Program[]>([]);
   const [checkIns, setCheckIns] = useState<CheckInEntry[]>([]);
   const [steps, setSteps] = useState<StepEntry[]>([]);
+  const [water, setWater] = useState<WaterEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [autoAdjust, setAutoAdjust] = useState<AutoAdjustResult | null>(null);
 
@@ -60,7 +62,7 @@ export default function Dashboard({ profile, onUpdateProfile }: DashboardProps) 
         await initializePrograms();
 
         const db = await getDB();
-        const [sessionsData, foodData, measurementsData, programsData, allFoodData, checkInsData, stepsData] = await Promise.all([
+        const [sessionsData, foodData, measurementsData, programsData, allFoodData, checkInsData, stepsData, waterData] = await Promise.all([
           getSessionsByProfile(profile.id),
           getFoodEntriesByDate(profile.id, today()),
           getMeasurementsByProfile(profile.id),
@@ -68,6 +70,7 @@ export default function Dashboard({ profile, onUpdateProfile }: DashboardProps) 
           getFoodEntriesByProfile(profile.id),
           db.getAllFromIndex('checkIns', 'by-profile', profile.id),
           db.getAllFromIndex('steps', 'by-profile', profile.id),
+          db.getAllFromIndex('water', 'by-profile', profile.id),
         ]);
 
         if (cancelled) return;
@@ -79,6 +82,7 @@ export default function Dashboard({ profile, onUpdateProfile }: DashboardProps) 
         setPrograms(programsData);
         setCheckIns(checkInsData);
         setSteps(stepsData);
+        setWater(waterData);
 
         if (profile.bodyStats) {
           const weightEntries = measurementsData
@@ -403,6 +407,14 @@ export default function Dashboard({ profile, onUpdateProfile }: DashboardProps) 
         <h2 className="label mb-3">Today's Nutrition</h2>
         <MacroSummary totals={macroTotals} targets={profile.macroTargets} />
       </div>
+
+      {/* Water */}
+      {dashConfig.water && (
+        <WaterCard water={water} profileId={profile.id} units={profile.units} onUpdate={async () => {
+          const db = await getDB();
+          setWater(await db.getAllFromIndex('water', 'by-profile', profile.id));
+        }} />
+      )}
 
       {/* Week in Review */}
       <WeeklyInsights

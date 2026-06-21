@@ -335,6 +335,14 @@ export interface StepEntry {
   source?: 'manual' | 'macrofactor';
 }
 
+export interface WaterEntry {
+  id: string;
+  profileId: string;
+  date: string;
+  amount: number;
+  unit: 'oz' | 'ml';
+}
+
 export interface ProgressPhoto {
   id: string;
   profileId: string;
