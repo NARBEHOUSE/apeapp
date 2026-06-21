@@ -19,7 +19,7 @@ import {
 interface Props {
   profiles: Profile[];
   onSelect: (id: string) => void;
-  onCreate: (name: string, goal: string, bodyStats?: BodyStats, customMacros?: MacroTargets, googleEmail?: string) => Profile | null;
+  onCreate: (name: string, goal: string, bodyStats?: BodyStats, customMacros?: MacroTargets, googleEmail?: string, birthday?: string) => Profile | null;
   onDelete: (id: string) => void;
   onRefresh?: () => void;
 }
@@ -70,7 +70,8 @@ export function ProfileSelector({ profiles, onSelect, onCreate, onDelete, onRefr
 
   const [name, setName] = useState('');
   const [gender, setGender] = useState<Gender>('male');
-  const [age, setAge] = useState('');
+  const [birthday, setBirthday] = useState('');
+  const age = birthday ? Math.floor((Date.now() - new Date(birthday + 'T00:00:00').getTime()) / (365.25 * 86400000)) : 0;
   const [feet, setFeet] = useState('');
   const [inches, setInches] = useState('');
   const [weight, setWeight] = useState('');
@@ -87,7 +88,7 @@ export function ProfileSelector({ profiles, onSelect, onCreate, onDelete, onRefr
   const resetForm = () => {
     setName('');
     setGender('male');
-    setAge('');
+    setBirthday('');
     setFeet('');
     setInches('');
     setWeight('');
@@ -102,10 +103,10 @@ export function ProfileSelector({ profiles, onSelect, onCreate, onDelete, onRefr
   };
 
   const bodyStats: BodyStats | null =
-    age && feet && weight
+    age > 0 && feet && weight
       ? {
           gender,
-          age: parseInt(age),
+          age,
           heightCm: heightToCm(parseInt(feet) || 0, parseInt(inches) || 0),
           weightKg: lbsToKg(parseFloat(weight) || 0),
           activityLevel,
@@ -133,8 +134,8 @@ export function ProfileSelector({ profiles, onSelect, onCreate, onDelete, onRefr
     const trimmedName = name.trim();
     if (!trimmedName) return;
     const goalLabel = GOAL_LABELS[fitnessGoal] || fitnessGoal;
-    const stats = (age && feet && weight) ? bodyStats : undefined;
-    onCreate(trimmedName, goalLabel, stats || undefined, undefined, isSignedIn ? googleUser?.email : undefined);
+    const stats = (age > 0 && feet && weight) ? bodyStats : undefined;
+    onCreate(trimmedName, goalLabel, stats || undefined, undefined, isSignedIn ? googleUser?.email : undefined, birthday || undefined);
     await createDriveFolders();
   };
 
@@ -147,12 +148,12 @@ export function ProfileSelector({ profiles, onSelect, onCreate, onDelete, onRefr
       carbs: parseInt(customCarbs) || 200,
       fat: parseInt(customFat) || 65,
     };
-    onCreate(trimmedName, 'Custom', undefined, custom, isSignedIn ? googleUser?.email : undefined);
+    onCreate(trimmedName, 'Custom', undefined, custom, isSignedIn ? googleUser?.email : undefined, birthday || undefined);
     await createDriveFolders();
   };
 
   const canProceedBody = name.trim().length > 0;
-  const canProceedGoal = !!age && !!feet && !!weight && parseInt(age) > 0 && parseFloat(weight) > 0;
+  const canProceedGoal = age > 0 && !!feet && !!weight && parseFloat(weight) > 0;
 
   const customCalCalc = (parseFloat(customProtein) || 0) * 4 + (parseFloat(customCarbs) || 0) * 4 + (parseFloat(customFat) || 0) * 9;
 
@@ -501,8 +502,8 @@ export function ProfileSelector({ profiles, onSelect, onCreate, onDelete, onRefr
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="label mb-1 block">Age</label>
-                <input type="number" inputMode="numeric" className="input-field" placeholder="25" value={age} onChange={(e) => setAge(e.target.value)} />
+                <label className="label mb-1 block">Birthday{age > 0 ? ` (${age} yrs)` : ''}</label>
+                <input type="date" className="input-field" value={birthday} onChange={(e) => setBirthday(e.target.value)} max={new Date().toISOString().split('T')[0]} />
               </div>
               <div>
                 <label className="label mb-1 block">Weight (lbs)</label>

@@ -26,7 +26,7 @@ export function useProfile() {
   const activeProfile = profiles.find((p) => p.id === activeProfileId) || null;
 
   const createProfile = useCallback(
-    (name: string, goal: string, bodyStats?: BodyStats, customMacros?: { calories: number; protein: number; carbs: number; fat: number }, googleEmail?: string) => {
+    (name: string, goal: string, bodyStats?: BodyStats, customMacros?: { calories: number; protein: number; carbs: number; fat: number }, googleEmail?: string, birthday?: string) => {
       if (profiles.length >= 5) return null;
 
       let macroTargets = customMacros || { calories: 2500, protein: 180, carbs: 250, fat: 80 };
@@ -55,6 +55,7 @@ export function useProfile() {
         tdee,
         calorieAdjustments: [],
         googleEmail,
+        birthday,
       };
       const updated = [...profiles, profile];
       persist(updated);
