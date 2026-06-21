@@ -1907,7 +1907,8 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
                         const result = await importCSV(text, profile.id);
                         setCsvImportResult(result);
                         if (result.count > 0) {
-                          toast(`Imported ${result.count} ${result.type === 'workouts' ? 'workout sessions' : 'nutrition entries'} from ${getSourceLabel(result.source)}`, 'success');
+                          const typeLabel = { workouts: 'workout sessions', nutrition: 'nutrition entries', measurements: 'measurements', steps: 'step entries', recipes: 'recipes', foods: 'foods', skipped: 'items' }[result.type] || 'items';
+                          toast(`Imported ${result.count} ${typeLabel} from ${getSourceLabel(result.source)}`, 'success');
                         } else if (result.errors.length > 0) {
                           toast(result.errors[0], 'error');
                         } else if (result.skipped > 0) {
@@ -1932,13 +1933,18 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
                   'bg-surface-raised border border-border-light'
                 }`}>
                   <div className="font-semibold">
-                    {getSourceLabel(csvImportResult.source)} — {csvImportResult.type === 'workouts' ? 'Workouts' : 'Nutrition'}
+                    {getSourceLabel(csvImportResult.source)} — {
+                      { workouts: 'Workouts', nutrition: 'Nutrition', measurements: 'Measurements', steps: 'Steps', recipes: 'Recipes', foods: 'Food Library', skipped: 'Skipped' }[csvImportResult.type]
+                    }
                   </div>
                   {csvImportResult.count > 0 && (
                     <div className="text-text-secondary">
-                      {csvImportResult.count} {csvImportResult.type === 'workouts' ? 'sessions' : 'entries'} imported
+                      {csvImportResult.count} {csvImportResult.type === 'workouts' ? 'sessions' : csvImportResult.type === 'measurements' ? 'measurements' : csvImportResult.type === 'steps' ? 'step entries' : csvImportResult.type === 'recipes' ? 'recipes' : csvImportResult.type === 'foods' ? 'foods' : 'entries'} imported
                       {csvImportResult.dateRange && ` (${csvImportResult.dateRange.from} to ${csvImportResult.dateRange.to})`}
                     </div>
+                  )}
+                  {csvImportResult.details && (
+                    <div className="text-text-muted">{csvImportResult.details}</div>
                   )}
                   {csvImportResult.skipped > 0 && (
                     <div className="text-text-muted">{csvImportResult.skipped} duplicates skipped</div>
