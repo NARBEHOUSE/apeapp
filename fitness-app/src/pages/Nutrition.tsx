@@ -1132,7 +1132,6 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
         </div>
         );
       })()}
-      )}
 
       {/* Delete recipe confirm */}
       <ConfirmDialog
