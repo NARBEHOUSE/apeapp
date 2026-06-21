@@ -49,14 +49,17 @@ export function saveFoodToHistory(
   if (existingIndex >= 0) {
     foods[existingIndex].frequency += 1;
     foods[existingIndex].lastUsed = new Date().toISOString();
-    // Update macros in case they changed
-    foods[existingIndex].calories = food.calories;
-    foods[existingIndex].protein = food.protein;
-    foods[existingIndex].carbs = food.carbs;
-    foods[existingIndex].fat = food.fat;
-    foods[existingIndex].fiber = food.fiber;
-    foods[existingIndex].servingSize = food.servingSize;
-    foods[existingIndex].servingUnit = food.servingUnit;
+    // Only update macros if new data has non-zero values (don't overwrite real data with zeros)
+    const hasNewMacros = food.calories > 0 || food.protein > 0 || food.carbs > 0 || food.fat > 0;
+    if (hasNewMacros) {
+      foods[existingIndex].calories = food.calories;
+      foods[existingIndex].protein = food.protein;
+      foods[existingIndex].carbs = food.carbs;
+      foods[existingIndex].fat = food.fat;
+      foods[existingIndex].fiber = food.fiber;
+      foods[existingIndex].servingSize = food.servingSize;
+      foods[existingIndex].servingUnit = food.servingUnit;
+    }
     foods[existingIndex].source = food.source;
     if (food.brand !== undefined) foods[existingIndex].brand = food.brand;
     if (food.fdcId !== undefined) foods[existingIndex].fdcId = food.fdcId;

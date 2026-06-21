@@ -67,20 +67,22 @@ type MFSheet = 'mf_main' | 'mf_scale_weight' | 'mf_body_metrics' | 'mf_steps' | 
 
 function detectMFSheet(firstLine: string): MFSheet | null {
   const h = firstLine.toLowerCase();
+  // Order matters: check specific sheets before generic ones
+  if (h.includes('recipe name') && h.includes('ingredients')) return 'mf_recipes';
+  if (h.includes('food name') && h.includes('serving size') && h.includes('serving qty')) return 'mf_custom_foods';
+  if (h.match(/^food name\s*$/) || (h.includes('food name') && h.split(',').length <= 2)) return 'mf_history';
   if (h.includes('trend weight')) return 'mf_weight_trend';
   if (h.includes('weight') && h.includes('fat percent')) return 'mf_scale_weight';
   if (h.includes('bust') || (h.includes('left bicep') && h.includes('waist'))) return 'mf_body_metrics';
   if (/^date,steps\s*$/.test(h)) return 'mf_steps';
-  if (h.includes('alcohol') && h.includes('b12') || h.includes('cobalamin')) return 'mf_micronutrients';
-  if (h.includes('recipe name') && h.includes('ingredients')) return 'mf_recipes';
   if (h.includes('food log notes')) return 'mf_food_log_notes';
   if (h.includes('workout log notes')) return 'mf_workout_log_notes';
   if (h.includes('exercise') && h.includes('set 1 type')) return 'mf_workouts';
-  if (h.includes('muscle') || (h.includes('chest (sets)') || h.includes('chest (lbs)'))) return 'mf_muscle_groups';
-  if (h.includes('partial')) return 'mf_partial_logging';
-  if (h.includes('food name') && h.includes('serving size') && h.includes('serving qty')) return 'mf_custom_foods';
-  if (h.match(/^food name\s*$/) || (h.includes('food name') && h.split(',').length <= 2)) return 'mf_history';
-  if (h.includes('calories (kcal)')) return 'mf_main';
+  if (h.includes('chest (sets)') || h.includes('chest (lbs)')) return 'mf_muscle_groups';
+  if (h.includes('partial logging')) return 'mf_partial_logging';
+  // Micronutrients: only if first column is Date and has alcohol column but NOT food name/recipe name
+  if (h.startsWith('date,') && h.includes('alcohol') && !h.includes('food name') && !h.includes('recipe name')) return 'mf_micronutrients';
+  if (h.includes('calories (kcal)') && h.startsWith('date,')) return 'mf_main';
   return null;
 }
 
