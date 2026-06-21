@@ -16,6 +16,7 @@ import { formatDate, today } from '../utils/dateHelpers';
 import { getFoodEmoji } from '../utils/foodEmoji';
 import { getSavedMeals, addSavedMeal, deleteSavedMeal, type SavedMeal } from '../db/savedMeals';
 import { getRecipes, saveRecipe, updateRecipe, deleteRecipe, recipePerServing, type Recipe } from '../db/recipes';
+import { getMealPlans, saveMealPlan, deleteMealPlan, type MealPlan } from '../db/mealPlans';
 import { Modal } from '../components/shared/Modal';
 import { ManualEntry } from '../components/nutrition/ManualEntry';
 import { FoodSearch } from '../components/nutrition/FoodSearch';
@@ -194,6 +195,7 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
   const [tab, setTab] = useState<Tab>('planner');
   const [savedMeals, setSavedMeals] = useState<SavedMeal[]>(() => getSavedMeals(profile.id));
   const [recipes, setRecipes] = useState<Recipe[]>(() => getRecipes(profile.id));
+  const [mealPlans, setMealPlans] = useState<MealPlan[]>(() => getMealPlans(profile.id));
   const [editingRecipe, setEditingRecipe] = useState<Recipe | null>(null);
   const [deleteRecipeId, setDeleteRecipeId] = useState<string | null>(null);
   const [viewingRecipe, setViewingRecipe] = useState<Recipe | null>(null);
@@ -592,6 +594,88 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
                     </div>
                     <button onClick={() => handleQuickAdd(meal)} className="bg-surface-raised px-3 py-1.5 rounded-lg text-[10px] font-medium text-accent-blue">+ Add</button>
                     <button onClick={() => handleDeleteSavedMeal(meal.id)} className="p-1.5"><Trash2 size={12} className="text-text-muted/40 hover:text-danger" /></button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Meal Plans */}
+          <div>
+            <h3 className="label mb-2 flex items-center gap-1.5"><Clock size={11} /> Meal Plans</h3>
+
+            {entries.length > 0 && (
+              <button
+                onClick={() => {
+                  const planEntries = entries.map((e) => ({
+                    name: e.name, calories: e.calories, protein: e.protein, carbs: e.carbs, fat: e.fat,
+                    fiber: e.fiber, servingSize: e.servingSize, servingUnit: e.servingUnit,
+                    servingsConsumed: e.servingsConsumed, mealType: e.mealType,
+                  }));
+                  const total = planEntries.reduce((a, e) => ({
+                    cal: a.cal + e.calories * e.servingsConsumed, p: a.p + e.protein * e.servingsConsumed,
+                    c: a.c + e.carbs * e.servingsConsumed, f: a.f + e.fat * e.servingsConsumed,
+                  }), { cal: 0, p: 0, c: 0, f: 0 });
+                  const dayName = new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long' });
+                  saveMealPlan(profile.id, {
+                    name: `${dayName} Plan`, entries: planEntries,
+                    totalCalories: Math.round(total.cal), totalProtein: Math.round(total.p),
+                    totalCarbs: Math.round(total.c), totalFat: Math.round(total.f),
+                  });
+                  setMealPlans(getMealPlans(profile.id));
+                  toast('Meal plan saved!', 'success');
+                }}
+                className="w-full bg-surface rounded-xl p-3 flex items-center gap-3 active:scale-[0.98] transition-transform mb-2"
+              >
+                <BookmarkPlus size={16} className="text-accent" />
+                <div className="flex-1 text-left">
+                  <div className="text-xs font-medium">Save Today as Meal Plan</div>
+                  <div className="text-[10px] text-text-muted">{entries.length} items · {Math.round(totals.calories)} cal</div>
+                </div>
+              </button>
+            )}
+
+            {mealPlans.length === 0 ? (
+              <p className="text-xs text-text-muted text-center py-4">No meal plans saved yet. Log a day of food, then save it here.</p>
+            ) : (
+              <div className="space-y-1.5">
+                {mealPlans.map((plan) => (
+                  <div key={plan.id} className="bg-surface rounded-xl p-3">
+                    <div className="flex items-center gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium truncate">{plan.name}</div>
+                        <div className="text-[10px] text-text-muted">
+                          {plan.entries.length} items · {plan.totalCalories} cal · P{plan.totalProtein}g
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => {
+                          for (const item of plan.entries) {
+                            addEntry({
+                              date: selectedDate, name: item.name, calories: item.calories,
+                              protein: item.protein, carbs: item.carbs, fat: item.fat,
+                              fiber: item.fiber, servingSize: item.servingSize,
+                              servingUnit: item.servingUnit, servingsConsumed: item.servingsConsumed,
+                              source: 'manual', mealType: item.mealType,
+                            });
+                          }
+                          toast(`Applied ${plan.name} (${plan.entries.length} items)`, 'success');
+                        }}
+                        className="bg-accent-blue/10 text-accent-blue px-3 py-1.5 rounded-lg text-[10px] font-semibold"
+                      >
+                        Apply
+                      </button>
+                      <button
+                        onClick={() => {
+                          deleteMealPlan(profile.id, plan.id);
+                          setMealPlans(getMealPlans(profile.id));
+                          toast('Meal plan deleted', 'success');
+                        }}
+                        className="p-1.5"
+                      >
+                        <Trash2 size={12} className="text-text-muted/40 hover:text-danger" />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>

@@ -15,7 +15,7 @@ import {
   Clock,
   CheckCircle2,
 } from 'lucide-react';
-import type { Profile, Program, WorkoutSession, WorkoutDay as WorkoutDayType, ActiveProgramEnrollment, ProgramCompletion, ExerciseFeedback } from '../types';
+import type { Profile, Program, WorkoutSession, WorkoutDay as WorkoutDayType, ActiveProgramEnrollment, ProgramCompletion, ExerciseFeedback, Exercise } from '../types';
 import { useWorkout } from '../hooks/useWorkout';
 import { duplicateProgram, deleteProgram, saveProgram } from '../db/programs';
 import { getAllPRs } from '../db/workouts';
@@ -314,13 +314,16 @@ export function Workout({ profile, onUpdateProfile }: Props) {
 
   // Active workout view
   if (view === 'active' && activeSession && selectedDayId) {
-    const program = programs.find((p) => p.id === (selectedProgramId || enrollment?.programId));
-    const day = program?.days.find((d) => d.id === selectedDayId);
-    if (!day || !program) return null;
-    const previousSession = getPreviousSession(program.id, day.id);
+    const isQuick = selectedProgramId === 'quick';
+    const program = isQuick ? null : programs.find((p) => p.id === (selectedProgramId || enrollment?.programId));
+    const day = isQuick
+      ? { id: 'quick', label: '', tag: 'Quick Workout', title: 'Freestyle', subtitle: '', accent: '#e8572a', note: '', exercises: [] as Exercise[] }
+      : program?.days.find((d) => d.id === selectedDayId);
+    if (!day) return null;
+    const previousSession = program ? getPreviousSession(program.id, day.id) : undefined;
     const lastPerformance = getLastPerformanceMap(day.exercises);
-    const programDuration = program.suggestedDurationWeeks || 0;
-    const programCurrentWeek = enrollment
+    const programDuration = program?.suggestedDurationWeeks || 0;
+    const programCurrentWeek = enrollment && !isQuick
       ? Math.min(
           Math.max(1, Math.ceil((Date.now() - new Date(enrollment.startDate).getTime()) / (7 * 24 * 60 * 60 * 1000))),
           programDuration || Infinity,
@@ -339,7 +342,7 @@ export function Workout({ profile, onUpdateProfile }: Props) {
         onFinish={handleFinish}
         onCancel={handleCancel}
         restTimerDuration={profile.restTimerDuration || 90}
-        programDefaultRestTimer={program.defaultRestTimer}
+        programDefaultRestTimer={program?.defaultRestTimer}
         profileId={profile.id}
         onSaveFeedback={(feedback) => {
           if (activeSession) {
@@ -502,10 +505,22 @@ export function Workout({ profile, onUpdateProfile }: Props) {
           <Dumbbell size={32} className="mx-auto mb-4 text-text-muted" />
           <h2 className="text-lg font-semibold mb-1">No active program</h2>
           <p className="text-sm text-text-muted mb-6 max-w-xs mx-auto">
-            Pick a program to follow and we'll track your progress through it.
+            Pick a program to follow, or start a quick workout.
           </p>
           <div className="space-y-2 max-w-xs mx-auto">
-            <button onClick={() => setView('library')} className="btn-primary w-full flex items-center justify-center gap-2">
+            <button
+              onClick={() => {
+                setSelectedProgramId('quick');
+                setSelectedDayId('quick');
+                startWorkout('quick', 'quick');
+                setView('active');
+              }}
+              className="btn-primary w-full flex items-center justify-center gap-2"
+            >
+              <Dumbbell size={16} />
+              Quick Workout
+            </button>
+            <button onClick={() => setView('library')} className="btn-secondary w-full flex items-center justify-center gap-2">
               <Library size={16} />
               Browse Programs
             </button>
@@ -652,6 +667,26 @@ export function Workout({ profile, onUpdateProfile }: Props) {
             </div>
           </div>
         </>
+      )}
+
+      {/* Quick workout (even with enrolled program) */}
+      {enrollment && (
+        <button
+          onClick={() => {
+            setSelectedProgramId('quick');
+            setSelectedDayId('quick');
+            startWorkout('quick', 'quick');
+            setView('active');
+          }}
+          className="w-full bg-surface rounded-2xl p-4 flex items-center gap-3 text-left active:scale-[0.98] transition-transform"
+        >
+          <Plus size={16} className="text-accent" />
+          <div className="flex-1">
+            <div className="text-sm font-medium">Quick Workout</div>
+            <div className="text-[11px] text-text-muted">Freestyle session — add exercises as you go</div>
+          </div>
+          <ChevronRight size={14} className="text-text-muted" />
+        </button>
       )}
 
       {/* History + Library links */}

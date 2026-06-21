@@ -75,6 +75,7 @@ export function PhotoGallery({ photos, onDelete, measurements = [], weightUnit =
   const [compareSelection, setCompareSelection] = useState<ProgressPhoto[]>([]);
   const [sharing, setSharing] = useState(false);
   const [compareStat, setCompareStat] = useState<StatOption>('weight');
+  const [shareFormat, setShareFormat] = useState<'post' | 'story'>('post');
 
   const filtered = useMemo(() => {
     const sorted = [...photos].sort((a, b) => b.date.localeCompare(a.date));
@@ -117,6 +118,7 @@ export function PhotoGallery({ photos, onDelete, measurements = [], weightUnit =
         beforeStat: getStatForDate(before.date),
         afterStat: getStatForDate(after.date),
         pose: POSE_LABELS[before.pose] || before.pose,
+        format: shareFormat,
       });
       shareOrDownload(canvas, `progress-${before.date}-to-${after.date}.png`);
     } finally {
@@ -216,7 +218,7 @@ export function PhotoGallery({ photos, onDelete, measurements = [], weightUnit =
       {compareMode && compareSelection.length === 2 && (
         <div className="space-y-2">
           <div className="flex items-center gap-2">
-            <span className="text-[10px] text-text-muted font-semibold uppercase whitespace-nowrap">Show stat:</span>
+            <span className="text-[10px] text-text-muted font-semibold uppercase whitespace-nowrap">Stat:</span>
             <select
               className="input-field text-xs flex-1 py-1.5"
               value={compareStat}
@@ -226,6 +228,16 @@ export function PhotoGallery({ photos, onDelete, measurements = [], weightUnit =
                 <option key={opt.value} value={opt.value}>{opt.label}</option>
               ))}
             </select>
+            <div className="flex rounded-lg overflow-hidden border border-border-light">
+              <button
+                onClick={() => setShareFormat('post')}
+                className={`px-2 py-1 text-[9px] font-semibold ${shareFormat === 'post' ? 'bg-accent-blue text-white' : 'bg-surface-raised text-text-muted'}`}
+              >4:5</button>
+              <button
+                onClick={() => setShareFormat('story')}
+                className={`px-2 py-1 text-[9px] font-semibold ${shareFormat === 'story' ? 'bg-accent-blue text-white' : 'bg-surface-raised text-text-muted'}`}
+              >9:16</button>
+            </div>
           </div>
           <button
             onClick={handleShareComparison}

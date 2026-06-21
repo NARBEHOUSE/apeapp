@@ -28,6 +28,7 @@ interface ProgressCardData {
   beforeStat?: string;
   afterStat?: string;
   pose: string;
+  format?: 'post' | 'story';
 }
 
 const CARD_W = 1080;
@@ -317,32 +318,37 @@ export function renderPRCard(data: PRCardData): HTMLCanvasElement {
 }
 
 export async function renderProgressCard(data: ProgressCardData): Promise<HTMLCanvasElement> {
+  const isStory = data.format === 'story';
+  const cardW = CARD_W;
+  const cardH = isStory ? 1920 : CARD_H;
   const canvas = document.createElement('canvas');
-  canvas.width = CARD_W;
-  canvas.height = CARD_H;
+  canvas.width = cardW;
+  canvas.height = cardH;
   const ctx = canvas.getContext('2d')!;
   const font = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
 
   // Background
   ctx.fillStyle = BG;
-  ctx.fillRect(0, 0, CARD_W, CARD_H);
+  ctx.fillRect(0, 0, cardW, cardH);
 
   // Accent bar
   ctx.fillStyle = ACCENT;
-  ctx.fillRect(0, 0, CARD_W, 8);
+  ctx.fillRect(0, 0, cardW, 8);
+
+  const headerY = isStory ? 200 : 70;
 
   // Header
   ctx.fillStyle = ACCENT;
   ctx.font = `800 24px ${font}`;
   ctx.textAlign = 'center';
   ctx.letterSpacing = '4px';
-  ctx.fillText('PROGRESS', CARD_W / 2, 70);
+  ctx.fillText('PROGRESS', cardW / 2, headerY);
   ctx.letterSpacing = '0px';
 
   // Pose label
   ctx.fillStyle = TEXT;
   ctx.font = `700 40px ${font}`;
-  ctx.fillText(data.pose, CARD_W / 2, 120);
+  ctx.fillText(data.pose, cardW / 2, headerY + 50);
 
   // Load images
   const [beforeImg, afterImg] = await Promise.all([
@@ -350,9 +356,9 @@ export async function renderProgressCard(data: ProgressCardData): Promise<HTMLCa
     loadImage(data.afterImage),
   ]);
 
-  const imgW = (CARD_W - 120 - 20) / 2;
-  const imgH = 800;
-  const imgY = 160;
+  const imgW = (cardW - 120 - 20) / 2;
+  const imgH = isStory ? 1000 : 800;
+  const imgY = headerY + 80;
 
   // Before photo
   ctx.save();
@@ -393,7 +399,12 @@ export async function renderProgressCard(data: ProgressCardData): Promise<HTMLCa
     ctx.fillText(data.afterStat, 60 + imgW + 20 + imgW / 2, labelY + 70);
   }
 
-  drawBranding(ctx);
+  // Branding
+  ctx.fillStyle = TEXT_MUTED;
+  ctx.font = '500 28px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('APE APP', cardW / 2, cardH - 40);
+
   return canvas;
 }
 
