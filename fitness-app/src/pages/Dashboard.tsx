@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Flame, Trophy, Loader2, Zap, ChevronRight, Dumbbell, HardDrive, ClipboardCheck, Check } from 'lucide-react';
 
-import type { Profile, WorkoutSession, FoodEntry, Measurement, Program, CheckInEntry } from '../types';
+import type { Profile, WorkoutSession, FoodEntry, Measurement, Program, CheckInEntry, StepEntry } from '../types';
 import { getGreeting, today, getWeekDates } from '../utils/dateHelpers';
 import { getSessionsByProfile } from '../db/workouts';
 import { getFoodEntriesByDate, getFoodEntriesByProfile } from '../db/nutrition';
@@ -21,6 +21,7 @@ import MacroSummary from '../components/dashboard/MacroSummary';
 import TrendSnapshotCard from '../components/dashboard/TrendSnapshotCard';
 import { WeeklyInsights } from '../components/dashboard/WeeklyInsights';
 import { AICoachCard } from '../components/dashboard/AICoachCard';
+import { StepsCard } from '../components/dashboard/StepsCard';
 
 interface DashboardProps {
   profile: Profile;
@@ -45,6 +46,7 @@ export default function Dashboard({ profile, onUpdateProfile }: DashboardProps) 
   const [measurements, setMeasurements] = useState<Measurement[]>([]);
   const [programs, setPrograms] = useState<Program[]>([]);
   const [checkIns, setCheckIns] = useState<CheckInEntry[]>([]);
+  const [steps, setSteps] = useState<StepEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [autoAdjust, setAutoAdjust] = useState<AutoAdjustResult | null>(null);
 
@@ -58,13 +60,14 @@ export default function Dashboard({ profile, onUpdateProfile }: DashboardProps) 
         await initializePrograms();
 
         const db = await getDB();
-        const [sessionsData, foodData, measurementsData, programsData, allFoodData, checkInsData] = await Promise.all([
+        const [sessionsData, foodData, measurementsData, programsData, allFoodData, checkInsData, stepsData] = await Promise.all([
           getSessionsByProfile(profile.id),
           getFoodEntriesByDate(profile.id, today()),
           getMeasurementsByProfile(profile.id),
           getAllPrograms(),
           getFoodEntriesByProfile(profile.id),
           db.getAllFromIndex('checkIns', 'by-profile', profile.id),
+          db.getAllFromIndex('steps', 'by-profile', profile.id),
         ]);
 
         if (cancelled) return;
@@ -75,6 +78,7 @@ export default function Dashboard({ profile, onUpdateProfile }: DashboardProps) 
         setMeasurements(measurementsData);
         setPrograms(programsData);
         setCheckIns(checkInsData);
+        setSteps(stepsData);
 
         if (profile.bodyStats) {
           const weightEntries = measurementsData
@@ -418,9 +422,18 @@ export default function Dashboard({ profile, onUpdateProfile }: DashboardProps) 
           allFoodEntries={allFoodEntries}
           measurements={measurements}
           checkIns={checkIns}
+          steps={steps}
           programs={programs}
           onUpdateProfile={onUpdateProfile}
         />
+      )}
+
+      {/* Steps */}
+      {dashConfig.steps && (
+        <StepsCard steps={steps} profileId={profile.id} onStepSaved={async () => {
+          const db = await getDB();
+          setSteps(await db.getAllFromIndex('steps', 'by-profile', profile.id));
+        }} />
       )}
 
       {/* Snapshot Cards — driven by dashboard config */}

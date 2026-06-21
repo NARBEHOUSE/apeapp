@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Brain, Loader2, RefreshCw, Check, X, ChevronDown, ChevronUp, Sparkles, AlertTriangle } from 'lucide-react';
-import type { Profile, WorkoutSession, FoodEntry, Measurement, CheckInEntry, Program } from '../../types';
+import type { Profile, WorkoutSession, FoodEntry, Measurement, CheckInEntry, StepEntry, Program } from '../../types';
 import {
   buildDataSnapshot,
   getCoachSuggestions,
@@ -18,6 +18,7 @@ interface Props {
   allFoodEntries: FoodEntry[];
   measurements: Measurement[];
   checkIns: CheckInEntry[];
+  steps: StepEntry[];
   programs: Program[];
   onUpdateProfile: (id: string, updates: Partial<Profile>) => void;
 }
@@ -31,7 +32,7 @@ const CATEGORY_COLORS: Record<string, { bg: string; text: string; icon: string }
 
 const DISCLAIMER_KEY = 'fitos-ai-coach-disclaimer-accepted';
 
-export function AICoachCard({ profile, sessions, allFoodEntries, measurements, checkIns, programs, onUpdateProfile }: Props) {
+export function AICoachCard({ profile, sessions, allFoodEntries, measurements, checkIns, steps, programs, onUpdateProfile }: Props) {
   const [response, setResponse] = useState<CoachResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [expanded, setExpanded] = useState(false);
@@ -54,7 +55,7 @@ export function AICoachCard({ profile, sessions, allFoodEntries, measurements, c
 
     setLoading(true);
     try {
-      const snapshot = buildDataSnapshot(profile, sessions, allFoodEntries, measurements, checkIns, programs);
+      const snapshot = buildDataSnapshot(profile, sessions, allFoodEntries, measurements, checkIns, programs, steps);
       const result = await getCoachSuggestions(snapshot, apiKey);
       setResponse(result);
       cacheCoachResponse(result);

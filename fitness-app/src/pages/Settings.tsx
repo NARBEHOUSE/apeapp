@@ -42,7 +42,7 @@ import {
   exportProgram, importProgram, exportAllPrograms, importProgramsBundle,
   exportCustomFoods, importCustomFoods, exportCoachUpdate, importCoachUpdate, exportCoachPackage,
 } from '../utils/exportImport';
-import { importCSV, detectSource, getSourceLabel, type ImportResult } from '../utils/csvImport';
+import { importCSV, importMacroFactorXLSX, getSourceLabel, type ImportResult } from '../utils/csvImport';
 import { getDashboardConfig, saveDashboardConfig, type DashboardCardConfig } from '../utils/dashboardConfig';
 import { getActiveThemeId, setActiveTheme, type ThemeId } from '../utils/themes';
 import { markBackupDone, getLastBackupDate } from '../utils/backupReminder';
@@ -226,8 +226,9 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
   const [importError, setImportError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // CSV import from other apps
+  // CSV/XLSX import from other apps
   const [csvImportResult, setCsvImportResult] = useState<ImportResult | null>(null);
+  const [xlsxImportResults, setXlsxImportResults] = useState<ImportResult[] | null>(null);
   const [csvImporting, setCsvImporting] = useState(false);
 
   // Dashboard card config
@@ -1219,6 +1220,26 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
               )}
             </div>
 
+            {/* Steps toggle */}
+            <div className="flex items-center justify-between py-2">
+              <div>
+                <div className="text-sm font-medium">Steps</div>
+                <div className="text-[11px] text-text-muted">Daily step count with weekly trend</div>
+              </div>
+              <button
+                onClick={() => updateDashCards({ steps: !dashCards.steps })}
+                className={`w-11 h-6 rounded-full transition-colors relative ${
+                  dashCards.steps ? 'bg-accent-blue' : 'bg-surface-raised'
+                }`}
+              >
+                <div
+                  className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform ${
+                    dashCards.steps ? 'translate-x-5' : 'translate-x-0.5'
+                  }`}
+                />
+              </button>
+            </div>
+
             {/* AI Coach toggle */}
             <div className="flex items-center justify-between py-2">
               <div>
@@ -1886,20 +1907,45 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
             <div className="border-t border-border pt-3 space-y-2">
               <div className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Import from Other Apps</div>
               <p className="text-[11px] text-text-muted">
-                Import workout history or nutrition data from other fitness apps. Supports Strong, Hevy, FitNotes, MyFitnessPal, and MacroFactor CSV exports.
+                Import workout history, nutrition, measurements, steps, recipes, and more. Supports Strong, Hevy, FitNotes, MyFitnessPal, and MacroFactor (CSV or XLSX).
               </p>
               <label className={`btn-secondary w-full flex items-center justify-center gap-2 cursor-pointer text-sm ${csvImporting ? 'opacity-50 pointer-events-none' : ''}`}>
                 <Upload size={14} />
-                {csvImporting ? 'Importing...' : 'Import CSV File'}
+                {csvImporting ? 'Importing...' : 'Import CSV / XLSX'}
                 <input
                   type="file"
-                  accept=".csv,.txt"
+                  accept=".csv,.txt,.xlsx,.xls"
                   className="hidden"
                   onChange={async (e) => {
                     const file = e.target.files?.[0];
                     if (!file) return;
                     setCsvImporting(true);
                     setCsvImportResult(null);
+                    setXlsxImportResults(null);
+
+                    const isXlsx = file.name.endsWith('.xlsx') || file.name.endsWith('.xls');
+
+                    if (isXlsx) {
+                      const buffer = await file.arrayBuffer();
+                      try {
+                        const results = await importMacroFactorXLSX(buffer, profile.id);
+                        setXlsxImportResults(results);
+                        const totalImported = results.reduce((s, r) => s + r.count, 0);
+                        const sheetsWithData = results.filter((r) => r.count > 0).length;
+                        if (totalImported > 0) {
+                          toast(`Imported data from ${sheetsWithData} sheets (${totalImported} total items)`, 'success');
+                        } else {
+                          toast('No new data to import (all duplicates or empty)', 'info');
+                        }
+                      } catch (err) {
+                        toast(err instanceof Error ? err.message : 'XLSX import failed', 'error');
+                      } finally {
+                        setCsvImporting(false);
+                      }
+                      e.target.value = '';
+                      return;
+                    }
+
                     const reader = new FileReader();
                     reader.onload = async () => {
                       try {
@@ -1955,9 +2001,27 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
                 </div>
               )}
 
+              {xlsxImportResults && (
+                <div className="rounded-xl border border-border-light overflow-hidden">
+                  {xlsxImportResults.filter((r) => r.count > 0 || r.type === 'skipped').map((r, i) => (
+                    <div key={i} className={`px-3 py-2 text-xs border-b border-border/50 last:border-0 ${r.count > 0 ? 'bg-success/5' : 'bg-surface-raised'}`}>
+                      <div className="flex justify-between">
+                        <span className="font-medium">{r.details || r.type}</span>
+                        <span className={r.count > 0 ? 'text-success font-semibold' : 'text-text-muted'}>{r.count > 0 ? `+${r.count}` : 'skipped'}</span>
+                      </div>
+                    </div>
+                  ))}
+                  <div className="px-3 py-2 text-xs bg-surface font-semibold flex justify-between">
+                    <span>Total</span>
+                    <span className="text-success">{xlsxImportResults.reduce((s, r) => s + r.count, 0)} items imported</span>
+                  </div>
+                </div>
+              )}
+
               <div className="text-[10px] text-text-muted space-y-1">
-                <p><span className="font-semibold">Workouts:</span> Strong, Hevy, FitNotes — export CSV from those apps and import here</p>
-                <p><span className="font-semibold">Nutrition:</span> MyFitnessPal, MacroFactor — export your data and import the CSV</p>
+                <p><span className="font-semibold">Workouts:</span> Strong, Hevy, FitNotes CSV</p>
+                <p><span className="font-semibold">Nutrition:</span> MyFitnessPal, MacroFactor CSV</p>
+                <p><span className="font-semibold">MacroFactor XLSX:</span> Import all data at once — weight, body metrics, steps, recipes, foods, micronutrients</p>
                 <p>Existing data on matching dates will not be overwritten.</p>
               </div>
             </div>

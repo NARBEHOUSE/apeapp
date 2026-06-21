@@ -782,6 +782,32 @@ export async function importCSV(text: string, profileId: string): Promise<Import
   return { source, type, count: 0, dateRange: null, skipped: 0, errors: ['Unhandled import type'] };
 }
 
+// ── XLSX Multi-Sheet Import ──
+
+export async function importMacroFactorXLSX(buffer: ArrayBuffer, profileId: string): Promise<ImportResult[]> {
+  const XLSX = await import('xlsx');
+  const workbook = XLSX.read(buffer, { type: 'array' });
+  const results: ImportResult[] = [];
+
+  for (const sheetName of workbook.SheetNames) {
+    const sheet = workbook.Sheets[sheetName];
+    const csv = XLSX.utils.sheet_to_csv(sheet);
+    if (!csv.trim() || csv.split('\n').length < 2) continue;
+
+    try {
+      const result = await importCSV(csv, profileId);
+      results.push({ ...result, details: result.details || sheetName });
+    } catch {
+      results.push({
+        source: 'macrofactor', type: 'skipped', count: 0, dateRange: null,
+        skipped: 0, errors: [`Failed to parse sheet: ${sheetName}`], details: sheetName,
+      });
+    }
+  }
+
+  return results;
+}
+
 const SOURCE_LABELS: Record<ImportSource, string> = {
   strong: 'Strong', hevy: 'Hevy', fitnotes: 'FitNotes',
   myfitnesspal: 'MyFitnessPal', macrofactor: 'MacroFactor', unknown: 'Unknown',

@@ -1,4 +1,4 @@
-import type { WorkoutSession, FoodEntry, Measurement, CheckInEntry, MacroTargets, Profile, Program } from '../types';
+import type { WorkoutSession, FoodEntry, Measurement, CheckInEntry, StepEntry, MacroTargets, Profile, Program } from '../types';
 import { getWeekDates, today } from './dateHelpers';
 
 export interface CoachSuggestion {
@@ -58,6 +58,19 @@ interface CoachDataSnapshot {
     checkInsThisWeek: number;
     trendDirection: 'improving' | 'declining' | 'stable' | 'insufficient_data';
   };
+  steps: {
+    avgSteps7d: number | null;
+    avgStepsPrev7d: number | null;
+    daysTracked: number;
+  };
+  micronutrients: {
+    hasMicroData: boolean;
+    avgFiber7d: number | null;
+    avgSodium7d: number | null;
+    avgIron7d: number | null;
+    avgCalcium7d: number | null;
+    avgVitaminD7d: number | null;
+  };
 }
 
 function getLastNDays(n: number): Set<string> {
@@ -77,6 +90,7 @@ export function buildDataSnapshot(
   measurements: Measurement[],
   checkIns: CheckInEntry[],
   programs: Program[],
+  stepEntries: StepEntry[] = [],
 ): CoachDataSnapshot {
   const last7 = getLastNDays(7);
   const prev7 = getLastNDays(14);
@@ -224,6 +238,29 @@ export function buildDataSnapshot(
       checkInsThisWeek: weekCheckIns.length,
       trendDirection,
     },
+    steps: (() => {
+      const weekSteps = stepEntries.filter((s) => last7.has(s.date));
+      const prevSteps = stepEntries.filter((s) => prev7.has(s.date) && !last7.has(s.date));
+      const avgW = weekSteps.length > 0 ? Math.round(weekSteps.reduce((a, s) => a + s.steps, 0) / weekSteps.length) : null;
+      const avgP = prevSteps.length > 0 ? Math.round(prevSteps.reduce((a, s) => a + s.steps, 0) / prevSteps.length) : null;
+      return { avgSteps7d: avgW, avgStepsPrev7d: avgP, daysTracked: weekSteps.length };
+    })(),
+    micronutrients: (() => {
+      const weekFood = allFoodEntries.filter((f) => last7.has(f.date) && f.micronutrients);
+      if (weekFood.length === 0) return { hasMicroData: false, avgFiber7d: null, avgSodium7d: null, avgIron7d: null, avgCalcium7d: null, avgVitaminD7d: null };
+      function avgMicro(key: string): number | null {
+        const vals = weekFood.map((f) => f.micronutrients?.[key]).filter((v): v is number => v != null && v > 0);
+        return vals.length > 0 ? Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 10) / 10 : null;
+      }
+      return {
+        hasMicroData: true,
+        avgFiber7d: avgMicro('Fiber (g)'),
+        avgSodium7d: avgMicro('Sodium (mg)'),
+        avgIron7d: avgMicro('Iron (mg)'),
+        avgCalcium7d: avgMicro('Calcium (mg)'),
+        avgVitaminD7d: avgMicro('Vitamin D (mcg)'),
+      };
+    })(),
   };
 }
 
@@ -235,7 +272,9 @@ Rules:
 - Be direct and concise — no filler
 - NEVER give medical advice, diagnose conditions, or recommend supplements
 - NEVER reference injuries, pain, or medical symptoms
-- Focus on: calorie/macro adjustments, training volume, deload timing, consistency patterns
+- Focus on: calorie/macro adjustments, training volume, deload timing, consistency patterns, step/activity trends
+- If micronutrient data is available and shows notable patterns (low iron, low fiber, high sodium, low vitamin D), mention it
+- If step data is available, comment on activity level trends
 - If data is insufficient, say so rather than guessing
 - For macro adjustments, suggest specific numbers (e.g., "increase to 2,400 cal" not "eat more")
 
