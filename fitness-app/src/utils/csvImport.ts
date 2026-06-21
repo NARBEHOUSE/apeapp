@@ -69,13 +69,17 @@ export function detectSource(text: string): { source: ImportSource; type: Import
   if (firstLine.includes('exercise') && firstLine.includes('category') && firstLine.includes('weight (')) {
     return { source: 'fitnotes', type: 'workouts' };
   }
-  // MacroFactor
-  if (firstLine.includes('expenditure') && firstLine.includes('weight trend')) {
+  // MacroFactor — "Date,Calories (kcal),Fat (g),Carbs (g),Protein (g)"
+  if (firstLine.includes('calories (kcal)')) {
     return { source: 'macrofactor', type: 'nutrition' };
   }
   // MyFitnessPal
   if (firstLine.includes('meal') && (firstLine.includes('calories') || firstLine.includes('fat'))) {
     return { source: 'myfitnesspal', type: 'nutrition' };
+  }
+  // Generic nutrition CSV — has calories + protein/fat/carbs columns, no workout columns
+  if (firstLine.includes('date') && firstLine.includes('calories') && (firstLine.includes('protein') || firstLine.includes('fat')) && !firstLine.includes('exercise') && !firstLine.includes('reps') && !firstLine.includes('set')) {
+    return { source: 'macrofactor', type: 'nutrition' };
   }
 
   return { source: 'unknown', type: 'workouts' };
