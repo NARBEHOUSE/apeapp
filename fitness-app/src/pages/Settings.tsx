@@ -40,7 +40,7 @@ import { testClaudeKey } from '../utils/claudeVision';
 import {
   exportAllData, downloadJSON, importData, clearAllData,
   exportProgram, importProgram, exportAllPrograms, importProgramsBundle,
-  exportCustomFoods, exportCoachUpdate, importCoachUpdate, exportCoachPackage,
+  exportCustomFoods, importCustomFoods, exportCoachUpdate, importCoachUpdate, exportCoachPackage,
 } from '../utils/exportImport';
 import { importCSV, detectSource, getSourceLabel, type ImportResult } from '../utils/csvImport';
 import { getDashboardConfig, saveDashboardConfig, type DashboardCardConfig } from '../utils/dashboardConfig';
@@ -1831,26 +1831,52 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
 
             {/* Custom foods export */}
             <div className="border-t border-border pt-3 space-y-2">
-              <div className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Custom Foods</div>
+              <div className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Food Library</div>
               <p className="text-[11px] text-text-muted">
-                Export your manually-entered foods for backup or sharing.
+                Export your custom foods as a shareable library. Other APE users can import it to get all your foods in their search.
               </p>
-              <button
-                onClick={async () => {
-                  try {
-                    const data = await exportCustomFoods(profile.id);
-                    const date = new Date().toISOString().split('T')[0];
-                    await downloadJSON(data, `ape-custom-foods-${date}.json`);
-                    toast('Custom foods exported!', 'success');
-                  } catch (err) {
-                    toast('Export failed', 'error');
-                  }
-                }}
-                className="btn-secondary w-full flex items-center justify-center gap-2 text-sm"
-              >
-                <Download size={14} />
-                Export Custom Foods
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={async () => {
+                    try {
+                      const data = await exportCustomFoods(profile.id);
+                      const date = new Date().toISOString().split('T')[0];
+                      await downloadJSON(data, `ape-food-library-${date}.json`);
+                      toast('Food library exported!', 'success');
+                    } catch (err) {
+                      toast('Export failed', 'error');
+                    }
+                  }}
+                  className="btn-secondary flex-1 flex items-center justify-center gap-2 text-sm"
+                >
+                  <Download size={14} />
+                  Export
+                </button>
+                <label className="btn-secondary flex-1 flex items-center justify-center gap-2 cursor-pointer text-sm">
+                  <Upload size={14} />
+                  Import
+                  <input
+                    type="file"
+                    accept=".json"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const reader = new FileReader();
+                      reader.onload = () => {
+                        try {
+                          const count = importCustomFoods(reader.result as string, profile.id);
+                          toast(`Imported ${count} food${count !== 1 ? 's' : ''} to your library!`, 'success');
+                        } catch (err) {
+                          toast(err instanceof Error ? err.message : 'Import failed', 'error');
+                        }
+                      };
+                      reader.readAsText(file);
+                      e.target.value = '';
+                    }}
+                  />
+                </label>
+              </div>
             </div>
 
             {/* Import from Other Apps */}

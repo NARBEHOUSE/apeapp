@@ -1,5 +1,6 @@
 import JSZip from 'jszip';
 import { getDB } from '../db';
+import { saveFoodToHistory } from '../db/foodHistory';
 import type { Program, FoodEntry, Profile } from '../types';
 
 export async function exportProgram(programId: string): Promise<string> {
@@ -103,13 +104,42 @@ export async function exportCustomFoods(profileId: string): Promise<string> {
   }));
 
   const data = {
-    type: 'ape-custom-foods',
+    type: 'ape-food-library',
     version: 1,
     exportedAt: new Date().toISOString(),
-    profileId,
+    count: foods.length,
     foods,
   };
   return JSON.stringify(data, null, 2);
+}
+
+export function importCustomFoods(jsonStr: string, profileId: string): number {
+  const data = JSON.parse(jsonStr);
+  if (data.type !== 'ape-food-library' && data.type !== 'ape-custom-foods') {
+    throw new Error('Invalid food library file. Expected an APE food library export.');
+  }
+  if (!Array.isArray(data.foods) || data.foods.length === 0) {
+    throw new Error('No foods found in the file.');
+  }
+
+  let count = 0;
+  for (const food of data.foods) {
+    if (!food.name || food.calories == null) continue;
+    saveFoodToHistory(profileId, {
+      name: food.name,
+      brand: food.brand || undefined,
+      calories: food.calories,
+      protein: food.protein || 0,
+      carbs: food.carbs || 0,
+      fat: food.fat || 0,
+      fiber: food.fiber || undefined,
+      servingSize: food.servingSize || 1,
+      servingUnit: food.servingUnit || 'serving',
+      source: 'manual' as const,
+    });
+    count++;
+  }
+  return count;
 }
 
 export async function exportAllData(): Promise<string> {
