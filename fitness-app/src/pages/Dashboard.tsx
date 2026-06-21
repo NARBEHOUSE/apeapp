@@ -24,6 +24,7 @@ import { AICoachCard } from '../components/dashboard/AICoachCard';
 import { StepsCard } from '../components/dashboard/StepsCard';
 import { WaterCard } from '../components/dashboard/WaterCard';
 import { CalendarHeatmap } from '../components/dashboard/CalendarHeatmap';
+import { ZeroMacroWarning } from '../components/dashboard/ZeroMacroWarning';
 
 interface DashboardProps {
   profile: Profile;
@@ -318,6 +319,9 @@ export default function Dashboard({ profile, onUpdateProfile }: DashboardProps) 
           onFinalize={finalizeResponses}
         />
       )}
+
+      {/* Zero-macro food warning */}
+      <ZeroMacroWarning profileId={profile.id} />
 
       {/* Backup reminder — only for local-only profiles */}
       {!googleSignedIn && (
