@@ -15,13 +15,15 @@ import {
   Clock,
   CheckCircle2,
 } from 'lucide-react';
-import type { Profile, Program, WorkoutDay as WorkoutDayType, ActiveProgramEnrollment, ProgramCompletion, ExerciseFeedback } from '../types';
+import type { Profile, Program, WorkoutSession, WorkoutDay as WorkoutDayType, ActiveProgramEnrollment, ProgramCompletion, ExerciseFeedback } from '../types';
 import { useWorkout } from '../hooks/useWorkout';
 import { duplicateProgram, deleteProgram, saveProgram } from '../db/programs';
+import { getAllPRs } from '../db/workouts';
 import { ProgramList } from '../components/workout/ProgramList';
 import { WorkoutDay } from '../components/workout/WorkoutDay';
 import { ActiveWorkout } from '../components/workout/ActiveWorkout';
 import { WorkoutHistory } from '../components/workout/WorkoutHistory';
+import { WorkoutSummary } from '../components/workout/WorkoutSummary';
 import { ProgramEditor } from '../components/workout/ProgramEditor';
 import { ConfirmDialog } from '../components/shared/ConfirmDialog';
 import { Modal } from '../components/shared/Modal';
@@ -121,6 +123,9 @@ export function Workout({ profile, onUpdateProfile }: Props) {
   const [enrollProgramId, setEnrollProgramId] = useState<string | null>(null);
   const [enrollWeeks, setEnrollWeeks] = useState('8');
   const [showEndConfirm, setShowEndConfirm] = useState(false);
+  const [summarySession, setSummarySession] = useState<WorkoutSession | null>(null);
+  const [summaryPrs, setSummaryPrs] = useState<Record<string, { weight: number; reps: number; date: string }>>({});
+  const [summaryPreviousPrs, setSummaryPreviousPrs] = useState<Record<string, { weight: number }>>({});
 
   const enrollment = profile.activeProgram;
   const activeProgram = enrollment ? programs.find((p) => p.id === enrollment.programId) : null;
@@ -213,10 +218,14 @@ export function Workout({ profile, onUpdateProfile }: Props) {
     setView('active');
   }, [enrollment, startWorkout]);
 
-  // Finish workout — advance day index
+  // Finish workout — show summary, then advance day index
   const handleFinish = useCallback(async () => {
+    // Capture PRs before saving so we can compare
+    const prsBefore = await getAllPRs(profile.id);
     const session = await finishWorkout();
-    if (session && enrollment && activeProgram) {
+    if (!session) return;
+
+    if (enrollment && activeProgram) {
       const dayIndex = activeProgram.days.findIndex((d) => d.id === session.dayId);
       if (dayIndex >= 0) {
         onUpdateProfile(profile.id, {
@@ -224,12 +233,25 @@ export function Workout({ profile, onUpdateProfile }: Props) {
         });
       }
     }
+
+    // Get PRs after saving to detect new ones
+    const prsAfter = await getAllPRs(profile.id);
+    setSummaryPreviousPrs(
+      Object.fromEntries(
+        Object.entries(prsBefore).map(([id, pr]) => [id, { weight: pr.weight }])
+      )
+    );
+    setSummaryPrs(prsAfter);
+    setSummarySession(session);
+    navigator.vibrate?.([50, 50, 50]);
+  }, [finishWorkout, enrollment, activeProgram, onUpdateProfile, profile.id]);
+
+  const handleCloseSummary = useCallback(() => {
+    setSummarySession(null);
     setView('home');
     setSelectedProgramId(null);
     setSelectedDayId(null);
-    toast('Workout complete!', 'success');
-    navigator.vibrate?.([50, 50, 50]);
-  }, [finishWorkout, enrollment, activeProgram, onUpdateProfile, profile.id]);
+  }, []);
 
   const handleCancel = useCallback(() => {
     cancelWorkout();
@@ -725,6 +747,22 @@ export function Workout({ profile, onUpdateProfile }: Props) {
         confirmText="End Program"
         danger
       />
+
+      {/* Workout Summary */}
+      {summarySession && (() => {
+        const summaryProgram = programs.find((p) => p.id === summarySession.programId);
+        if (!summaryProgram) return null;
+        return (
+          <WorkoutSummary
+            session={summarySession}
+            program={summaryProgram}
+            prs={summaryPrs}
+            previousPrs={summaryPreviousPrs}
+            units={profile.units}
+            onClose={handleCloseSummary}
+          />
+        );
+      })()}
     </div>
   );
 }

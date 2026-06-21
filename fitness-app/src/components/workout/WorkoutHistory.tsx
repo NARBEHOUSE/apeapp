@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { ChevronDown, ChevronUp, Calendar, TrendingUp, BarChart3 } from 'lucide-react';
+import { ChevronDown, ChevronUp, Calendar, TrendingUp, BarChart3, Share2 } from 'lucide-react';
 import {
   BarChart,
   Bar,
@@ -12,6 +12,7 @@ import {
   CartesianGrid,
 } from 'recharts';
 import type { WorkoutSession, Program } from '../../types';
+import { buildWorkoutCardData, renderWorkoutCard, shareOrDownload } from '../../utils/shareCards';
 
 interface Props {
   sessions: WorkoutSession[];
@@ -116,6 +117,20 @@ function SessionCard({
           {session.notes && (
             <p className="text-xs text-text-secondary italic">{session.notes}</p>
           )}
+
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              const exercises = day?.exercises || [];
+              const cardData = buildWorkoutCardData(session, exercises, {}, {});
+              const canvas = renderWorkoutCard(cardData);
+              shareOrDownload(canvas, `workout-${session.date}.png`);
+            }}
+            className="w-full mt-2 py-2 rounded-lg bg-surface-raised border border-border-light text-xs font-medium text-text-secondary flex items-center justify-center gap-1.5 active:scale-[0.98] transition-transform"
+          >
+            <Share2 size={12} />
+            Share Workout
+          </button>
         </div>
       )}
     </div>
