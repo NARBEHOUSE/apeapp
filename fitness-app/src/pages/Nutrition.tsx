@@ -198,6 +198,23 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
   const [deleteRecipeId, setDeleteRecipeId] = useState<string | null>(null);
   const [viewingRecipe, setViewingRecipe] = useState<Recipe | null>(null);
   const [editingEntry, setEditingEntry] = useState<FoodEntry | null>(null);
+  const [dailyNote, setDailyNote] = useState(() => {
+    const notes = JSON.parse(localStorage.getItem(`fitos-food-notes-${profile.id}`) || '{}');
+    return notes[selectedDate] || '';
+  });
+
+  useEffect(() => {
+    const notes = JSON.parse(localStorage.getItem(`fitos-food-notes-${profile.id}`) || '{}');
+    setDailyNote(notes[selectedDate] || '');
+  }, [selectedDate, profile.id]);
+
+  const saveDailyNote = (note: string) => {
+    setDailyNote(note);
+    const notes = JSON.parse(localStorage.getItem(`fitos-food-notes-${profile.id}`) || '{}');
+    if (note.trim()) notes[selectedDate] = note.trim();
+    else delete notes[selectedDate];
+    localStorage.setItem(`fitos-food-notes-${profile.id}`, JSON.stringify(notes));
+  };
   const [editTimeValue, setEditTimeValue] = useState('12:00');
   const [addAtTime, setAddAtTime] = useState<string | null>(null);
   const [overHour, setOverHour] = useState<string | null>(null);
@@ -516,6 +533,17 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
               </div>
             </DndContext>
           )}
+
+          {/* Daily note */}
+          <div className="bg-surface rounded-xl p-3">
+            <textarea
+              className="w-full bg-transparent text-xs text-text-secondary resize-none outline-none placeholder-text-muted"
+              rows={2}
+              placeholder="Add a note for today..."
+              value={dailyNote}
+              onChange={(e) => saveDailyNote(e.target.value)}
+            />
+          </div>
 
           {entries.length > 0 && (
             <div className="text-center text-[10px] text-text-muted">{entries.length} entries · {Math.round(totals.calories)} cal</div>
