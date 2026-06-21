@@ -276,6 +276,22 @@ export default function Dashboard({ profile, onUpdateProfile }: DashboardProps) 
         </h1>
       </div>
 
+      {/* Birthday banner */}
+      {profile.birthday && (() => {
+        const bd = new Date(profile.birthday + 'T00:00:00');
+        const now = new Date();
+        const isBirthday = bd.getMonth() === now.getMonth() && bd.getDate() === now.getDate();
+        const age = Math.floor((now.getTime() - bd.getTime()) / (365.25 * 86400000));
+        if (!isBirthday) return null;
+        return (
+          <div className="bg-gradient-to-r from-accent/20 to-accent-blue/20 rounded-2xl p-4 text-center">
+            <div className="text-2xl mb-1">🎂</div>
+            <div className="text-sm font-bold">Happy Birthday, {profile.name}!</div>
+            <div className="text-[11px] text-text-muted">{age} years strong</div>
+          </div>
+        );
+      })()}
+
       {/* Auto-adjust banner */}
       {autoAdjust?.shouldAdjust && (
         <button

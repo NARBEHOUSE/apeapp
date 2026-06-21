@@ -132,7 +132,8 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
   const existingStats = profile.bodyStats;
   const existingHeight = existingStats ? cmToFeetInches(existingStats.heightCm) : { feet: 0, inches: 0 };
   const [editGender, setEditGender] = useState<Gender>(existingStats?.gender || 'male');
-  const [editAge, setEditAge] = useState(String(existingStats?.age || ''));
+  const [editBirthday, setEditBirthday] = useState(profile.birthday || '');
+  const editAge = editBirthday ? Math.floor((Date.now() - new Date(editBirthday + 'T00:00:00').getTime()) / (365.25 * 86400000)) : (existingStats?.age || 0);
   const [editFeet, setEditFeet] = useState(String(existingHeight.feet || ''));
   const [editInches, setEditInches] = useState(String(existingHeight.inches || ''));
   const [editWeight, setEditWeight] = useState(
@@ -374,7 +375,7 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
 
   // Recalculate macros from body stats
   const handleRecalculate = () => {
-    const ageNum = parseInt(editAge);
+    const ageNum = editAge;
     const feetNum = parseInt(editFeet);
     const weightNum = parseFloat(editWeight);
     if (!ageNum || !feetNum || !weightNum) return;
@@ -410,7 +411,7 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
     }
 
     // Build body stats if we have them
-    const ageNum = parseInt(editAge);
+    const ageNum = editAge;
     const feetNum = parseInt(editFeet);
     const weightNum = parseFloat(editWeight);
     let bodyStats: BodyStats | undefined;
@@ -430,6 +431,7 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
 
     onUpdateProfile(profile.id, {
       name: editName.trim() || profile.name,
+      birthday: editBirthday || undefined,
       goal: editGoal.trim() || GOAL_LABELS[editFitnessGoal],
       units: editUnits,
       measurementUnit: editMeasurementUnit,
@@ -1402,17 +1404,16 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
                 </div>
               </div>
 
-              {/* Age + Weight row */}
+              {/* Birthday + Weight row */}
               <div className="grid grid-cols-2 gap-3 mb-3">
                 <div>
-                  <label className="text-[10px] text-text-muted font-semibold block mb-1">Age</label>
+                  <label className="text-[10px] text-text-muted font-semibold block mb-1">Birthday{editAge > 0 ? ` (${editAge} yrs)` : ''}</label>
                   <input
-                    type="number"
-                    inputMode="numeric"
+                    type="date"
                     className="input-field text-sm py-2.5"
-                    placeholder="25"
-                    value={editAge}
-                    onChange={(e) => setEditAge(e.target.value)}
+                    value={editBirthday}
+                    onChange={(e) => setEditBirthday(e.target.value)}
+                    max={new Date().toISOString().split('T')[0]}
                   />
                 </div>
                 <div>
@@ -1512,7 +1513,7 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
               {/* Recalculate button */}
               <button
                 onClick={handleRecalculate}
-                disabled={!editAge || !editFeet || !editWeight}
+                disabled={!editAge || !editBirthday || !editFeet || !editWeight}
                 className="w-full bg-accent-blue/15 text-accent-blue font-semibold text-sm rounded-xl px-4 py-2.5 border border-accent-blue/30 active:scale-95 transition-transform flex items-center justify-center gap-2 disabled:opacity-40"
               >
                 <Calculator size={14} />

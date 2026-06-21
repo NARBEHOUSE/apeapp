@@ -58,6 +58,7 @@ export interface Profile {
   fiberTarget?: number;
   lastKnownWeight?: number;
   googleEmail?: string;
+  birthday?: string;
 }
 
 export interface MacroTargets {
