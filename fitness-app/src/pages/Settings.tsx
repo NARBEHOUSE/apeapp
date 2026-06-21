@@ -1230,6 +1230,26 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
               )}
             </div>
 
+            {/* Calendar toggle */}
+            <div className="flex items-center justify-between py-2">
+              <div>
+                <div className="text-sm font-medium">Activity Calendar</div>
+                <div className="text-[11px] text-text-muted">Monthly view of workouts, nutrition, and check-ins</div>
+              </div>
+              <button
+                onClick={() => updateDashCards({ calendar: !dashCards.calendar })}
+                className={`w-11 h-6 rounded-full transition-colors relative ${
+                  dashCards.calendar ? 'bg-accent-blue' : 'bg-surface-raised'
+                }`}
+              >
+                <div
+                  className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform ${
+                    dashCards.calendar ? 'translate-x-5' : 'translate-x-0.5'
+                  }`}
+                />
+              </button>
+            </div>
+
             {/* Water toggle */}
             <div className="flex items-center justify-between py-2">
               <div>

@@ -12,6 +12,7 @@ export interface DashboardCardConfig {
   aiCoach: boolean;
   steps: boolean;
   water: boolean;
+  calendar: boolean;
 }
 
 const STORAGE_KEY = 'fitos-dashboard-cards';
@@ -30,6 +31,7 @@ const DEFAULTS: DashboardCardConfig = {
   aiCoach: false,
   steps: false,
   water: true,
+  calendar: false,
 };
 
 export function getDashboardConfig(): DashboardCardConfig {

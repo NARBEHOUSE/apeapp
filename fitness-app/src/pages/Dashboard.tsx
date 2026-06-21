@@ -23,6 +23,7 @@ import { WeeklyInsights } from '../components/dashboard/WeeklyInsights';
 import { AICoachCard } from '../components/dashboard/AICoachCard';
 import { StepsCard } from '../components/dashboard/StepsCard';
 import { WaterCard } from '../components/dashboard/WaterCard';
+import { CalendarHeatmap } from '../components/dashboard/CalendarHeatmap';
 
 interface DashboardProps {
   profile: Profile;
@@ -446,6 +447,11 @@ export default function Dashboard({ profile, onUpdateProfile }: DashboardProps) 
           const db = await getDB();
           setSteps(await db.getAllFromIndex('steps', 'by-profile', profile.id));
         }} />
+      )}
+
+      {/* Calendar */}
+      {dashConfig.calendar && (
+        <CalendarHeatmap sessions={sessions} foodEntries={allFoodEntries} checkIns={checkIns} />
       )}
 
       {/* Snapshot Cards — driven by dashboard config */}
