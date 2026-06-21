@@ -1,13 +1,14 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Flame, Trophy, Loader2, Zap, ChevronRight, Dumbbell, HardDrive } from 'lucide-react';
+import { Flame, Trophy, Loader2, Zap, ChevronRight, Dumbbell, HardDrive, ClipboardCheck, Check } from 'lucide-react';
 
-import type { Profile, WorkoutSession, FoodEntry, Measurement, Program } from '../types';
+import type { Profile, WorkoutSession, FoodEntry, Measurement, Program, CheckInEntry } from '../types';
 import { getGreeting, today, getWeekDates } from '../utils/dateHelpers';
 import { getSessionsByProfile } from '../db/workouts';
 import { getFoodEntriesByDate, getFoodEntriesByProfile } from '../db/nutrition';
 import { getMeasurementsByProfile } from '../db/progress';
 import { getAllPrograms, initializePrograms } from '../db/programs';
+import { getDB } from '../db';
 import { calculateAutoAdjustment, type AutoAdjustResult } from '../utils/tdee';
 import { getDashboardConfig } from '../utils/dashboardConfig';
 import { daysSinceBackup } from '../utils/backupReminder';
@@ -41,6 +42,7 @@ export default function Dashboard({ profile, onUpdateProfile }: DashboardProps) 
   const [allFoodEntries, setAllFoodEntries] = useState<FoodEntry[]>([]);
   const [measurements, setMeasurements] = useState<Measurement[]>([]);
   const [programs, setPrograms] = useState<Program[]>([]);
+  const [checkIns, setCheckIns] = useState<CheckInEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [autoAdjust, setAutoAdjust] = useState<AutoAdjustResult | null>(null);
 
@@ -53,12 +55,14 @@ export default function Dashboard({ profile, onUpdateProfile }: DashboardProps) 
       try {
         await initializePrograms();
 
-        const [sessionsData, foodData, measurementsData, programsData, allFoodData] = await Promise.all([
+        const db = await getDB();
+        const [sessionsData, foodData, measurementsData, programsData, allFoodData, checkInsData] = await Promise.all([
           getSessionsByProfile(profile.id),
           getFoodEntriesByDate(profile.id, today()),
           getMeasurementsByProfile(profile.id),
           getAllPrograms(),
           getFoodEntriesByProfile(profile.id),
+          db.getAllFromIndex('checkIns', 'by-profile', profile.id),
         ]);
 
         if (cancelled) return;
@@ -68,6 +72,7 @@ export default function Dashboard({ profile, onUpdateProfile }: DashboardProps) 
         setAllFoodEntries(allFoodData);
         setMeasurements(measurementsData);
         setPrograms(programsData);
+        setCheckIns(checkInsData);
 
         if (profile.bodyStats) {
           const weightEntries = measurementsData
@@ -117,6 +122,30 @@ export default function Dashboard({ profile, onUpdateProfile }: DashboardProps) 
     const weekDates = new Set(getWeekDates(today()));
     return sessions.filter((s) => weekDates.has(s.date)).length;
   }, [sessions]);
+
+  const weeklyWorkoutTarget = useMemo(() => {
+    if (!activeProgram) return 0;
+    if (activeProgram.daysPerWeek) return activeProgram.daysPerWeek;
+    return activeProgram.days.filter((d) => d.exercises.length > 0).length;
+  }, [activeProgram]);
+
+  const checkInDue = useMemo(() => {
+    if (!dashConfig.checkInReminder) return false;
+    const freq = dashConfig.checkInFrequency;
+    const sorted = [...checkIns].sort((a, b) => b.date.localeCompare(a.date));
+    const lastCheckIn = sorted[0];
+    if (!lastCheckIn) return true;
+    const lastDate = new Date(lastCheckIn.date + 'T00:00:00');
+    const now = new Date(today() + 'T00:00:00');
+    const daysSince = Math.floor((now.getTime() - lastDate.getTime()) / 86400000);
+    if (freq === 'daily') return daysSince >= 1;
+    if (freq === 'weekly') return daysSince >= 7;
+    return daysSince >= 14;
+  }, [checkIns, dashConfig.checkInReminder, dashConfig.checkInFrequency]);
+
+  const checkInCompletedToday = useMemo(() => {
+    return checkIns.some((c) => c.date === today());
+  }, [checkIns]);
 
   const macroTotals = useMemo(() => {
     return foodEntries.reduce(
@@ -284,7 +313,9 @@ export default function Dashboard({ profile, onUpdateProfile }: DashboardProps) 
 
       {/* Stats row */}
       <div className="flex items-center gap-4">
-        <WeeklyRing completed={weeklyWorkoutCount} target={5} />
+        {dashConfig.workoutCounter && activeProgram && (
+          <WeeklyRing completed={weeklyWorkoutCount} target={weeklyWorkoutTarget} />
+        )}
         <div className="flex-1 space-y-3">
           <div className="flex items-center gap-3">
             <Flame size={14} className="text-text-muted" />
@@ -296,6 +327,35 @@ export default function Dashboard({ profile, onUpdateProfile }: DashboardProps) 
           </div>
         </div>
       </div>
+
+      {/* Check-in Reminder */}
+      {dashConfig.checkInReminder && (checkInDue || checkInCompletedToday) && (
+        <button
+          onClick={() => navigate('/progress', { state: { tab: 'checkin' } })}
+          className="w-full bg-surface rounded-2xl p-4 flex items-center gap-3 text-left active:scale-[0.98] transition-transform"
+        >
+          {checkInCompletedToday ? (
+            <div className="w-9 h-9 rounded-xl bg-green-500/15 flex items-center justify-center shrink-0">
+              <Check size={18} className="text-green-500" />
+            </div>
+          ) : (
+            <div className="w-9 h-9 rounded-xl bg-accent-blue/15 flex items-center justify-center shrink-0">
+              <ClipboardCheck size={18} className="text-accent-blue" />
+            </div>
+          )}
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-medium">
+              {checkInCompletedToday ? 'Check-in complete' : 'Time for your check-in'}
+            </div>
+            <div className="text-[11px] text-text-muted">
+              {checkInCompletedToday
+                ? `Done for today${dashConfig.checkInFrequency !== 'daily' ? ` • ${dashConfig.checkInFrequency === 'weekly' ? 'Weekly' : 'Bi-weekly'}` : ''}`
+                : `${dashConfig.checkInFrequency === 'daily' ? 'Daily' : dashConfig.checkInFrequency === 'weekly' ? 'Weekly' : 'Bi-weekly'} check-in`}
+            </div>
+          </div>
+          {!checkInCompletedToday && <ChevronRight size={14} className="text-text-muted" />}
+        </button>
+      )}
 
       {/* Next Workout */}
       {profile.activeProgram && activeProgram && nextTrainingDay && (

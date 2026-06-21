@@ -6,6 +6,9 @@ export interface DashboardCardConfig {
   selectedMeasurement: string;
   selectedLift: string;
   trendRange: '7d' | '30d' | '90d';
+  workoutCounter: boolean;
+  checkInReminder: boolean;
+  checkInFrequency: 'daily' | 'weekly' | 'biweekly';
 }
 
 const STORAGE_KEY = 'fitos-dashboard-cards';
@@ -18,6 +21,9 @@ const DEFAULTS: DashboardCardConfig = {
   selectedMeasurement: 'waist',
   selectedLift: '',
   trendRange: '30d',
+  workoutCounter: true,
+  checkInReminder: true,
+  checkInFrequency: 'daily',
 };
 
 export function getDashboardConfig(): DashboardCardConfig {

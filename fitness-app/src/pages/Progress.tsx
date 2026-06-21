@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Ruler, Camera, Film, Trash2, ClipboardCheck, Plus, X, Settings2 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip } from 'recharts';
 import type { Profile, Measurement, CheckInEntry, CheckInQuestion } from '../types';
@@ -43,7 +44,11 @@ const BODY_LABELS: Record<string, string> = {
 };
 
 export function Progress({ profile, onUpdateProfile }: Props) {
-  const [tab, setTab] = useState<Tab>('measurements');
+  const location = useLocation();
+  const [tab, setTab] = useState<Tab>(() => {
+    const navTab = (location.state as { tab?: Tab })?.tab;
+    return navTab || 'measurements';
+  });
   const [showCapture, setShowCapture] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [showRecalcPrompt, setShowRecalcPrompt] = useState(false);

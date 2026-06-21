@@ -1160,6 +1160,59 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
                 )
               )}
             </div>
+
+            {/* Workout counter toggle */}
+            <div className="flex items-center justify-between py-2">
+              <div>
+                <div className="text-sm font-medium">Workout Counter</div>
+                <div className="text-[11px] text-text-muted">Weekly progress ring (requires active program)</div>
+              </div>
+              <button
+                onClick={() => updateDashCards({ workoutCounter: !dashCards.workoutCounter })}
+                className={`w-11 h-6 rounded-full transition-colors relative ${
+                  dashCards.workoutCounter ? 'bg-accent-blue' : 'bg-surface-raised'
+                }`}
+              >
+                <div
+                  className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform ${
+                    dashCards.workoutCounter ? 'translate-x-5' : 'translate-x-0.5'
+                  }`}
+                />
+              </button>
+            </div>
+
+            {/* Check-in reminder toggle */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between py-2">
+                <div>
+                  <div className="text-sm font-medium">Check-In Reminder</div>
+                  <div className="text-[11px] text-text-muted">Reminder to complete your check-in</div>
+                </div>
+                <button
+                  onClick={() => updateDashCards({ checkInReminder: !dashCards.checkInReminder })}
+                  className={`w-11 h-6 rounded-full transition-colors relative ${
+                    dashCards.checkInReminder ? 'bg-accent-blue' : 'bg-surface-raised'
+                  }`}
+                >
+                  <div
+                    className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform ${
+                      dashCards.checkInReminder ? 'translate-x-5' : 'translate-x-0.5'
+                    }`}
+                  />
+                </button>
+              </div>
+              {dashCards.checkInReminder && (
+                <select
+                  className="input-field text-sm"
+                  value={dashCards.checkInFrequency}
+                  onChange={(e) => updateDashCards({ checkInFrequency: e.target.value as 'daily' | 'weekly' | 'biweekly' })}
+                >
+                  <option value="daily">Daily</option>
+                  <option value="weekly">Weekly</option>
+                  <option value="biweekly">Every 2 weeks</option>
+                </select>
+              )}
+            </div>
           </div>
         )}
       </div>
