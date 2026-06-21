@@ -1,7 +1,8 @@
 import { useState, useMemo } from 'react';
-import { Plus, Trash2, ChevronUp, ChevronDown, Search } from 'lucide-react';
+import { Plus, Trash2, ChevronUp, ChevronDown, Search, AlertCircle, Pencil } from 'lucide-react';
 import type { Recipe, RecipeIngredient } from '../../db/recipes';
-import { searchSavedFoods, type SavedFood } from '../../db/foodHistory';
+import { searchSavedFoods, saveFoodToHistory, type SavedFood } from '../../db/foodHistory';
+import { searchFoods } from '../../utils/usda';
 import { getFoodEmoji } from '../../utils/foodEmoji';
 
 interface Props {
@@ -40,6 +41,77 @@ export function RecipeEditor({ initial, profileId, onSave, onCancel }: Props) {
   const [ingP, setIngP] = useState('');
   const [ingC, setIngC] = useState('');
   const [ingF, setIngF] = useState('');
+
+  // Editing existing ingredient
+  const [editingIngIdx, setEditingIngIdx] = useState<number | null>(null);
+  const [editIngQuery, setEditIngQuery] = useState('');
+  const [editIngCal, setEditIngCal] = useState('');
+  const [editIngP, setEditIngP] = useState('');
+  const [editIngC, setEditIngC] = useState('');
+  const [editIngF, setEditIngF] = useState('');
+  const [editIngAmount, setEditIngAmount] = useState('');
+  const [editIngUnit, setEditIngUnit] = useState('');
+  const [usdaResults, setUsdaResults] = useState<{ name: string; brand?: string; cal: number; p: number; c: number; f: number; fiber: number; per100g: boolean }[]>([]);
+  const [usdaSearching, setUsdaSearching] = useState(false);
+
+  const editIngSearchResults = useMemo(() => {
+    if (!editIngQuery.trim() || editingIngIdx === null) return [];
+    return searchSavedFoods(profileId, editIngQuery).slice(0, 5);
+  }, [editIngQuery, editingIngIdx, profileId]);
+
+  const startEditIngredient = (idx: number) => {
+    const ing = ingredients[idx];
+    setEditingIngIdx(idx);
+    setEditIngQuery(ing.name);
+    setEditIngCal(String(ing.calories));
+    setEditIngP(String(ing.protein));
+    setEditIngC(String(ing.carbs));
+    setEditIngF(String(ing.fat));
+    setEditIngAmount(String(ing.amount));
+    setEditIngUnit(ing.unit);
+    setUsdaResults([]);
+  };
+
+  const applyEditIngredient = () => {
+    if (editingIngIdx === null) return;
+    const updated = [...ingredients];
+    updated[editingIngIdx] = {
+      ...updated[editingIngIdx],
+      amount: parseFloat(editIngAmount) || updated[editingIngIdx].amount,
+      unit: editIngUnit || updated[editingIngIdx].unit,
+      calories: parseFloat(editIngCal) || 0,
+      protein: parseFloat(editIngP) || 0,
+      carbs: parseFloat(editIngC) || 0,
+      fat: parseFloat(editIngF) || 0,
+    };
+    setIngredients(updated);
+    // Save to food library for future use
+    const ing = updated[editingIngIdx];
+    if (ing.calories > 0) {
+      saveFoodToHistory(profileId, {
+        name: ing.name, calories: ing.calories, protein: ing.protein,
+        carbs: ing.carbs, fat: ing.fat, servingSize: ing.amount,
+        servingUnit: ing.unit, source: 'manual',
+      });
+    }
+    setEditingIngIdx(null);
+    setUsdaResults([]);
+  };
+
+  const handleUsdaSearch = async () => {
+    const apiKey = localStorage.getItem('fitos-usda-key');
+    if (!apiKey || !editIngQuery.trim()) return;
+    setUsdaSearching(true);
+    try {
+      const results = await searchFoods(editIngQuery, apiKey);
+      setUsdaResults(results.map((r) => ({
+        name: r.name, brand: r.brand,
+        cal: r.caloriesPer100g, p: r.proteinPer100g, c: r.carbsPer100g,
+        f: r.fatPer100g, fiber: r.fiberPer100g, per100g: true,
+      })));
+    } catch { /* ignore */ }
+    setUsdaSearching(false);
+  };
 
   const searchResults = useMemo(() => {
     if (!ingQuery.trim() || ingMode !== 'search') return [];
@@ -204,19 +276,99 @@ export function RecipeEditor({ initial, profileId, onSave, onCancel }: Props) {
 
         {ingredients.length > 0 && (
           <div className="space-y-1.5 mb-3">
-            {ingredients.map((ing, i) => (
-              <div key={i} className="bg-surface-raised rounded-lg px-3 py-2 flex items-center gap-2">
-                <div className="flex-1 min-w-0">
-                  <div className="text-xs font-medium">{ing.amount > 0 ? `${ing.amount} ${ing.unit}` : ''} {ing.name}</div>
-                  {(ing.calories > 0 || ing.protein > 0) && (
-                    <div className="text-[10px] text-text-muted">
-                      {ing.calories}cal · P{ing.protein}g · C{ing.carbs}g · F{ing.fat}g
+            {ingredients.map((ing, i) => {
+              const hasMacros = ing.calories > 0 || ing.protein > 0;
+              const isEditing = editingIngIdx === i;
+
+              if (isEditing) {
+                return (
+                  <div key={i} className="bg-surface rounded-xl p-3 space-y-2 border border-accent-blue/30">
+                    <div className="text-xs font-semibold">{ing.name}</div>
+
+                    {/* Search food library */}
+                    <input
+                      type="text" className="input-field text-xs w-full" placeholder="Search food library or USDA..."
+                      value={editIngQuery} onChange={(e) => setEditIngQuery(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') handleUsdaSearch(); }}
+                    />
+
+                    {/* Food library results */}
+                    {editIngSearchResults.length > 0 && (
+                      <div className="space-y-1 max-h-28 overflow-y-auto">
+                        {editIngSearchResults.map((food, fi) => (
+                          <button key={fi} onClick={() => {
+                            setEditIngCal(String(food.calories)); setEditIngP(String(food.protein));
+                            setEditIngC(String(food.carbs)); setEditIngF(String(food.fat));
+                            if (food.servingSize > 0) { setEditIngAmount(String(food.servingSize)); setEditIngUnit(food.servingUnit); }
+                          }} className="w-full text-left bg-surface-raised rounded-md px-2 py-1 text-[10px] hover:bg-border">
+                            <span className="font-medium">{food.name}</span>
+                            <span className="text-text-muted ml-1">{food.calories}cal · P{food.protein}g</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* USDA search button */}
+                    {localStorage.getItem('fitos-usda-key') && (
+                      <button onClick={handleUsdaSearch} disabled={usdaSearching} className="text-[10px] text-accent-blue font-semibold disabled:opacity-50">
+                        {usdaSearching ? 'Searching USDA...' : 'Search USDA Database'}
+                      </button>
+                    )}
+
+                    {/* USDA results */}
+                    {usdaResults.length > 0 && (
+                      <div className="space-y-1 max-h-28 overflow-y-auto">
+                        {usdaResults.map((r, ri) => (
+                          <button key={ri} onClick={() => {
+                            setEditIngCal(String(r.cal)); setEditIngP(String(r.p));
+                            setEditIngC(String(r.c)); setEditIngF(String(r.f));
+                            if (r.per100g) { setEditIngAmount('100'); setEditIngUnit('g'); }
+                          }} className="w-full text-left bg-surface-raised rounded-md px-2 py-1 text-[10px] hover:bg-border">
+                            <span className="font-medium">{r.name}</span>
+                            {r.brand && <span className="text-text-muted ml-1">({r.brand})</span>}
+                            <div className="text-text-muted">{r.cal}cal · P{r.p}g · C{r.c}g · F{r.f}g per 100g</div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Manual macro entry */}
+                    <div className="flex gap-2">
+                      <div className="flex-1"><label className="text-[9px] text-text-muted">Amount</label><input type="number" inputMode="decimal" className="input-field text-xs w-full" value={editIngAmount} onChange={(e) => setEditIngAmount(e.target.value)} /></div>
+                      <div className="w-16"><label className="text-[9px] text-text-muted">Unit</label><select className="input-field text-xs w-full" value={editIngUnit} onChange={(e) => setEditIngUnit(e.target.value)}>{UNIT_OPTIONS.map((u) => <option key={u} value={u}>{u}</option>)}</select></div>
                     </div>
-                  )}
+                    <div className="grid grid-cols-4 gap-1">
+                      <div><label className="text-[9px] text-text-muted">Cal</label><input type="number" inputMode="decimal" className="input-field text-xs w-full" value={editIngCal} onChange={(e) => setEditIngCal(e.target.value)} /></div>
+                      <div><label className="text-[9px] text-text-muted">Prot</label><input type="number" inputMode="decimal" className="input-field text-xs w-full" value={editIngP} onChange={(e) => setEditIngP(e.target.value)} /></div>
+                      <div><label className="text-[9px] text-text-muted">Carbs</label><input type="number" inputMode="decimal" className="input-field text-xs w-full" value={editIngC} onChange={(e) => setEditIngC(e.target.value)} /></div>
+                      <div><label className="text-[9px] text-text-muted">Fat</label><input type="number" inputMode="decimal" className="input-field text-xs w-full" value={editIngF} onChange={(e) => setEditIngF(e.target.value)} /></div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={() => { setEditingIngIdx(null); setUsdaResults([]); }} className="btn-secondary flex-1 text-xs">Cancel</button>
+                      <button onClick={applyEditIngredient} className="btn-primary flex-1 text-xs">Save</button>
+                    </div>
+                  </div>
+                );
+              }
+
+              return (
+                <div key={i} className="bg-surface-raised rounded-lg px-3 py-2 flex items-center gap-2">
+                  {!hasMacros && <AlertCircle size={12} className="text-warning shrink-0" />}
+                  <button onClick={() => startEditIngredient(i)} className="flex-1 min-w-0 text-left">
+                    <div className="text-xs font-medium">{ing.amount > 0 ? `${ing.amount} ${ing.unit}` : ''} {ing.name}</div>
+                    {hasMacros ? (
+                      <div className="text-[10px] text-text-muted">
+                        {ing.calories}cal · P{ing.protein}g · C{ing.carbs}g · F{ing.fat}g
+                      </div>
+                    ) : (
+                      <div className="text-[10px] text-warning">Tap to add macros</div>
+                    )}
+                  </button>
+                  <button onClick={() => startEditIngredient(i)} className="p-1"><Pencil size={10} className="text-text-muted" /></button>
+                  <button onClick={() => removeIngredient(i)} className="p-1"><Trash2 size={12} className="text-text-muted hover:text-danger" /></button>
                 </div>
-                <button onClick={() => removeIngredient(i)} className="p-1"><Trash2 size={12} className="text-text-muted hover:text-danger" /></button>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 
