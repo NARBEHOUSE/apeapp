@@ -19,6 +19,7 @@ import { CoachReviewCard } from '../components/dashboard/CoachReviewCard';
 import WeeklyRing from '../components/dashboard/WeeklyRing';
 import MacroSummary from '../components/dashboard/MacroSummary';
 import TrendSnapshotCard from '../components/dashboard/TrendSnapshotCard';
+import { WeeklyInsights } from '../components/dashboard/WeeklyInsights';
 
 interface DashboardProps {
   profile: Profile;
@@ -397,6 +398,16 @@ export default function Dashboard({ profile, onUpdateProfile }: DashboardProps) 
         <h2 className="label mb-3">Today's Nutrition</h2>
         <MacroSummary totals={macroTotals} targets={profile.macroTargets} />
       </div>
+
+      {/* Week in Review */}
+      <WeeklyInsights
+        sessions={sessions}
+        allFoodEntries={allFoodEntries}
+        measurements={measurements}
+        checkIns={checkIns}
+        macroTargets={profile.macroTargets}
+        units={profile.units}
+      />
 
       {/* Snapshot Cards — driven by dashboard config */}
 
