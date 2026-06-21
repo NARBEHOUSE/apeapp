@@ -348,6 +348,8 @@ export function Workout({ profile, onUpdateProfile }: Props) {
           }
         }}
         onUpdateCardio={updateCardio}
+        allSessions={sessions}
+        programs={programs}
       />
     );
   }

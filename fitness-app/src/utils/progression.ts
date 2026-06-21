@@ -1,4 +1,4 @@
-import type { SetLog, WeeklyTarget } from '../types';
+import type { SetLog, WeeklyTarget, WorkoutSession, Exercise } from '../types';
 
 export type ProgressionType = 'linear' | 'double_progression' | 'custom';
 
@@ -274,4 +274,148 @@ export function formatProgressionLabel(p: ExerciseProgression): string {
   const deload =
     p.deloadFrequency > 0 ? `, deload every ${p.deloadFrequency}w` : '';
   return `${type} +${p.weeklyWeightIncrement}/wk${deload}`;
+}
+
+// ── Smart Progression Analysis ──
+
+export interface ProgressionSuggestion {
+  type: 'increase' | 'stall' | 'deload' | 'maintain';
+  message: string;
+  suggestedWeight?: number;
+  confidence: 'high' | 'medium';
+}
+
+interface SessionPerformance {
+  date: string;
+  maxWeight: number;
+  avgWeight: number;
+  avgReps: number;
+  totalSets: number;
+  allRepsHit: boolean;
+  targetReps: number;
+}
+
+function getExerciseHistory(
+  exerciseName: string,
+  sessions: WorkoutSession[],
+  allExercises: Map<string, Exercise>,
+): SessionPerformance[] {
+  const nameLower = exerciseName.toLowerCase().trim();
+  const matchingIds: string[] = [];
+  for (const [id, ex] of allExercises) {
+    if (ex.name.toLowerCase().trim() === nameLower) matchingIds.push(id);
+  }
+  if (matchingIds.length === 0) return [];
+
+  const history: SessionPerformance[] = [];
+  const sorted = [...sessions].sort((a, b) => a.date.localeCompare(b.date));
+
+  for (const session of sorted) {
+    for (const exId of matchingIds) {
+      const sets = session.sets[exId]?.filter((s) => s.completed && s.weight > 0);
+      if (!sets || sets.length === 0) continue;
+
+      const ex = allExercises.get(exId);
+      const repTarget = ex ? parseInt(ex.reps.split('-').pop()?.replace(/[^0-9]/g, '') || '0') || 0 : 0;
+
+      history.push({
+        date: session.date,
+        maxWeight: Math.max(...sets.map((s) => s.weight)),
+        avgWeight: sets.reduce((a, s) => a + s.weight, 0) / sets.length,
+        avgReps: sets.reduce((a, s) => a + s.reps, 0) / sets.length,
+        totalSets: sets.length,
+        allRepsHit: repTarget > 0 ? sets.every((s) => s.reps >= repTarget) : true,
+        targetReps: repTarget,
+      });
+      break;
+    }
+  }
+
+  return history;
+}
+
+export function analyzeExerciseProgression(
+  exercise: Exercise,
+  sessions: WorkoutSession[],
+  allExercises: Map<string, Exercise>,
+): ProgressionSuggestion | null {
+  const history = getExerciseHistory(exercise.name, sessions, allExercises);
+  if (history.length < 2) return null;
+
+  const recent = history.slice(-5);
+  const last = recent[recent.length - 1];
+  const compound = isCompoundExercise(exercise.name);
+  const increment = compound ? 5 : 2.5;
+
+  // Detect stall: same max weight for 3+ sessions
+  if (recent.length >= 3) {
+    const lastThree = recent.slice(-3);
+    const allSameWeight = lastThree.every((s) => s.maxWeight === lastThree[0].maxWeight);
+    const anyMissedReps = lastThree.some((s) => !s.allRepsHit);
+
+    if (allSameWeight && anyMissedReps) {
+      // Stalled AND missing reps — suggest deload
+      const deloadWeight = round(last.maxWeight * 0.85);
+      return {
+        type: 'deload',
+        message: `Stalled at ${last.maxWeight} for 3 sessions with missed reps. Consider deloading to ${deloadWeight}.`,
+        suggestedWeight: deloadWeight,
+        confidence: 'high',
+      };
+    }
+
+    if (allSameWeight && !anyMissedReps) {
+      // Same weight but hitting all reps — ready to increase
+      const nextWeight = round(last.maxWeight + increment);
+      return {
+        type: 'increase',
+        message: `Hit all reps at ${last.maxWeight} for 3 sessions. Try ${nextWeight} next.`,
+        suggestedWeight: nextWeight,
+        confidence: 'high',
+      };
+    }
+  }
+
+  // Check if last session hit all reps — suggest increase
+  if (last.allRepsHit && recent.length >= 2) {
+    const prevSession = recent[recent.length - 2];
+    if (last.maxWeight === prevSession.maxWeight && prevSession.allRepsHit) {
+      const nextWeight = round(last.maxWeight + increment);
+      return {
+        type: 'increase',
+        message: `Ready to move up to ${nextWeight}`,
+        suggestedWeight: nextWeight,
+        confidence: 'medium',
+      };
+    }
+  }
+
+  // Weight went down from previous session
+  if (recent.length >= 2) {
+    const prev = recent[recent.length - 2];
+    if (last.maxWeight < prev.maxWeight && !last.allRepsHit) {
+      return {
+        type: 'stall',
+        message: `Weight dropped from ${prev.maxWeight} to ${last.maxWeight}. Stay at ${last.maxWeight} until reps are solid.`,
+        suggestedWeight: last.maxWeight,
+        confidence: 'medium',
+      };
+    }
+  }
+
+  return null;
+}
+
+export function buildExerciseMap(
+  programs: { days: { exercises: Exercise[] }[] }[],
+): Map<string, Exercise> {
+  const map = new Map<string, Exercise>();
+  for (const prog of programs) {
+    for (const day of prog.days) {
+      for (const ex of day.exercises) {
+        map.set(ex.id, ex);
+      }
+    }
+  }
+  return map;
 }

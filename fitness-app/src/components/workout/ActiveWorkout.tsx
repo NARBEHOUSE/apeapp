@@ -12,15 +12,18 @@ import {
   Heart,
   Trash2,
 } from 'lucide-react';
-import type { WorkoutSession, WorkoutDay, SetLog, Exercise, ExerciseLastPerformance, ExerciseFeedback, CardioEntry } from '../../types';
+import type { WorkoutSession, WorkoutDay, SetLog, Exercise, ExerciseLastPerformance, ExerciseFeedback, CardioEntry, Program } from '../../types';
 import { RestTimer } from './RestTimer';
 import { toast } from '../shared/Toast';
 import { getAllPRs } from '../../db/workouts';
 import {
   calculateWeeklyTargets,
   getAdaptiveTarget,
+  analyzeExerciseProgression,
+  buildExerciseMap,
   type ExerciseProgression,
   type WeeklyTarget,
+  type ProgressionSuggestion,
 } from '../../utils/progression';
 
 interface Props {
@@ -39,6 +42,8 @@ interface Props {
   programDefaultRestTimer?: number;
   onSaveFeedback?: (feedback: Record<string, ExerciseFeedback>) => void;
   onUpdateCardio?: (cardio: CardioEntry[]) => void;
+  allSessions?: WorkoutSession[];
+  programs?: Program[];
 }
 
 interface SetInput {
@@ -68,6 +73,7 @@ function ExerciseCard({
   prs,
   onComplete,
   onUpdate,
+  progression,
 }: {
   exercise: Exercise;
   exerciseIndex: number;
@@ -78,6 +84,7 @@ function ExerciseCard({
   prs: Record<string, { weight: number; reps: number; date: string }>;
   onComplete: (exerciseId: string, weight: number, reps: number) => void;
   onUpdate: (exerciseId: string, setIndex: number, updates: Partial<SetLog>) => void;
+  progression: ProgressionSuggestion | null;
 }) {
   const [setCount, setSetCount] = useState(exercise.sets);
   const [collapsed, setCollapsed] = useState(false);
@@ -304,6 +311,23 @@ function ExerciseCard({
             </p>
           )}
 
+          {/* Smart progression suggestion */}
+          {progression && (
+            <div className={`flex items-start gap-1.5 px-2 py-1.5 rounded-lg text-[10px] leading-tight ${
+              progression.type === 'increase' ? 'bg-green-500/10 text-green-500' :
+              progression.type === 'deload' ? 'bg-warning/10 text-warning' :
+              progression.type === 'stall' ? 'bg-accent-blue/10 text-accent-blue' :
+              'bg-surface-raised text-text-muted'
+            }`}>
+              <span className="shrink-0 mt-px">{
+                progression.type === 'increase' ? '↑' :
+                progression.type === 'deload' ? '↓' :
+                progression.type === 'stall' ? '→' : '·'
+              }</span>
+              <span>{progression.message}</span>
+            </div>
+          )}
+
           {exercise.note && (
             <p className="text-[10px] text-text-muted italic px-0.5">
               {exercise.note}
@@ -342,6 +366,8 @@ export function ActiveWorkout({
   programDefaultRestTimer,
   onSaveFeedback,
   onUpdateCardio,
+  allSessions,
+  programs,
 }: Props) {
   const [elapsed, setElapsed] = useState(0);
   const [showRestTimer, setShowRestTimer] = useState(false);
@@ -455,6 +481,18 @@ export function ActiveWorkout({
   useEffect(() => {
     getAllPRs(profileId).then(setPrs);
   }, [profileId]);
+
+  // Smart progression suggestions
+  const progressionSuggestions = useMemo(() => {
+    if (!allSessions || !programs || allSessions.length < 2) return {};
+    const exMap = buildExerciseMap(programs);
+    const suggestions: Record<string, ProgressionSuggestion | null> = {};
+    for (const ex of activeExercises) {
+      if (ex.exerciseType === 'cardio') continue;
+      suggestions[ex.id] = analyzeExerciseProgression(ex, allSessions, exMap);
+    }
+    return suggestions;
+  }, [allSessions, programs, activeExercises]);
 
   // Elapsed timer
   useEffect(() => {
@@ -634,6 +672,7 @@ export function ActiveWorkout({
               prs={prs}
               onComplete={handleComplete}
               onUpdate={onUpdateSet}
+              progression={progressionSuggestions[exercise.id] || null}
             />
             {/* Skip button */}
             <button
