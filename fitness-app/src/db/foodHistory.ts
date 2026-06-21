@@ -81,6 +81,20 @@ export function getFrequentFoods(
   return getSavedFoods(profileId).slice(0, limit);
 }
 
+export function updateSavedFood(profileId: string, name: string, updates: Partial<Omit<SavedFood, 'frequency' | 'lastUsed'>>): void {
+  const foods = loadFoods(profileId);
+  const idx = foods.findIndex((f) => f.name.toLowerCase() === name.toLowerCase());
+  if (idx >= 0) {
+    foods[idx] = { ...foods[idx], ...updates };
+    persistFoods(profileId, foods);
+  }
+}
+
+export function deleteSavedFood(profileId: string, name: string): void {
+  const foods = loadFoods(profileId).filter((f) => f.name.toLowerCase() !== name.toLowerCase());
+  persistFoods(profileId, foods);
+}
+
 export function searchSavedFoods(
   profileId: string,
   query: string
