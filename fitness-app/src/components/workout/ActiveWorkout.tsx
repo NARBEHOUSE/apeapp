@@ -518,7 +518,7 @@ export function ActiveWorkout({
   );
 
   return (
-    <div className="pb-24">
+    <div className="pb-36">
       {/* Top bar */}
       <div className="sticky top-0 z-30 bg-bg/95 backdrop-blur-sm border-b border-border px-4 py-3">
         <div className="flex items-center justify-between">
@@ -927,7 +927,7 @@ export function ActiveWorkout({
       )}
 
       {/* Sticky finish button */}
-      <div className="fixed bottom-0 left-0 right-0 p-4 bg-bg/95 backdrop-blur-sm border-t border-border z-20">
+      <div className="fixed bottom-14 left-0 right-0 p-4 bg-bg/95 backdrop-blur-sm border-t border-border z-20 safe-bottom">
         <button
           onClick={() => {
             if (onSaveFeedback && Object.keys(exerciseFeedback).length > 0) {

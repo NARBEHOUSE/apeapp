@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { ChevronDown, ChevronUp, Calendar, TrendingUp, BarChart3, Share2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, Calendar, TrendingUp, BarChart3, Share2, Trash2 } from 'lucide-react';
 import {
   BarChart,
   Bar,
@@ -13,20 +13,25 @@ import {
 } from 'recharts';
 import type { WorkoutSession, Program } from '../../types';
 import { buildWorkoutCardData, renderWorkoutCard, shareOrDownload } from '../../utils/shareCards';
+import { ConfirmDialog } from '../shared/ConfirmDialog';
 
 interface Props {
   sessions: WorkoutSession[];
   programs: Program[];
+  onDeleteSession?: (sessionId: string) => void;
 }
 
 function SessionCard({
   session,
   program,
+  onDelete,
 }: {
   session: WorkoutSession;
   program: Program | undefined;
+  onDelete?: (sessionId: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const day = program?.days.find((d) => d.id === session.dayId);
   const totalSets = Object.values(session.sets).reduce(
@@ -118,19 +123,46 @@ function SessionCard({
             <p className="text-xs text-text-secondary italic">{session.notes}</p>
           )}
 
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              const exercises = day?.exercises || [];
-              const cardData = buildWorkoutCardData(session, exercises, {}, {});
-              const canvas = renderWorkoutCard(cardData);
-              shareOrDownload(canvas, `workout-${session.date}.png`);
+          <div className="flex gap-2 mt-2">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                const exercises = day?.exercises || [];
+                const cardData = buildWorkoutCardData(session, exercises, {}, {});
+                const canvas = renderWorkoutCard(cardData);
+                shareOrDownload(canvas, `workout-${session.date}.png`);
+              }}
+              className="flex-1 py-2 rounded-lg bg-surface-raised border border-border-light text-xs font-medium text-text-secondary flex items-center justify-center gap-1.5 active:scale-[0.98] transition-transform"
+            >
+              <Share2 size={12} />
+              Share
+            </button>
+            {onDelete && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowDeleteConfirm(true);
+                }}
+                className="py-2 px-4 rounded-lg bg-surface-raised border border-border-light text-xs font-medium text-danger flex items-center justify-center gap-1.5 active:scale-[0.98] transition-transform"
+              >
+                <Trash2 size={12} />
+                Delete
+              </button>
+            )}
+          </div>
+
+          <ConfirmDialog
+            open={showDeleteConfirm}
+            onClose={() => setShowDeleteConfirm(false)}
+            onConfirm={() => {
+              onDelete?.(session.id);
+              setShowDeleteConfirm(false);
             }}
-            className="w-full mt-2 py-2 rounded-lg bg-surface-raised border border-border-light text-xs font-medium text-text-secondary flex items-center justify-center gap-1.5 active:scale-[0.98] transition-transform"
-          >
-            <Share2 size={12} />
-            Share Workout
-          </button>
+            title="Delete Workout"
+            message={`Delete this ${day?.tag || 'workout'} session from ${dateStr}? This cannot be undone.`}
+            confirmText="Delete"
+            danger
+          />
         </div>
       )}
     </div>
@@ -173,7 +205,7 @@ const StrengthTooltip = ({
   );
 };
 
-export function WorkoutHistory({ sessions, programs }: Props) {
+export function WorkoutHistory({ sessions, programs, onDeleteSession }: Props) {
   const [activeTab, setActiveTab] = useState<'history' | 'volume' | 'strength'>(
     'history'
   );
@@ -279,6 +311,7 @@ export function WorkoutHistory({ sessions, programs }: Props) {
               key={session.id}
               session={session}
               program={programMap[session.programId]}
+              onDelete={onDeleteSession}
             />
           ))}
         </div>

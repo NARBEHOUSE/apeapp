@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { WorkoutSession, SetLog, Exercise, ExerciseLastPerformance, CardioEntry } from '../types';
-import { saveWorkoutSession, getSessionsByProfile } from '../db/workouts';
+import { saveWorkoutSession, getSessionsByProfile, deleteWorkoutSession } from '../db/workouts';
 import { getAllPrograms, initializePrograms } from '../db/programs';
 import type { Program } from '../types';
 
@@ -93,6 +93,11 @@ export function useWorkout(profileId: string | null) {
     setActiveSession(null);
   }, []);
 
+  const removeSession = useCallback(async (sessionId: string) => {
+    await deleteWorkoutSession(sessionId);
+    setSessions((prev) => prev.filter((s) => s.id !== sessionId));
+  }, []);
+
   const getPreviousSession = useCallback(
     (programId: string, dayId: string): WorkoutSession | undefined => {
       return sessions.find((s) => s.programId === programId && s.dayId === dayId);
@@ -147,6 +152,7 @@ export function useWorkout(profileId: string | null) {
     updateCardio,
     finishWorkout,
     cancelWorkout,
+    removeSession,
     getPreviousSession,
     getLastPerformanceMap,
     refreshPrograms: loadData,

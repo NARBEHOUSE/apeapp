@@ -111,6 +111,7 @@ export function Workout({ profile, onUpdateProfile }: Props) {
     updateCardio,
     finishWorkout,
     cancelWorkout,
+    removeSession,
     getPreviousSession,
     getLastPerformanceMap,
     refreshPrograms,
@@ -714,7 +715,7 @@ export function Workout({ profile, onUpdateProfile }: Props) {
       {sessions.length > 0 && (
         <div>
           <h3 className="label mb-3">Recent Workouts</h3>
-          <WorkoutHistory sessions={sessions.slice(0, 10)} programs={programs} />
+          <WorkoutHistory sessions={sessions.slice(0, 10)} programs={programs} onDeleteSession={removeSession} />
         </div>
       )}
 
