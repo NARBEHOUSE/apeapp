@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
-import { Camera, RotateCcw, Check, X } from 'lucide-react';
+import { Camera, RotateCcw, Check, X, ImagePlus } from 'lucide-react';
+import { today } from '../../utils/dateHelpers';
 
 type Pose = 'front' | 'side_left' | 'side_right' | 'back';
 
@@ -89,14 +90,22 @@ export function PhotoCapture({ onSave, onClose }: Props) {
   const [compressedBase64, setCompressedBase64] = useState<string | null>(null);
   const [weight, setWeight] = useState('');
   const [notes, setNotes] = useState('');
+  const [photoDate, setPhotoDate] = useState(today());
   const [processing, setProcessing] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const importRef = useRef<HTMLInputElement>(null);
 
-  const handleCapture = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
+  const handleFile = useCallback(async (file: File) => {
     setProcessing(true);
+
+    // Try to get date from file metadata
+    if (file.lastModified) {
+      const fileDate = new Date(file.lastModified);
+      if (!isNaN(fileDate.getTime())) {
+        setPhotoDate(fileDate.toISOString().split('T')[0]);
+      }
+    }
+
     const reader = new FileReader();
     reader.onload = async () => {
       const dataUrl = reader.result as string;
@@ -105,7 +114,6 @@ export function PhotoCapture({ onSave, onClose }: Props) {
         const base64 = await compressImage(dataUrl);
         setCompressedBase64(base64);
       } catch {
-        // Fallback: use original data URL minus prefix
         const fallback = dataUrl.split(',')[1];
         setCompressedBase64(fallback);
       }
@@ -113,6 +121,19 @@ export function PhotoCapture({ onSave, onClose }: Props) {
     };
     reader.readAsDataURL(file);
   }, []);
+
+  const handleCapture = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setPhotoDate(today());
+    handleFile(file);
+  }, [handleFile]);
+
+  const handleImport = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    handleFile(file);
+  }, [handleFile]);
 
   const handleRetake = () => {
     setPreview(null);
@@ -122,12 +143,11 @@ export function PhotoCapture({ onSave, onClose }: Props) {
 
   const handleAccept = () => {
     if (!compressedBase64) return;
-    const now = new Date();
     const weightVal = parseFloat(weight);
 
     onSave({
-      date: now.toISOString().split('T')[0],
-      time: now.toTimeString().split(' ')[0],
+      date: photoDate,
+      time: new Date().toTimeString().split(' ')[0],
       pose,
       imageData: compressedBase64,
       weight: isNaN(weightVal) ? undefined : weightVal,
@@ -174,9 +194,9 @@ export function PhotoCapture({ onSave, onClose }: Props) {
         </div>
       )}
 
-      {/* Camera Input */}
+      {/* Camera + Import Input */}
       {!preview && (
-        <div>
+        <div className="space-y-2">
           <input
             ref={fileRef}
             type="file"
@@ -186,12 +206,27 @@ export function PhotoCapture({ onSave, onClose }: Props) {
             className="hidden"
             id="photo-capture"
           />
+          <input
+            ref={importRef}
+            type="file"
+            accept="image/*"
+            onChange={handleImport}
+            className="hidden"
+            id="photo-import"
+          />
           <label
             htmlFor="photo-capture"
             className="btn-primary w-full flex items-center justify-center gap-2 cursor-pointer"
           >
             <Camera size={18} />
             {processing ? 'Processing...' : 'Take Photo'}
+          </label>
+          <label
+            htmlFor="photo-import"
+            className="btn-secondary w-full flex items-center justify-center gap-2 cursor-pointer"
+          >
+            <ImagePlus size={18} />
+            Import from Gallery
           </label>
         </div>
       )}
@@ -210,46 +245,50 @@ export function PhotoCapture({ onSave, onClose }: Props) {
             </div>
           </div>
 
-          {/* Accept / Retake */}
-          <div className="flex gap-3">
-            <button
-              onClick={handleRetake}
-              className="btn-secondary flex-1 flex items-center justify-center gap-2"
-            >
-              <RotateCcw size={16} />
-              Retake
-            </button>
-            <button
-              onClick={() => {}}
-              className="btn-primary flex-1 flex items-center justify-center gap-2 opacity-0 pointer-events-none"
-              aria-hidden
-            >
-              placeholder
-            </button>
+          {/* Retake */}
+          <button
+            onClick={handleRetake}
+            className="btn-secondary w-full flex items-center justify-center gap-2"
+          >
+            <RotateCcw size={16} />
+            Choose Different Photo
+          </button>
+
+          {/* Date */}
+          <div>
+            <label className="label mb-1.5 block">Date</label>
+            <input
+              type="date"
+              className="input-field"
+              value={photoDate}
+              onChange={(e) => setPhotoDate(e.target.value)}
+              max={today()}
+            />
           </div>
 
           {/* Optional Fields */}
-          <div>
-            <label className="label mb-1.5 block">Weight (optional)</label>
-            <input
-              type="number"
-              inputMode="decimal"
-              className="input-field"
-              placeholder="Current weight"
-              value={weight}
-              onChange={(e) => setWeight(e.target.value)}
-            />
-          </div>
-
-          <div>
-            <label className="label mb-1.5 block">Notes (optional)</label>
-            <textarea
-              className="input-field resize-none"
-              rows={2}
-              placeholder="Any notes about this photo"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-            />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="label mb-1.5 block">Weight (optional)</label>
+              <input
+                type="number"
+                inputMode="decimal"
+                className="input-field"
+                placeholder="Weight"
+                value={weight}
+                onChange={(e) => setWeight(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="label mb-1.5 block">Notes (optional)</label>
+              <input
+                type="text"
+                className="input-field"
+                placeholder="Notes"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+              />
+            </div>
           </div>
 
           {/* Final Save */}

@@ -31,15 +31,15 @@ const BODY_MEASUREMENT_COLORS: Record<string, string> = {
 };
 
 const BODY_MEASUREMENT_LABELS: Record<string, string> = {
-  chest: 'Chest',
-  waist: 'Waist',
-  hips: 'Hips',
-  leftArm: 'L Arm',
-  rightArm: 'R Arm',
-  leftThigh: 'L Thigh',
-  rightThigh: 'R Thigh',
-  neck: 'Neck',
-  shoulders: 'Shoulders',
+  chest: 'Chest', waist: 'Waist', hips: 'Hips',
+  leftArm: 'L Arm', rightArm: 'R Arm',
+  leftThigh: 'L Thigh', rightThigh: 'R Thigh',
+  neck: 'Neck', shoulders: 'Shoulders',
+  bust: 'Bust', leftBicep: 'L Bicep', rightBicep: 'R Bicep',
+  leftCalf: 'L Calf', rightCalf: 'R Calf',
+  leftForearm: 'L Forearm', rightForearm: 'R Forearm',
+  leftAnkle: 'L Ankle', rightAnkle: 'R Ankle',
+  leftWrist: 'L Wrist', rightWrist: 'R Wrist',
 };
 
 function CustomTooltip({ active, payload, label }: { active?: boolean; payload?: Array<{ color: string; name: string; value: number }>; label?: string }) {
@@ -68,12 +68,15 @@ export function ProgressCharts({ measurements }: Props) {
 
   const weightData = useMemo(() => {
     return sorted
-      .filter((m) => m.weight != null && (cutoff === '' || m.date >= cutoff))
+      .filter((m) => (m.weight != null || m.bodyFatPercent != null) && (cutoff === '' || m.date >= cutoff))
       .map((m) => ({
         date: formatShortDate(m.date),
         weight: m.weight,
+        bodyFat: m.bodyFatPercent,
       }));
   }, [sorted, cutoff]);
+
+  const hasBodyFat = weightData.some((d) => d.bodyFat != null);
 
   const bodyKeys = useMemo(() => {
     const keys = new Set<string>();
@@ -133,7 +136,7 @@ export function ProgressCharts({ measurements }: Props) {
       {weightData.length > 0 && (
         <div className="card">
           <h4 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-4">
-            Weight Over Time
+            {hasBodyFat ? 'Weight & Body Fat Over Time' : 'Weight Over Time'}
           </h4>
           <div className="h-52">
             <ResponsiveContainer width="100%" height="100%">
@@ -152,6 +155,17 @@ export function ProgressCharts({ measurements }: Props) {
                   domain={['auto', 'auto']}
                   width={40}
                 />
+                {hasBodyFat && (
+                  <YAxis
+                    yAxisId="right"
+                    orientation="right"
+                    tick={{ fill: 'var(--color-text-muted)', fontSize: 10 }}
+                    axisLine={false}
+                    tickLine={false}
+                    domain={['auto', 'auto']}
+                    width={35}
+                  />
+                )}
                 <Tooltip content={<CustomTooltip />} />
                 <Line
                   type="monotone"
@@ -162,6 +176,19 @@ export function ProgressCharts({ measurements }: Props) {
                   dot={{ fill: '#e8572a', r: 3 }}
                   activeDot={{ r: 5 }}
                 />
+                {hasBodyFat && (
+                  <Line
+                    type="monotone"
+                    dataKey="bodyFat"
+                    name="Body Fat %"
+                    stroke="#5b6ef5"
+                    strokeWidth={2}
+                    dot={{ fill: '#5b6ef5', r: 3 }}
+                    activeDot={{ r: 5 }}
+                    yAxisId="right"
+                    connectNulls
+                  />
+                )}
               </LineChart>
             </ResponsiveContainer>
           </div>
