@@ -1865,8 +1865,11 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
                       const reader = new FileReader();
                       reader.onload = () => {
                         try {
-                          const count = importCustomFoods(reader.result as string, profile.id);
-                          toast(`Imported ${count} food${count !== 1 ? 's' : ''} to your library!`, 'success');
+                          const result = importCustomFoods(reader.result as string, profile.id);
+                          const parts = [];
+                          if (result.foods > 0) parts.push(`${result.foods} food${result.foods !== 1 ? 's' : ''}`);
+                          if (result.recipes > 0) parts.push(`${result.recipes} recipe${result.recipes !== 1 ? 's' : ''}`);
+                          toast(`Imported ${parts.join(' and ')} to your library!`, 'success');
                         } catch (err) {
                           toast(err instanceof Error ? err.message : 'Import failed', 'error');
                         }

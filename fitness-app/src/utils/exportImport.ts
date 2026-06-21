@@ -1,6 +1,7 @@
 import JSZip from 'jszip';
 import { getDB } from '../db';
 import { saveFoodToHistory } from '../db/foodHistory';
+import { getRecipes, saveRecipe, type Recipe } from '../db/recipes';
 import type { Program, FoodEntry, Profile } from '../types';
 
 export async function exportProgram(programId: string): Promise<string> {
@@ -103,43 +104,91 @@ export async function exportCustomFoods(profileId: string): Promise<string> {
     servingUnit: e.servingUnit,
   }));
 
+  const recipes = getRecipes(profileId).map((r) => ({
+    name: r.name,
+    emoji: r.emoji,
+    description: r.description,
+    servings: r.servings,
+    prepTime: r.prepTime,
+    cookTime: r.cookTime,
+    ingredients: r.ingredients,
+    steps: r.steps,
+    tags: r.tags,
+    totalCalories: r.totalCalories,
+    totalProtein: r.totalProtein,
+    totalCarbs: r.totalCarbs,
+    totalFat: r.totalFat,
+    totalFiber: r.totalFiber,
+  }));
+
   const data = {
     type: 'ape-food-library',
-    version: 1,
+    version: 2,
     exportedAt: new Date().toISOString(),
     count: foods.length,
     foods,
+    recipes,
   };
   return JSON.stringify(data, null, 2);
 }
 
-export function importCustomFoods(jsonStr: string, profileId: string): number {
+export function importCustomFoods(jsonStr: string, profileId: string): { foods: number; recipes: number } {
   const data = JSON.parse(jsonStr);
   if (data.type !== 'ape-food-library' && data.type !== 'ape-custom-foods') {
     throw new Error('Invalid food library file. Expected an APE food library export.');
   }
-  if (!Array.isArray(data.foods) || data.foods.length === 0) {
-    throw new Error('No foods found in the file.');
+
+  let foodCount = 0;
+  if (Array.isArray(data.foods)) {
+    for (const food of data.foods) {
+      if (!food.name || food.calories == null) continue;
+      saveFoodToHistory(profileId, {
+        name: food.name,
+        brand: food.brand || undefined,
+        calories: food.calories,
+        protein: food.protein || 0,
+        carbs: food.carbs || 0,
+        fat: food.fat || 0,
+        fiber: food.fiber || undefined,
+        servingSize: food.servingSize || 1,
+        servingUnit: food.servingUnit || 'serving',
+        source: 'manual' as const,
+      });
+      foodCount++;
+    }
   }
 
-  let count = 0;
-  for (const food of data.foods) {
-    if (!food.name || food.calories == null) continue;
-    saveFoodToHistory(profileId, {
-      name: food.name,
-      brand: food.brand || undefined,
-      calories: food.calories,
-      protein: food.protein || 0,
-      carbs: food.carbs || 0,
-      fat: food.fat || 0,
-      fiber: food.fiber || undefined,
-      servingSize: food.servingSize || 1,
-      servingUnit: food.servingUnit || 'serving',
-      source: 'manual' as const,
-    });
-    count++;
+  let recipeCount = 0;
+  if (Array.isArray(data.recipes)) {
+    const existing = getRecipes(profileId);
+    const existingNames = new Set(existing.map((r) => r.name.toLowerCase()));
+    for (const recipe of data.recipes) {
+      if (!recipe.name || existingNames.has(recipe.name.toLowerCase())) continue;
+      saveRecipe(profileId, {
+        name: recipe.name,
+        emoji: recipe.emoji || '🍽️',
+        description: recipe.description || '',
+        servings: recipe.servings || 1,
+        prepTime: recipe.prepTime,
+        cookTime: recipe.cookTime,
+        ingredients: recipe.ingredients || [],
+        steps: recipe.steps || [],
+        tags: recipe.tags || [],
+        totalCalories: recipe.totalCalories || 0,
+        totalProtein: recipe.totalProtein || 0,
+        totalCarbs: recipe.totalCarbs || 0,
+        totalFat: recipe.totalFat || 0,
+        totalFiber: recipe.totalFiber || 0,
+      });
+      recipeCount++;
+    }
   }
-  return count;
+
+  if (foodCount === 0 && recipeCount === 0) {
+    throw new Error('No foods or recipes found in the file.');
+  }
+
+  return { foods: foodCount, recipes: recipeCount };
 }
 
 export async function exportAllData(): Promise<string> {

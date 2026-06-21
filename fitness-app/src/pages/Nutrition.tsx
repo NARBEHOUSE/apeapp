@@ -15,11 +15,14 @@ import { useNutrition } from '../hooks/useNutrition';
 import { formatDate, today } from '../utils/dateHelpers';
 import { getFoodEmoji } from '../utils/foodEmoji';
 import { getSavedMeals, addSavedMeal, deleteSavedMeal, type SavedMeal } from '../db/savedMeals';
+import { getRecipes, saveRecipe, updateRecipe, deleteRecipe, recipePerServing, type Recipe } from '../db/recipes';
 import { Modal } from '../components/shared/Modal';
 import { ManualEntry } from '../components/nutrition/ManualEntry';
 import { FoodSearch } from '../components/nutrition/FoodSearch';
 import { AIFoodScanner } from '../components/nutrition/AIFoodScanner';
+import { RecipeEditor } from '../components/nutrition/RecipeEditor';
 import { NutritionCharts } from '../components/nutrition/NutritionCharts';
+import { ConfirmDialog } from '../components/shared/ConfirmDialog';
 import { toast } from '../components/shared/Toast';
 import { calculateMacros } from '../utils/tdee';
 
@@ -28,8 +31,8 @@ interface NutritionPageProps {
   onUpdateProfile?: (id: string, updates: Partial<Profile>) => void;
 }
 
-type ModalType = 'manual' | 'search' | 'ai' | 'save-meal' | 'edit-time' | 'edit-macros' | 'edit-entry' | null;
-type Tab = 'planner' | 'my-foods' | 'charts';
+type ModalType = 'manual' | 'search' | 'ai' | 'save-meal' | 'edit-time' | 'edit-macros' | 'edit-entry' | 'recipe-editor' | null;
+type Tab = 'planner' | 'my-foods' | 'recipes' | 'charts';
 
 function MiniMacroBar({ label, current, target, color }: {
   label: string; current: number; target: number; color: string;
@@ -190,6 +193,10 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
   const [modal, setModal] = useState<ModalType>(null);
   const [tab, setTab] = useState<Tab>('planner');
   const [savedMeals, setSavedMeals] = useState<SavedMeal[]>(() => getSavedMeals(profile.id));
+  const [recipes, setRecipes] = useState<Recipe[]>(() => getRecipes(profile.id));
+  const [editingRecipe, setEditingRecipe] = useState<Recipe | null>(null);
+  const [deleteRecipeId, setDeleteRecipeId] = useState<string | null>(null);
+  const [viewingRecipe, setViewingRecipe] = useState<Recipe | null>(null);
   const [editingEntry, setEditingEntry] = useState<FoodEntry | null>(null);
   const [editTimeValue, setEditTimeValue] = useState('12:00');
   const [addAtTime, setAddAtTime] = useState<string | null>(null);
@@ -433,7 +440,7 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
 
       {/* Tabs */}
       <div className="flex gap-1 bg-surface rounded-xl p-1">
-        {([{ key: 'planner' as Tab, label: 'Timeline' }, { key: 'my-foods' as Tab, label: 'My Foods' }, { key: 'charts' as Tab, label: 'Charts' }]).map((t) => (
+        {([{ key: 'planner' as Tab, label: 'Timeline' }, { key: 'my-foods' as Tab, label: 'My Foods' }, { key: 'recipes' as Tab, label: 'Recipes' }, { key: 'charts' as Tab, label: 'Charts' }]).map((t) => (
           <button key={t.key} onClick={() => setTab(t.key)} className={`flex-1 py-2 rounded-lg text-xs font-medium transition-colors ${tab === t.key ? 'bg-surface-raised text-text-primary' : 'text-text-muted'}`}>{t.label}</button>
         ))}
       </div>
@@ -562,6 +569,97 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* ===== RECIPES ===== */}
+      {tab === 'recipes' && (
+        <div className="space-y-4">
+          <button
+            onClick={() => { setEditingRecipe(null); setModal('recipe-editor'); }}
+            className="w-full bg-surface rounded-2xl p-4 flex items-center gap-3 active:scale-[0.98] transition-transform"
+          >
+            <div className="w-10 h-10 rounded-xl bg-accent/15 flex items-center justify-center">
+              <Plus size={18} className="text-accent" />
+            </div>
+            <div>
+              <div className="text-sm font-medium">Create Recipe</div>
+              <div className="text-[11px] text-text-muted">Add ingredients, steps, and macros</div>
+            </div>
+          </button>
+
+          {recipes.length === 0 ? (
+            <div className="text-center py-8">
+              <div className="text-2xl mb-2">🍳</div>
+              <p className="text-sm text-text-muted">No recipes yet</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {recipes.map((recipe) => {
+                const per = recipePerServing(recipe);
+                return (
+                  <div key={recipe.id} className="bg-surface rounded-xl p-3">
+                    <button
+                      onClick={() => setViewingRecipe(recipe)}
+                      className="w-full text-left flex items-center gap-3"
+                    >
+                      <span className="text-xl">{recipe.emoji}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium truncate">{recipe.name}</div>
+                        <div className="text-[10px] text-text-muted">
+                          {per.calories} cal/serving · P{per.protein}g · C{per.carbs}g · F{per.fat}g
+                          {recipe.prepTime || recipe.cookTime ? ` · ${(recipe.prepTime || 0) + (recipe.cookTime || 0)} min` : ''}
+                        </div>
+                        {recipe.tags.length > 0 && (
+                          <div className="flex gap-1 mt-1 flex-wrap">
+                            {recipe.tags.map((t) => (
+                              <span key={t} className="text-[9px] bg-surface-raised px-1.5 py-0.5 rounded text-text-muted">{t}</span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </button>
+                    <div className="flex gap-2 mt-2 pt-2 border-t border-border">
+                      <button
+                        onClick={() => {
+                          addEntry({
+                            date: selectedDate,
+                            name: recipe.name,
+                            calories: per.calories,
+                            protein: per.protein,
+                            carbs: per.carbs,
+                            fat: per.fat,
+                            fiber: per.fiber,
+                            servingSize: 1,
+                            servingUnit: `serving (of ${recipe.servings})`,
+                            servingsConsumed: 1,
+                            source: 'manual',
+                            mealType: 'snack',
+                          });
+                          toast(`Logged 1 serving of ${recipe.name}`, 'success');
+                        }}
+                        className="flex-1 py-1.5 rounded-lg bg-accent-blue/10 text-accent-blue text-[10px] font-semibold"
+                      >
+                        + Log 1 Serving
+                      </button>
+                      <button
+                        onClick={() => { setEditingRecipe(recipe); setModal('recipe-editor'); }}
+                        className="py-1.5 px-3 rounded-lg bg-surface-raised text-[10px] text-text-muted font-medium"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => setDeleteRecipeId(recipe.id)}
+                        className="py-1.5 px-3 rounded-lg bg-surface-raised text-[10px] text-danger font-medium"
+                      >
+                        <Trash2 size={10} />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
@@ -763,6 +861,145 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
           </div>
         </div>
       </Modal>
+
+      {/* Recipe Editor Modal */}
+      <Modal open={modal === 'recipe-editor'} onClose={() => { setModal(null); setEditingRecipe(null); }} title={editingRecipe ? 'Edit Recipe' : 'New Recipe'}>
+        <RecipeEditor
+          initial={editingRecipe || undefined}
+          onSave={(data) => {
+            if (editingRecipe) {
+              const updated = { ...editingRecipe, ...data, updatedAt: new Date().toISOString() };
+              updateRecipe(profile.id, updated);
+              toast('Recipe updated!', 'success');
+            } else {
+              saveRecipe(profile.id, data);
+              toast('Recipe saved!', 'success');
+            }
+            setRecipes(getRecipes(profile.id));
+            setModal(null);
+            setEditingRecipe(null);
+          }}
+          onCancel={() => { setModal(null); setEditingRecipe(null); }}
+        />
+      </Modal>
+
+      {/* Recipe Detail View */}
+      {viewingRecipe && (
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center">
+          <div className="bg-bg w-full max-w-md max-h-[90vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl">
+            <div className="sticky top-0 bg-bg border-b border-border px-4 py-3 flex items-center justify-between z-10">
+              <h2 className="font-semibold text-base">{viewingRecipe.emoji} {viewingRecipe.name}</h2>
+              <button onClick={() => setViewingRecipe(null)} className="p-1.5 rounded-lg hover:bg-surface">
+                <Trash2 size={0} /><span className="text-text-muted text-sm">✕</span>
+              </button>
+            </div>
+            <div className="p-4 space-y-4">
+              {viewingRecipe.description && (
+                <p className="text-sm text-text-secondary">{viewingRecipe.description}</p>
+              )}
+
+              {/* Quick stats */}
+              <div className="grid grid-cols-4 gap-2">
+                {[
+                  { label: 'Servings', value: viewingRecipe.servings },
+                  { label: 'Prep', value: viewingRecipe.prepTime ? `${viewingRecipe.prepTime}m` : '—' },
+                  { label: 'Cook', value: viewingRecipe.cookTime ? `${viewingRecipe.cookTime}m` : '—' },
+                  { label: 'Cal/srv', value: recipePerServing(viewingRecipe).calories },
+                ].map((s) => (
+                  <div key={s.label} className="bg-surface rounded-xl p-2 text-center">
+                    <div className="text-sm font-bold">{s.value}</div>
+                    <div className="text-[9px] text-text-muted uppercase">{s.label}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Macros per serving */}
+              {(() => { const p = recipePerServing(viewingRecipe); return (
+                <div className="bg-surface rounded-xl p-3 text-xs">
+                  <div className="text-[10px] text-text-muted font-semibold uppercase mb-1">Per Serving</div>
+                  <div className="font-semibold">{p.calories} cal · P{p.protein}g · C{p.carbs}g · F{p.fat}g</div>
+                </div>
+              ); })()}
+
+              {/* Ingredients */}
+              <div>
+                <h3 className="text-xs font-semibold uppercase text-text-secondary mb-2">Ingredients</h3>
+                <div className="space-y-1">
+                  {viewingRecipe.ingredients.map((ing, i) => (
+                    <div key={i} className="flex justify-between text-sm py-1 border-b border-border/50 last:border-0">
+                      <span>{ing.amount}{ing.unit} {ing.name}</span>
+                      <span className="text-text-muted text-xs">{ing.calories} cal</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Steps */}
+              {viewingRecipe.steps.length > 0 && (
+                <div>
+                  <h3 className="text-xs font-semibold uppercase text-text-secondary mb-2">Steps</h3>
+                  <div className="space-y-2">
+                    {viewingRecipe.steps.map((step, i) => (
+                      <div key={i} className="flex gap-2">
+                        <span className="text-xs text-accent font-bold mt-0.5 w-5 text-right">{i + 1}</span>
+                        <p className="text-sm text-text-secondary flex-1">{step}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Log button */}
+              <button
+                onClick={() => {
+                  const per = recipePerServing(viewingRecipe);
+                  addEntry({
+                    date: selectedDate,
+                    name: viewingRecipe.name,
+                    calories: per.calories,
+                    protein: per.protein,
+                    carbs: per.carbs,
+                    fat: per.fat,
+                    fiber: per.fiber,
+                    servingSize: 1,
+                    servingUnit: `serving (of ${viewingRecipe.servings})`,
+                    servingsConsumed: 1,
+                    source: 'manual',
+                    mealType: 'snack',
+                  });
+                  toast(`Logged 1 serving of ${viewingRecipe.name}`, 'success');
+                  setViewingRecipe(null);
+                }}
+                className="w-full bg-accent-blue text-white font-semibold rounded-xl py-3 active:scale-[0.98] transition-transform"
+              >
+                + Log 1 Serving
+              </button>
+
+              <button onClick={() => setViewingRecipe(null)} className="w-full bg-surface text-text-primary font-medium rounded-xl py-3">
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete recipe confirm */}
+      <ConfirmDialog
+        open={!!deleteRecipeId}
+        onClose={() => setDeleteRecipeId(null)}
+        onConfirm={() => {
+          if (deleteRecipeId) {
+            deleteRecipe(profile.id, deleteRecipeId);
+            setRecipes(getRecipes(profile.id));
+            toast('Recipe deleted', 'success');
+          }
+          setDeleteRecipeId(null);
+        }}
+        title="Delete Recipe"
+        message="This will permanently delete this recipe. This cannot be undone."
+        confirmText="Delete"
+        danger
+      />
     </div>
   );
 }

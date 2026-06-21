@@ -390,7 +390,7 @@ export async function gatherAllData(googleEmail?: string): Promise<object> {
   const settings: Record<string, string | null> = {};
   for (let i = 0; i < localStorage.length; i++) {
     const key = localStorage.key(i);
-    if (key && key.startsWith('fitos-') && !SKIP_SYNC.has(key) && !key.startsWith('fitos-food-history-') && !key.startsWith('fitos-saved-meals-')) {
+    if (key && key.startsWith('fitos-') && !SKIP_SYNC.has(key) && !key.startsWith('fitos-food-history-') && !key.startsWith('fitos-saved-meals-') && !key.startsWith('fitos-recipes-')) {
       settings[key] = localStorage.getItem(key);
     }
   }
@@ -400,6 +400,7 @@ export async function gatherAllData(googleEmail?: string): Promise<object> {
     profileExtras[p.id] = {
       foodHistory: localStorage.getItem(`fitos-food-history-${p.id}`),
       savedMeals: localStorage.getItem(`fitos-saved-meals-${p.id}`),
+      recipes: localStorage.getItem(`fitos-recipes-${p.id}`),
     };
   }
 
@@ -442,6 +443,7 @@ export async function restoreAllData(data: Record<string, unknown>, googleEmail?
     for (const [profileId, extras] of Object.entries(data.profileExtras as Record<string, Record<string, string | null>>)) {
       if (extras.foodHistory) localStorage.setItem(`fitos-food-history-${profileId}`, extras.foodHistory);
       if (extras.savedMeals) localStorage.setItem(`fitos-saved-meals-${profileId}`, extras.savedMeals);
+      if (extras.recipes) localStorage.setItem(`fitos-recipes-${profileId}`, extras.recipes);
     }
   }
 
