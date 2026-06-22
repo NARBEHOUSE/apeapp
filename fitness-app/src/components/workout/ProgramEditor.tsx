@@ -37,6 +37,21 @@ import {
   type ExerciseProgression,
 } from '../../utils/progression';
 
+function SortableDayWrapper({ id, children }: { id: string; children: React.ReactNode }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 };
+  return (
+    <div ref={setNodeRef} style={style}>
+      <div className="flex items-start gap-1">
+        <button {...attributes} {...listeners} className="mt-3 p-1 cursor-grab active:cursor-grabbing text-text-muted/40 hover:text-text-muted touch-none">
+          <GripVertical size={14} />
+        </button>
+        <div className="flex-1 min-w-0">{children}</div>
+      </div>
+    </div>
+  );
+}
+
 interface Props {
   program: Program;
   fitnessGoal?: 'lose' | 'maintain' | 'build';
@@ -628,6 +643,10 @@ export function ProgramEditor({ program, fitnessGoal, onSave, onClose }: Props) 
     }));
   }, []);
 
+  const reorderDays = useCallback((oldIndex: number, newIndex: number) => {
+    setEditedProgram((prev) => ({ ...prev, days: arrayMove(prev.days, oldIndex, newIndex) }));
+  }, []);
+
   const reorderExercises = useCallback(
     (dayId: string, oldIndex: number, newIndex: number) => {
       setEditedProgram((prev) => ({
@@ -761,24 +780,40 @@ export function ProgramEditor({ program, fitnessGoal, onSave, onClose }: Props) 
           <h3 className="label mb-3">
             Days ({editedProgram.days.length})
           </h3>
-          <div className="space-y-3">
-            {editedProgram.days.map((day, index) => (
-              <DayEditor
-                key={day.id}
-                day={day}
-                dayIndex={index}
-                goalType={editedProgram.goal?.type || 'custom'}
-                durationWeeks={editedProgram.suggestedDurationWeeks || 8}
-                onUpdateDay={updateDay}
-                onRemoveDay={removeDay}
-                onUpdateExercise={updateExercise}
-                onRemoveExercise={removeExercise}
-                onAddExercise={addExercise}
-                onAddCardio={addCardio}
-                onReorderExercises={reorderExercises}
-              />
-            ))}
-          </div>
+          <DndContext
+            sensors={useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))}
+            collisionDetection={closestCenter}
+            onDragEnd={(event: DragEndEvent) => {
+              const { active, over } = event;
+              if (over && active.id !== over.id) {
+                const oldIdx = editedProgram.days.findIndex((d) => d.id === active.id);
+                const newIdx = editedProgram.days.findIndex((d) => d.id === over.id);
+                if (oldIdx >= 0 && newIdx >= 0) reorderDays(oldIdx, newIdx);
+              }
+            }}
+          >
+            <SortableContext items={editedProgram.days.map((d) => d.id)} strategy={verticalListSortingStrategy}>
+              <div className="space-y-3">
+                {editedProgram.days.map((day, index) => (
+                  <SortableDayWrapper key={day.id} id={day.id}>
+                    <DayEditor
+                      day={day}
+                      dayIndex={index}
+                      goalType={editedProgram.goal?.type || 'custom'}
+                      durationWeeks={editedProgram.suggestedDurationWeeks || 8}
+                      onUpdateDay={updateDay}
+                      onRemoveDay={removeDay}
+                      onUpdateExercise={updateExercise}
+                      onRemoveExercise={removeExercise}
+                      onAddExercise={addExercise}
+                      onAddCardio={addCardio}
+                      onReorderExercises={reorderExercises}
+                    />
+                  </SortableDayWrapper>
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
 
           <button
             onClick={() => addDay(false)}
