@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import type { WorkoutSession, WorkoutDay, SetLog, Exercise, ExerciseLastPerformance, ExerciseFeedback, CardioEntry, Program } from '../../types';
 import { searchExerciseLibrary, getSimilarExercises } from '../../data/exerciseLibrary';
+import { saveCustomExercise, searchCustomExercises } from '../../db/customExercises';
 import { RestTimer } from './RestTimer';
 import { toast } from '../shared/Toast';
 import { getAllPRs } from '../../db/workouts';
@@ -515,6 +516,7 @@ export function ActiveWorkout({
       flag: undefined,
     };
     setAddedExercises((prev) => [...prev, newEx]);
+    saveCustomExercise(newEx.name, newExMuscle);
     toast(`Added ${newEx.name}`, 'success');
     setNewExName(''); setNewExSets('3'); setNewExReps('10'); setNewExMuscle('');
     setShowAddExercise(false);
@@ -802,7 +804,24 @@ export function ActiveWorkout({
             {/* Library suggestions */}
             {newExName.trim().length >= 2 && (
               <div className="space-y-1 max-h-36 overflow-y-auto">
-                {searchExerciseLibrary(newExName).slice(0, 8).map((ex) => (
+                {/* Custom exercises first, then library */}
+                {searchCustomExercises(newExName).slice(0, 3).map((ex) => (
+                  <button
+                    key={`custom-${ex.name}`}
+                    onClick={() => {
+                      setNewExName(ex.name);
+                      setNewExMuscle(ex.muscle || '');
+                    }}
+                    className="w-full text-left bg-surface-raised rounded-lg px-3 py-2 hover:bg-border transition-colors"
+                  >
+                    <div className="text-xs font-medium flex items-center gap-1">
+                      {ex.name}
+                      <span className="text-[8px] px-1 rounded bg-accent/15 text-accent">My Exercise</span>
+                    </div>
+                    {ex.muscle && <div className="text-[10px] text-text-muted">{ex.muscle}</div>}
+                  </button>
+                ))}
+                {searchExerciseLibrary(newExName).slice(0, 6).map((ex) => (
                   <button
                     key={ex.name}
                     onClick={() => {
