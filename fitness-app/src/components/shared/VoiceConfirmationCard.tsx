@@ -42,7 +42,7 @@ export function VoiceConfirmationCard({ message, detail, onConfirm, onCancel, au
           </button>
         </div>
 
-        <div className="text-[9px] text-text-muted text-center">Say "yes" to confirm or "cancel" to dismiss</div>
+        <div className="text-[9px] text-text-muted text-center">Say "yes" to confirm · Voice mode is in beta</div>
       </div>
     </div>
   );

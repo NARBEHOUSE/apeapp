@@ -1265,8 +1265,8 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
             {/* AI Voice toggle */}
             <div className="flex items-center justify-between py-2">
               <div>
-                <div className="text-sm font-medium">AI Voice Mode</div>
-                <div className="text-[11px] text-text-muted">{claudeEnabled ? 'Hands-free voice commands for workouts & food' : 'Requires Claude API key'}</div>
+                <div className="text-sm font-medium">AI Voice Mode <span className="text-[9px] px-1.5 py-0.5 rounded bg-warning/15 text-warning font-semibold ml-1">BETA</span></div>
+                <div className="text-[11px] text-text-muted">{claudeEnabled ? 'Hands-free voice commands — accuracy may vary' : 'Requires Claude API key'}</div>
               </div>
               <button
                 onClick={() => claudeEnabled && updateDashCards({ aiVoice: !dashCards.aiVoice })}
