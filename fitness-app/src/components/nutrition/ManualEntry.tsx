@@ -260,51 +260,55 @@ export function ManualEntry({ onAdd, onClose, profileId, dailyTotals, macroTarge
       </div>
 
       {/* Macros */}
+      {basePer100g && (
+        <div className="text-[9px] text-accent-blue text-center">Macros auto-scale with serving size · <button type="button" onClick={() => setBasePer100g(null)} className="underline">Unlock to edit</button></div>
+      )}
       <div className="grid grid-cols-4 gap-2">
         <div>
           <div className="text-[9px] text-text-muted text-center mb-1">Protein</div>
           <input
-            type="number"
+            type="text"
             inputMode="decimal"
-            className="input-field text-center text-sm py-2"
+            className={`input-field text-center text-sm py-2 ${basePer100g ? 'text-text-muted' : ''}`}
             placeholder="0"
             value={protein}
-            onChange={(e) => { setProtein(e.target.value); setBasePer100g(null); setDatabaseCalories(null); }}
+            readOnly={!!basePer100g}
+            onChange={(e) => { setProtein(e.target.value); setDatabaseCalories(null); }}
           />
-          <div className="text-[8px] text-text-muted text-center mt-0.5">4 cal/g</div>
         </div>
         <div>
           <div className="text-[9px] text-text-muted text-center mb-1">Carbs</div>
           <input
-            type="number"
+            type="text"
             inputMode="decimal"
-            className="input-field text-center text-sm py-2"
+            className={`input-field text-center text-sm py-2 ${basePer100g ? 'text-text-muted' : ''}`}
             placeholder="0"
             value={carbs}
-            onChange={(e) => { setCarbs(e.target.value); setBasePer100g(null); setDatabaseCalories(null); }}
+            readOnly={!!basePer100g}
+            onChange={(e) => { setCarbs(e.target.value); setDatabaseCalories(null); }}
           />
-          <div className="text-[8px] text-text-muted text-center mt-0.5">4 cal/g</div>
         </div>
         <div>
           <div className="text-[9px] text-text-muted text-center mb-1">Fat</div>
           <input
-            type="number"
+            type="text"
             inputMode="decimal"
-            className="input-field text-center text-sm py-2"
+            className={`input-field text-center text-sm py-2 ${basePer100g ? 'text-text-muted' : ''}`}
             placeholder="0"
             value={fat}
-            onChange={(e) => { setFat(e.target.value); setBasePer100g(null); setDatabaseCalories(null); }}
+            readOnly={!!basePer100g}
+            onChange={(e) => { setFat(e.target.value); setDatabaseCalories(null); }}
           />
-          <div className="text-[8px] text-text-muted text-center mt-0.5">9 cal/g</div>
         </div>
         <div>
           <div className="text-[9px] text-text-muted text-center mb-1">Fiber</div>
           <input
-            type="number"
+            type="text"
             inputMode="decimal"
-            className="input-field text-center text-sm py-2"
+            className={`input-field text-center text-sm py-2 ${basePer100g ? 'text-text-muted' : ''}`}
             placeholder="0"
             value={fiber}
+            readOnly={!!basePer100g}
             onChange={(e) => setFiber(e.target.value)}
           />
           <div className="text-[8px] text-text-muted text-center mt-0.5">g</div>
