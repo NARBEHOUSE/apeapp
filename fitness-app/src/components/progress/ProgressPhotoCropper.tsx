@@ -22,6 +22,9 @@ export function ProgressPhotoCropper({ imageSrc, onCrop, onCancel }: Props) {
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [imgLoaded, setImgLoaded] = useState(false);
   const [initialScale, setInitialScale] = useState(1);
+  const touchesRef = useRef<Map<number, { x: number; y: number }>>(new Map());
+  const pinchStartDist = useRef(0);
+  const pinchStartScale = useRef(1);
 
   const viewW = Math.min(320, window.innerWidth - 40);
   const viewH = viewW / ASPECT;
@@ -138,18 +141,49 @@ export function ProgressPhotoCropper({ imageSrc, onCrop, onCancel }: Props) {
     if (imgLoaded) draw();
   }, [imgLoaded, draw]);
 
+  const getTouchDist = (touches: Map<number, { x: number; y: number }>) => {
+    const pts = Array.from(touches.values());
+    if (pts.length < 2) return 0;
+    return Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y);
+  };
+
   const handlePointerDown = (e: React.PointerEvent) => {
-    setDragging(true);
-    setDragStart({ x: e.clientX - offset.x, y: e.clientY - offset.y });
+    touchesRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
+
+    if (touchesRef.current.size === 2) {
+      pinchStartDist.current = getTouchDist(touchesRef.current);
+      pinchStartScale.current = scale;
+      setDragging(false);
+    } else if (touchesRef.current.size === 1) {
+      setDragging(true);
+      setDragStart({ x: e.clientX - offset.x, y: e.clientY - offset.y });
+    }
   };
 
   const handlePointerMove = (e: React.PointerEvent) => {
-    if (!dragging) return;
-    setOffset({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y });
+    touchesRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+    if (touchesRef.current.size >= 2) {
+      const dist = getTouchDist(touchesRef.current);
+      if (pinchStartDist.current > 0) {
+        const newScale = pinchStartScale.current * (dist / pinchStartDist.current);
+        setScale(Math.max(initialScale * 0.3, Math.min(initialScale * 5, newScale)));
+      }
+    } else if (dragging) {
+      setOffset({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y });
+    }
   };
 
-  const handlePointerUp = () => setDragging(false);
+  const handlePointerUp = (e: React.PointerEvent) => {
+    touchesRef.current.delete(e.pointerId);
+    if (touchesRef.current.size < 2) {
+      pinchStartDist.current = 0;
+    }
+    if (touchesRef.current.size === 0) {
+      setDragging(false);
+    }
+  };
 
   const handleWheel = (e: React.WheelEvent) => {
     e.preventDefault();
