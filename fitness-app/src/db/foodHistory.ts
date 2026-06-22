@@ -11,8 +11,13 @@ export interface SavedFood {
   source: 'manual' | 'usda' | 'ai_vision' | 'builtin';
   fdcId?: string;
   barcode?: string;
+  emoji?: string;
   frequency: number;
   lastUsed: string;
+}
+
+export function getCustomEmoji(profileId: string, foodName: string): string | undefined {
+  return loadFoods(profileId).find((f) => f.name.toLowerCase() === foodName.toLowerCase())?.emoji;
 }
 
 export function lookupByBarcode(profileId: string, barcode: string): SavedFood | undefined {
@@ -69,6 +74,7 @@ export function saveFoodToHistory(
     if (food.brand !== undefined) foods[existingIndex].brand = food.brand;
     if (food.fdcId !== undefined) foods[existingIndex].fdcId = food.fdcId;
     if (food.barcode) foods[existingIndex].barcode = food.barcode;
+    if (food.emoji) foods[existingIndex].emoji = food.emoji;
   } else {
     foods.push({
       ...food,

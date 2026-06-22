@@ -213,6 +213,7 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
   const [editFoodQuery, setEditFoodQuery] = useState('');
   const [editFoodBarcode, setEditFoodBarcode] = useState('');
   const [editFoodBrand, setEditFoodBrand] = useState('');
+  const [editFoodEmoji, setEditFoodEmoji] = useState('');
   const [usdaFoodResults, setUsdaFoodResults] = useState<{ name: string; brand?: string; cal: number; p: number; c: number; f: number; fiber: number; source: string }[]>([]);
   const [usdaFoodSearching, setUsdaFoodSearching] = useState(false);
   const [editingRecipe, setEditingRecipe] = useState<Recipe | null>(null);
@@ -648,7 +649,10 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
                           if (isEditing) {
                             return (
                               <div key={food.name} className="bg-surface rounded-xl p-3 space-y-2 border border-accent-blue/30">
-                                <div className="text-xs font-semibold">{food.name}</div>
+                                <div className="flex items-center gap-2">
+                                  <input type="text" className="w-8 text-center text-lg bg-transparent outline-none" value={editFoodEmoji} onChange={(e) => setEditFoodEmoji(e.target.value)} />
+                                  <div className="text-xs font-semibold flex-1">{food.name}</div>
+                                </div>
 
                                 {/* Search built-in + USDA */}
                                 <div className="flex gap-1">
@@ -758,6 +762,7 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
                                       servingUnit: 'g',
                                       brand: editFoodBrand.trim() || undefined,
                                       barcode: editFoodBarcode.trim() || undefined,
+                                      emoji: editFoodEmoji.trim() || undefined,
                                     });
                                     setFoodLibrary(getSavedFoods(profile.id));
                                     setEditingFood(null);
@@ -780,6 +785,7 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
                                 setEditFoodFiber(String(food.fiber || '')); setEditFoodQuery('');
                                 setEditFoodServing(String(food.servingSize || 1)); setEditFoodUnit('g');
                                 setEditFoodBarcode(food.barcode || ''); setEditFoodBrand(food.brand || '');
+                                setEditFoodEmoji(food.emoji || getFoodEmoji(food.name));
                                 setUsdaFoodResults([]);
                               }} className="flex-1 min-w-0 text-left">
                                 <div className="text-xs font-medium truncate">{food.name}</div>
