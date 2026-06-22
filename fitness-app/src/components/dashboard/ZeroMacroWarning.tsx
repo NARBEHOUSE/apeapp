@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { AlertTriangle, ChevronRight, Check, X, Search, Loader2, Trash2 } from 'lucide-react';
 import { getSavedFoods, updateSavedFood, deleteSavedFood, type SavedFood } from '../../db/foodHistory';
 import { FOOD_DATABASE } from '../../data/foods';
-import { searchFoods as searchUSDA } from '../../utils/usda';
+import { searchFoods } from '../../utils/usda';
 import { getDB } from '../../db';
 import type { FoodEntry } from '../../types';
 import { toast } from '../shared/Toast';
@@ -80,11 +80,9 @@ export function ZeroMacroWarning({ profileId }: Props) {
   };
 
   const searchUSDAForFood = async (query: string): Promise<MatchResult[]> => {
-    const apiKey = localStorage.getItem('fitos-usda-key');
-    if (!apiKey) return [];
     try {
-      const results = await searchUSDA(query, apiKey);
-      return results.slice(0, 5).map((r) => ({
+      const results = await searchFoods(query);
+      return results.map((r) => ({
         name: r.name, brand: r.brand, cal: r.caloriesPer100g, p: r.proteinPer100g,
         c: r.carbsPer100g, f: r.fatPer100g, fiber: r.fiberPer100g,
         serving: 100, unit: 'g', source: 'usda' as const,
@@ -101,13 +99,11 @@ export function ZeroMacroWarning({ profileId }: Props) {
     const builtinMatches = searchBuiltIn(food.name);
 
     // USDA first — prioritize for wider coverage
-    const apiKey = localStorage.getItem('fitos-usda-key');
-    if (apiKey) {
-      setUsdaSearching(true);
-      const usdaMatches = await searchUSDAForFood(food.name);
-      setUsdaSearching(false);
+    setUsdaSearching(true);
+    const usdaMatches = await searchUSDAForFood(food.name);
+    setUsdaSearching(false);
 
-      if (usdaMatches.length > 0) {
+    if (usdaMatches.length > 0) {
         const top = usdaMatches[0];
         setEditCal(String(top.cal)); setEditP(String(top.p)); setEditC(String(top.c)); setEditF(String(top.f));
         setEditFiber(String(top.fiber)); setEditServing('100'); setEditUnit('g');
@@ -115,7 +111,6 @@ export function ZeroMacroWarning({ profileId }: Props) {
         setMatches([...usdaMatches, ...builtinMatches]);
         return;
       }
-    }
 
     // Fall back to built-in DB
     const q = food.name.toLowerCase();
@@ -135,21 +130,18 @@ export function ZeroMacroWarning({ profileId }: Props) {
   const handleCustomSearch = async () => {
     if (!customSearch.trim()) return;
     const builtinResults = searchBuiltIn(customSearch);
-    const apiKey = localStorage.getItem('fitos-usda-key');
+    setUsdaSearching(true);
     let usdaMatches: MatchResult[] = [];
-    if (apiKey) {
-      setUsdaSearching(true);
-      try {
-        const results = await searchUSDA(customSearch, apiKey);
-        usdaMatches = results.slice(0, 5).map((r) => ({
-          name: r.name, brand: r.brand, cal: r.caloriesPer100g, p: r.proteinPer100g,
-          c: r.carbsPer100g, f: r.fatPer100g, fiber: r.fiberPer100g,
-          serving: 100, unit: 'g', source: 'usda' as const,
-        }));
-      } catch { /* ignore */ }
-      setUsdaSearching(false);
-    }
-    setMatches([...builtinResults, ...usdaMatches]);
+    try {
+      const results = await searchFoods(customSearch);
+      usdaMatches = results.slice(0, 5).map((r) => ({
+        name: r.name, brand: r.brand, cal: r.caloriesPer100g, p: r.proteinPer100g,
+        c: r.carbsPer100g, f: r.fatPer100g, fiber: r.fiberPer100g,
+        serving: 100, unit: 'g', source: 'usda' as const,
+      }));
+    } catch { /* ignore */ }
+    setUsdaSearching(false);
+    setMatches([...usdaMatches, ...builtinResults]);
   };
 
   const selectMatch = (m: MatchResult) => {
@@ -259,7 +251,7 @@ export function ZeroMacroWarning({ profileId }: Props) {
           {usdaSearching ? <Loader2 size={12} className="animate-spin" /> : <Search size={12} />}
         </button>
       </div>
-      {!autoMatched && localStorage.getItem('fitos-usda-key') && currentFood && (
+      {!autoMatched && currentFood && (
         <button
           onClick={async () => {
             setUsdaSearching(true);

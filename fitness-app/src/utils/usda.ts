@@ -1,3 +1,5 @@
+const PROXY_URL = 'https://falling-cloud-a632.narbehousellc.workers.dev';
+
 interface USDAFood {
   fdcId: number;
   description: string;
@@ -5,7 +7,7 @@ interface USDAFood {
   foodNutrients: { nutrientId: number; value: number }[];
 }
 
-interface ParsedFood {
+export interface ParsedFood {
   fdcId: string;
   name: string;
   brand?: string;
@@ -28,13 +30,8 @@ function getNutrientValue(nutrients: { nutrientId: number; value: number }[], id
   return nutrients.find((n) => n.nutrientId === id)?.value ?? 0;
 }
 
-export async function searchFoods(query: string, apiKey: string): Promise<ParsedFood[]> {
-  const url = `https://api.nal.usda.gov/fdc/v1/foods/search?query=${encodeURIComponent(query)}&pageSize=10&api_key=${apiKey}`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`USDA API error: ${res.status}`);
-  const data = await res.json();
-
-  return (data.foods as USDAFood[]).map((food) => ({
+function parseFoods(foods: USDAFood[]): ParsedFood[] {
+  return foods.map((food) => ({
     fdcId: String(food.fdcId),
     name: food.description,
     brand: food.brandName,
@@ -46,33 +43,18 @@ export async function searchFoods(query: string, apiKey: string): Promise<Parsed
   }));
 }
 
-export async function lookupBarcode(upc: string, apiKey: string): Promise<ParsedFood | null> {
-  const url = `https://api.nal.usda.gov/fdc/v1/foods/search?query=${encodeURIComponent(upc)}&dataType=Branded&pageSize=3&api_key=${apiKey}`;
-  const res = await fetch(url);
+export async function searchFoods(query: string): Promise<ParsedFood[]> {
+  const res = await fetch(`${PROXY_URL}/search?query=${encodeURIComponent(query)}&pageSize=10`);
+  if (!res.ok) throw new Error(`USDA search failed: ${res.status}`);
+  const data = await res.json();
+  return parseFoods(data.foods || []);
+}
+
+export async function lookupBarcode(upc: string): Promise<ParsedFood | null> {
+  const res = await fetch(`${PROXY_URL}/barcode?upc=${encodeURIComponent(upc)}`);
   if (!res.ok) return null;
   const data = await res.json();
   const foods = data.foods as USDAFood[] | undefined;
   if (!foods || foods.length === 0) return null;
-
-  const food = foods[0];
-  return {
-    fdcId: String(food.fdcId),
-    name: food.description,
-    brand: food.brandName,
-    caloriesPer100g: Math.round(getNutrientValue(food.foodNutrients, NUTRIENT_IDS.calories)),
-    proteinPer100g: Math.round(getNutrientValue(food.foodNutrients, NUTRIENT_IDS.protein) * 10) / 10,
-    carbsPer100g: Math.round(getNutrientValue(food.foodNutrients, NUTRIENT_IDS.carbs) * 10) / 10,
-    fatPer100g: Math.round(getNutrientValue(food.foodNutrients, NUTRIENT_IDS.fat) * 10) / 10,
-    fiberPer100g: Math.round(getNutrientValue(food.foodNutrients, NUTRIENT_IDS.fiber) * 10) / 10,
-  };
-}
-
-export async function testUSDAKey(apiKey: string): Promise<boolean> {
-  try {
-    const url = `https://api.nal.usda.gov/fdc/v1/foods/search?query=chicken&pageSize=1&api_key=${apiKey}`;
-    const res = await fetch(url);
-    return res.ok;
-  } catch {
-    return false;
-  }
+  return parseFoods([foods[0]])[0];
 }

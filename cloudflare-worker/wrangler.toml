@@ -1,0 +1,10 @@
+name = "ape-usda-proxy"
+main = "usda-proxy.js"
+compatibility_date = "2024-01-01"
+
+[vars]
+# Don't put the real key here — use `wrangler secret put USDA_API_KEY` instead
+
+[[kv_namespaces]]
+binding = "USDA_CACHE"
+id = "your-kv-namespace-id-here"

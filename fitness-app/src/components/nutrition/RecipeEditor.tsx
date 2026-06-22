@@ -3,7 +3,7 @@ import { Plus, Trash2, ChevronUp, ChevronDown, Search, AlertCircle, Pencil } fro
 import type { Recipe, RecipeIngredient } from '../../db/recipes';
 import { searchSavedFoods, saveFoodToHistory, type SavedFood } from '../../db/foodHistory';
 import { FOOD_DATABASE } from '../../data/foods';
-import { searchFoods } from '../../utils/usda';
+import { searchFoods as searchUSDAFoods } from '../../utils/usda';
 import { getFoodEmoji } from '../../utils/foodEmoji';
 
 interface Props {
@@ -142,11 +142,10 @@ export function RecipeEditor({ initial, profileId, onSave, onCancel }: Props) {
   };
 
   const handleUsdaSearch = async () => {
-    const apiKey = localStorage.getItem('fitos-usda-key');
-    if (!apiKey || !editIngQuery.trim()) return;
+    if (!editIngQuery.trim()) return;
     setUsdaSearching(true);
     try {
-      const results = await searchFoods(editIngQuery, apiKey);
+      const results = await searchUSDAFoods(editIngQuery);
       setUsdaResults(results.map((r) => ({
         name: r.name, brand: r.brand,
         cal: r.caloriesPer100g, p: r.proteinPer100g, c: r.carbsPer100g,
@@ -353,7 +352,7 @@ export function RecipeEditor({ initial, profileId, onSave, onCancel }: Props) {
                     )}
 
                     {/* USDA search button */}
-                    {localStorage.getItem('fitos-usda-key') && (
+                    {(
                       <button onClick={handleUsdaSearch} disabled={usdaSearching} className="text-[10px] text-accent-blue font-semibold disabled:opacity-50">
                         {usdaSearching ? 'Searching USDA...' : 'Search USDA Database'}
                       </button>

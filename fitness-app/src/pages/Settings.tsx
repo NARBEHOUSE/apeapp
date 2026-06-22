@@ -36,7 +36,7 @@ import { useGoogleAuth } from '../contexts/GoogleAuthContext';
 import { useCoach } from '../hooks/useCoach';
 import { ClientView } from '../components/coach/ClientView';
 import { CoachHistory as CoachHistoryComponent } from '../components/coach/CoachHistory';
-import { testUSDAKey } from '../utils/usda';
+// USDA now uses Cloudflare Worker proxy — no user key needed
 import { testClaudeKey } from '../utils/claudeVision';
 import {
   exportAllData, downloadJSON, importData, clearAllData,
@@ -339,23 +339,6 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
   };
 
   // API Key handlers
-  const handleSaveUsdaKey = () => {
-    if (usdaKey.trim()) {
-      localStorage.setItem('fitos-usda-key', usdaKey.trim());
-    } else {
-      localStorage.removeItem('fitos-usda-key');
-    }
-  };
-
-  const handleTestUsda = async () => {
-    if (!usdaKey.trim()) return;
-    setUsdaStatus('testing');
-    handleSaveUsdaKey();
-    const valid = await testUSDAKey(usdaKey.trim());
-    setUsdaStatus(valid ? 'valid' : 'invalid');
-    setTimeout(() => setUsdaStatus('idle'), 3000);
-  };
-
   const handleSaveClaudeKey = () => {
     if (claudeKey.trim()) {
       localStorage.setItem('fitos-claude-key', claudeKey.trim());
@@ -858,49 +841,11 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
         <SectionHeader section="api" icon={Key} title="API Keys" />
         {expanded.has('api') && (
           <div className="space-y-5 pt-2">
-            {/* USDA Key */}
-            <div className="space-y-2">
-              <label className="label block">USDA Food Data API Key</label>
-              <div className="flex gap-2">
-                <div className="relative flex-1">
-                  <input
-                    type={showUsdaKey ? 'text' : 'password'}
-                    className="input-field pr-10"
-                    placeholder="Enter USDA API key"
-                    value={usdaKey}
-                    onChange={(e) => setUsdaKey(e.target.value)}
-                    onBlur={handleSaveUsdaKey}
-                  />
-                  <button
-                    onClick={() => setShowUsdaKey(!showUsdaKey)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-secondary"
-                  >
-                    {showUsdaKey ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </button>
-                </div>
-                <button
-                  onClick={handleTestUsda}
-                  disabled={!usdaKey.trim() || usdaStatus === 'testing'}
-                  className="btn-secondary px-4 py-2 text-xs disabled:opacity-40 flex items-center gap-1.5"
-                >
-                  {usdaStatus === 'testing' && (
-                    <div className="w-3 h-3 border-2 border-text-secondary border-t-transparent rounded-full animate-spin" />
-                  )}
-                  {usdaStatus === 'valid' && <Check size={14} className="text-success" />}
-                  {usdaStatus === 'invalid' && <X size={14} className="text-danger" />}
-                  Test
-                </button>
-              </div>
-              <p className="text-[11px] text-text-muted">
-                Get a free key at{' '}
-                <a
-                  href="https://fdc.nal.usda.gov/api-key-signup.html"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-accent-blue hover:underline inline-flex items-center gap-0.5"
-                >
-                  fdc.nal.usda.gov <ExternalLink size={10} />
-                </a>
+            {/* USDA Info */}
+            <div className="flex items-start gap-2 p-3 rounded-lg bg-success/10 border border-success/20">
+              <Check size={14} className="text-success flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-text-secondary">
+                USDA Food Database is built in — search over 300,000 foods with full nutrition data. No setup required.
               </p>
             </div>
 

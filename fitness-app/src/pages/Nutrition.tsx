@@ -18,6 +18,7 @@ import { getSavedMeals, addSavedMeal, deleteSavedMeal, type SavedMeal } from '..
 import { getSavedFoods, updateSavedFood, deleteSavedFood, type SavedFood } from '../db/foodHistory';
 import { FOOD_DATABASE } from '../data/foods';
 import { searchFoods as searchUSDA } from '../utils/usda';
+// USDA proxy — no API key needed
 import { getRecipes, saveRecipe, updateRecipe, deleteRecipe, recipePerServing, type Recipe } from '../db/recipes';
 import { getMealPlans, saveMealPlan, deleteMealPlan, type MealPlan } from '../db/mealPlans';
 import { Modal } from '../components/shared/Modal';
@@ -663,17 +664,14 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
                                         source: 'DB',
                                       }));
                                       setUsdaFoodResults(builtinR);
-                                      const apiKey = localStorage.getItem('fitos-usda-key');
-                                      if (apiKey) {
-                                        setUsdaFoodSearching(true);
-                                        searchUSDA(editFoodQuery || food.name, apiKey).then((results) => {
-                                          setUsdaFoodResults([...builtinR, ...results.slice(0, 5).map((r) => ({
-                                            name: r.name, brand: r.brand, cal: r.caloriesPer100g, p: r.proteinPer100g,
-                                            c: r.carbsPer100g, f: r.fatPer100g, fiber: r.fiberPer100g, source: 'USDA',
-                                          }))]);
-                                          setUsdaFoodSearching(false);
-                                        }).catch(() => setUsdaFoodSearching(false));
-                                      }
+                                      setUsdaFoodSearching(true);
+                                      searchUSDA(editFoodQuery || food.name).then((results) => {
+                                        setUsdaFoodResults([...builtinR, ...results.slice(0, 5).map((r) => ({
+                                          name: r.name, brand: r.brand, cal: r.caloriesPer100g, p: r.proteinPer100g,
+                                          c: r.carbsPer100g, f: r.fatPer100g, fiber: r.fiberPer100g, source: 'USDA',
+                                        }))]);
+                                        setUsdaFoodSearching(false);
+                                      }).catch(() => setUsdaFoodSearching(false));
                                     }}}
                                   />
                                   <button onClick={() => {
@@ -688,17 +686,14 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
                                       source: 'DB',
                                     }));
                                     setUsdaFoodResults(builtinR);
-                                    const apiKey = localStorage.getItem('fitos-usda-key');
-                                    if (apiKey) {
-                                      setUsdaFoodSearching(true);
-                                      searchUSDA(editFoodQuery || food.name, apiKey).then((results) => {
-                                        setUsdaFoodResults([...builtinR, ...results.slice(0, 5).map((r) => ({
-                                          name: r.name, brand: r.brand, cal: r.caloriesPer100g, p: r.proteinPer100g,
-                                          c: r.carbsPer100g, f: r.fatPer100g, fiber: r.fiberPer100g, source: 'USDA',
-                                        }))]);
-                                        setUsdaFoodSearching(false);
-                                      }).catch(() => setUsdaFoodSearching(false));
-                                    }
+                                    setUsdaFoodSearching(true);
+                                    searchUSDA(editFoodQuery || food.name).then((results) => {
+                                      setUsdaFoodResults([...builtinR, ...results.slice(0, 5).map((r) => ({
+                                        name: r.name, brand: r.brand, cal: r.caloriesPer100g, p: r.proteinPer100g,
+                                        c: r.carbsPer100g, f: r.fatPer100g, fiber: r.fiberPer100g, source: 'USDA',
+                                      }))]);
+                                      setUsdaFoodSearching(false);
+                                    }).catch(() => setUsdaFoodSearching(false));
                                   }} disabled={usdaFoodSearching} className="bg-accent-blue text-white px-2 rounded-lg">
                                     {usdaFoodSearching ? <Loader2 size={12} className="animate-spin" /> : <Search size={12} />}
                                   </button>

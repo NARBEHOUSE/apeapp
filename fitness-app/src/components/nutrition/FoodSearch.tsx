@@ -58,7 +58,6 @@ function convertBuiltIn(food: BuiltInFood): LocalResult {
 }
 
 export function FoodSearch({ onAdd, onClose, profileId }: FoodSearchProps) {
-  const apiKey = localStorage.getItem('fitos-usda-key') || '';
 
   const [tab, setTab] = useState<SearchTab>('all');
   const [query, setQuery] = useState('');
@@ -120,11 +119,11 @@ export function FoodSearch({ onAdd, onClose, profileId }: FoodSearchProps) {
 
   // USDA search
   async function handleUsdaSearch() {
-    if (!query.trim() || !apiKey) return;
+    if (!query.trim()) return;
     setUsdaSearching(true);
     setUsdaError('');
     try {
-      const foods = await searchFoods(query.trim(), apiKey);
+      const foods = await searchFoods(query.trim());
       setUsdaResults(foods);
       if (foods.length === 0) setUsdaError('No USDA results found.');
     } catch (err) {
@@ -136,12 +135,12 @@ export function FoodSearch({ onAdd, onClose, profileId }: FoodSearchProps) {
 
   // Barcode lookup
   async function handleBarcodeLookup() {
-    if (!barcodeQuery.trim() || !apiKey) return;
+    if (!barcodeQuery.trim()) return;
     setBarcodeSearching(true);
     setBarcodeError('');
     setBarcodeResult(null);
     try {
-      const result = await lookupBarcode(barcodeQuery.trim(), apiKey);
+      const result = await lookupBarcode(barcodeQuery.trim());
       if (result) {
         setBarcodeResult(result);
       } else {
@@ -349,13 +348,6 @@ export function FoodSearch({ onAdd, onClose, profileId }: FoodSearchProps) {
       {/* ========== USDA TAB ========== */}
       {tab === 'usda' && (
         <>
-          {!apiKey ? (
-            <div className="text-center py-6 space-y-2">
-              <Globe size={28} className="mx-auto text-text-muted" />
-              <p className="text-sm font-medium">USDA API Key Required</p>
-              <p className="text-[11px] text-text-muted">Add a free API key in Settings to search the USDA database.</p>
-            </div>
-          ) : (
             <>
               <div className="flex gap-2">
                 <div className="relative flex-1">
@@ -392,20 +384,12 @@ export function FoodSearch({ onAdd, onClose, profileId }: FoodSearchProps) {
                 <p className="text-[11px] text-text-muted text-center py-4">Search the USDA FoodData Central database</p>
               )}
             </>
-          )}
         </>
       )}
 
       {/* ========== BARCODE TAB ========== */}
       {tab === 'barcode' && (
         <>
-          {!apiKey ? (
-            <div className="text-center py-6 space-y-2">
-              <Barcode size={28} className="mx-auto text-text-muted" />
-              <p className="text-sm font-medium">USDA API Key Required</p>
-              <p className="text-[11px] text-text-muted">Barcode lookup uses the USDA API. Add a key in Settings.</p>
-            </div>
-          ) : (
             <>
               <div className="flex gap-2">
                 <div className="relative flex-1">
@@ -457,7 +441,6 @@ export function FoodSearch({ onAdd, onClose, profileId }: FoodSearchProps) {
                 </div>
               )}
             </>
-          )}
         </>
       )}
     </div>
