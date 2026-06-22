@@ -178,7 +178,7 @@ export function ProgressionEditor({ exercise, goalType, durationWeeks, onUpdate 
                       value={prog.repRangeMin || ''}
                       onChange={(e) =>
                         onUpdate({
-                          progression: { ...prog, repRangeMin: parseInt(e.target.value) || 1 },
+                          progression: { ...prog, repRangeMin: parseInt(e.target.value) || 0 },
                           weeklyTargets: undefined,
                         })
                       }
@@ -193,7 +193,7 @@ export function ProgressionEditor({ exercise, goalType, durationWeeks, onUpdate 
                       value={prog.repRangeMax || ''}
                       onChange={(e) =>
                         onUpdate({
-                          progression: { ...prog, repRangeMax: parseInt(e.target.value) || 1 },
+                          progression: { ...prog, repRangeMax: parseInt(e.target.value) || 0 },
                           weeklyTargets: undefined,
                         })
                       }
@@ -209,7 +209,7 @@ export function ProgressionEditor({ exercise, goalType, durationWeeks, onUpdate 
                     className="input-field text-xs py-1.5"
                     value={prog.repRangeMin || ''}
                     onChange={(e) => {
-                      const v = parseInt(e.target.value) || 1;
+                      const v = parseInt(e.target.value) || 0;
                       onUpdate({
                         progression: { ...prog, repRangeMin: v, repRangeMax: v },
                         weeklyTargets: undefined,
@@ -316,14 +316,14 @@ export function ProgressionEditor({ exercise, goalType, durationWeeks, onUpdate 
                             inputMode="numeric"
                             className="input-field text-[10px] py-1 px-1.5 text-center"
                             value={t.sets || ''}
-                            onChange={(e) => updateWeek(i, 'sets', parseInt(e.target.value) || 1)}
+                            onChange={(e) => updateWeek(i, 'sets', parseInt(e.target.value) || 0)}
                           />
                           <input
                             type="text"
                             inputMode="numeric"
                             className="input-field text-[10px] py-1 px-1.5 text-center"
                             value={t.reps || ''}
-                            onChange={(e) => updateWeek(i, 'reps', parseInt(e.target.value) || 1)}
+                            onChange={(e) => updateWeek(i, 'reps', parseInt(e.target.value) || 0)}
                           />
                           <input
                             type="text"

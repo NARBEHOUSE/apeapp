@@ -1174,7 +1174,7 @@ function ExerciseEditor({
                 value={exercise.sets}
                 onChange={(e) =>
                   onUpdate(dayId, exercise.id, {
-                    sets: Math.max(1, parseInt(e.target.value, 10) || 1),
+                    sets: parseInt(e.target.value, 10) || 0,
                   })
                 }
                 min={1}
