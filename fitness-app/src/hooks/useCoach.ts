@@ -7,10 +7,11 @@ import {
   deleteFile,
   gatherCoachData,
   createPhotoFolder,
-  sharePhotoFolderWithCoach,
   uploadPhotoToFolder,
   getOrCreateRootFolder,
-  findSharedClientFiles,
+  getOrCreateCoachShareFolder,
+  findSharedClientFolders,
+  findDataFileInFolder,
 } from '../utils/googleDrive';
 import { getDB } from '../db';
 import type {
@@ -122,19 +123,26 @@ export function useCoach() {
     const token = await requireAccessToken();
     setLoading(true);
     try {
-      const folderId = await createPhotoFolder(token);
-      await sharePhotoFolderWithCoach(token, folderId, coachEmail);
-      const photoMeta = await uploadAllPhotos(token, folderId);
-
       const data = await gatherCoachData() as Record<string, unknown>;
+
+      // Create isolated folder + data file + share folder with coach (sends email notification)
+      const { fileId, folderId: shareFolderId } = await createCoachShareFile(token, JSON.stringify(data), coachEmail);
+
+      // Create photo subfolder inside the isolated share folder
+      const photoFolderId = await createPhotoFolder(token, shareFolderId);
+      const photoMeta = await uploadAllPhotos(token, photoFolderId);
+
+      // Update the file with photo metadata
       data.progressPhotos = [];
       data.photoMeta = photoMeta;
-      data.photoFolderId = folderId;
+      data.photoFolderId = photoFolderId;
       data.coachPermission = permission;
+      await writeSharedFile(token, fileId, JSON.stringify(data));
 
-      const content = JSON.stringify(data);
-      const fileId = await createCoachShareFile(token, content, coachEmail);
-      const rel: CoachRelationship = { fileId, coachEmail, photoFolderId: folderId, permission, role: 'client', createdAt: new Date().toISOString() };
+      const rel: CoachRelationship = {
+        fileId, shareFolderId, photoFolderId, coachEmail,
+        permission, role: 'client', createdAt: new Date().toISOString(),
+      };
       const updated = [...relationships, rel];
       saveRelationships(updated);
       setRelationships(updated);
@@ -160,24 +168,24 @@ export function useCoach() {
           existing = JSON.parse(raw);
         } catch { /* file might not exist */ }
 
-        let folderId = rel.photoFolderId;
-        if (!folderId) {
-          folderId = await createPhotoFolder(token);
-          if (rel.coachEmail) await sharePhotoFolderWithCoach(token, folderId, rel.coachEmail);
-          const updatedRel = { ...rel, photoFolderId: folderId };
+        // Ensure photo folder exists inside the isolated share folder
+        let photoFolderId = rel.photoFolderId;
+        if (!photoFolderId) {
+          const shareFolderId = rel.shareFolderId || await getOrCreateCoachShareFolder(token);
+          photoFolderId = await createPhotoFolder(token, shareFolderId);
+          const updatedRel = { ...rel, photoFolderId, shareFolderId };
           const updatedRels = relationships.map((r) => r.fileId === rel.fileId ? updatedRel : r);
           saveRelationships(updatedRels);
           setRelationships(updatedRels);
         }
 
-        const photoMeta = await uploadAllPhotos(token, folderId);
+        const photoMeta = await uploadAllPhotos(token, photoFolderId);
         const fileData = { ...freshData };
-        // If client already responded, clear pendingChanges so they don't reappear
         fileData.pendingChanges = existing.pendingChanges || null;
         fileData.clientResponse = existing.clientResponse || null;
         fileData.progressPhotos = [];
         fileData.photoMeta = photoMeta;
-        fileData.photoFolderId = folderId;
+        fileData.photoFolderId = photoFolderId;
         fileData.coachPermission = rel.permission;
         await writeSharedFile(token, rel.fileId, JSON.stringify(fileData));
       } catch (err) {
@@ -284,9 +292,15 @@ export function useCoach() {
   }, [myCoachRels, pendingCoachFileId, applyChangeItem, addLogEntry]);
 
   const revokeCoachAccess = useCallback(async (fileId: string) => {
+    const rel = relationships.find((r) => r.fileId === fileId);
     try {
       const token = await requireAccessToken();
-      await deleteFile(token, fileId);
+      // Delete the entire share folder (contains file + photos)
+      if (rel?.shareFolderId) {
+        await deleteFile(token, rel.shareFolderId);
+      } else {
+        await deleteFile(token, fileId);
+      }
     } catch { /* still remove locally */ }
     const updated = relationships.filter((r) => r.fileId !== fileId);
     saveRelationships(updated);
@@ -295,22 +309,30 @@ export function useCoach() {
 
   // --- Coach side ---
 
-  const discoverClients = useCallback(async (): Promise<{ fileId: string; email: string; name: string }[]> => {
+  const discoverClients = useCallback(async (): Promise<{ fileId: string; folderId: string; email: string; name: string }[]> => {
     const token = getAccessToken() || await requireAccessToken();
     try {
-      const files = await findSharedClientFiles(token);
+      const folders = await findSharedClientFolders(token);
+      const existingFolderIds = new Set(myClients.map((c) => c.shareFolderId).filter(Boolean));
       const existingFileIds = new Set(myClients.map((c) => c.fileId));
-      return files
-        .filter((f) => !existingFileIds.has(f.fileId))
-        .map((f) => ({ fileId: f.fileId, email: f.ownerEmail, name: f.ownerName }));
+      const results: { fileId: string; folderId: string; email: string; name: string }[] = [];
+
+      for (const folder of folders) {
+        if (existingFolderIds.has(folder.folderId)) continue;
+        const dataFileId = await findDataFileInFolder(token, folder.folderId);
+        if (dataFileId && !existingFileIds.has(dataFileId)) {
+          results.push({ fileId: dataFileId, folderId: folder.folderId, email: folder.ownerEmail, name: folder.ownerName });
+        }
+      }
+      return results;
     } catch (err) {
       console.error('Failed to discover clients:', err);
       return [];
     }
   }, [myClients]);
 
-  const addClient = useCallback((fileId: string, clientName?: string, clientEmail?: string) => {
-    const rel: CoachRelationship = { fileId, clientName: clientName || 'Client', clientEmail, role: 'coach', permission: 'full', createdAt: new Date().toISOString() };
+  const addClient = useCallback((fileId: string, clientName?: string, clientEmail?: string, shareFolderId?: string) => {
+    const rel: CoachRelationship = { fileId, shareFolderId, clientName: clientName || 'Client', clientEmail, role: 'coach', permission: 'full', createdAt: new Date().toISOString() };
     const updated = [...relationships.filter((r) => !(r.role === 'coach' && r.fileId === fileId)), rel];
     saveRelationships(updated);
     setRelationships(updated);

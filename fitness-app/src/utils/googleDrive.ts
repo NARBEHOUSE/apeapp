@@ -100,7 +100,7 @@ export async function deleteAllAppData(token: string): Promise<void> {
     await deleteSyncFile(token, file.id);
   }
 
-  // Delete the APE App root folder and everything inside it (coach file, photos)
+  // Delete the APE App root folder
   try {
     const folderRes = await driveRequest(
       token,
@@ -112,7 +112,20 @@ export async function deleteAllAppData(token: string): Promise<void> {
     }
   } catch { /* folder may not exist */ }
 
+  // Delete the isolated coach share folder
+  try {
+    const shareRes = await driveRequest(
+      token,
+      `https://www.googleapis.com/drive/v3/files?q=name='${COACH_SHARE_FOLDER}' and mimeType='application/vnd.google-apps.folder' and 'root' in parents and trashed=false&fields=files(id)&pageSize=5`,
+    );
+    const shareData = await shareRes.json();
+    for (const folder of shareData.files || []) {
+      await driveRequest(token, `https://www.googleapis.com/drive/v3/files/${folder.id}`, { method: 'DELETE' });
+    }
+  } catch { /* folder may not exist */ }
+
   cachedRootFolderId = null;
+  cachedShareFolderId = null;
   cachedPhotoFolderId = null;
 }
 
@@ -157,11 +170,42 @@ export async function getOrCreateRootFolder(token: string): Promise<string> {
   return folder.id;
 }
 
-// --- Coach sharing ---
+// --- Coach sharing (isolated folder approach) ---
 
-export async function createCoachShareFile(token: string, content: string, coachEmail: string): Promise<string> {
-  const rootId = await getOrCreateRootFolder(token);
-  const metadata = { name: COACH_FILE_NAME, mimeType: 'application/json', parents: [rootId] };
+const COACH_SHARE_FOLDER = 'APE Coach Share';
+let cachedShareFolderId: string | null = null;
+
+export async function getOrCreateCoachShareFolder(token: string): Promise<string> {
+  if (cachedShareFolderId) return cachedShareFolderId;
+
+  const res = await driveRequest(
+    token,
+    `https://www.googleapis.com/drive/v3/files?q=name='${COACH_SHARE_FOLDER}' and mimeType='application/vnd.google-apps.folder' and 'root' in parents and trashed=false&fields=files(id)&pageSize=1`,
+  );
+  const data = await res.json();
+  if (data.files?.[0]) {
+    cachedShareFolderId = data.files[0].id;
+    return cachedShareFolderId!;
+  }
+
+  const createRes = await driveRequest(token, 'https://www.googleapis.com/drive/v3/files', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: COACH_SHARE_FOLDER, mimeType: 'application/vnd.google-apps.folder' }),
+  });
+  const folder = await createRes.json();
+  cachedShareFolderId = folder.id;
+  return folder.id;
+}
+
+export async function createCoachShareFile(
+  token: string,
+  content: string,
+  coachEmail: string,
+): Promise<{ fileId: string; folderId: string }> {
+  const folderId = await getOrCreateCoachShareFolder(token);
+
+  const metadata = { name: COACH_FILE_NAME, mimeType: 'application/json', parents: [folderId] };
   const boundary = 'ape_coach_boundary';
   const body = `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n${content}\r\n--${boundary}--`;
 
@@ -172,8 +216,9 @@ export async function createCoachShareFile(token: string, content: string, coach
   });
   const file = await res.json();
 
+  // Share the FOLDER (not just the file) — triggers Google email notification
   try {
-    const permRes = await fetch(`https://www.googleapis.com/drive/v3/files/${file.id}/permissions?sendNotificationEmail=false`, {
+    const permRes = await fetch(`https://www.googleapis.com/drive/v3/files/${folderId}/permissions?sendNotificationEmail=true`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ role: 'writer', type: 'user', emailAddress: coachEmail }),
@@ -189,7 +234,7 @@ export async function createCoachShareFile(token: string, content: string, coach
     throw new Error(`Failed to share with ${coachEmail}. Check the email address.`);
   }
 
-  return file.id;
+  return { fileId: file.id, folderId };
 }
 
 export async function readSharedFile(token: string, fileId: string): Promise<string> {
@@ -211,19 +256,18 @@ export async function deleteFile(token: string, fileId: string): Promise<void> {
   await driveRequest(token, `https://www.googleapis.com/drive/v3/files/${fileId}`, { method: 'DELETE' });
 }
 
-// --- Coach photo folder (inside APE App root) ---
+// --- Coach photo folder (inside isolated Coach Share folder) ---
 
 let cachedPhotoFolderId: string | null = null;
 
-export async function createPhotoFolder(token: string): Promise<string> {
+export async function createPhotoFolder(token: string, parentFolderId?: string): Promise<string> {
   if (cachedPhotoFolderId) return cachedPhotoFolderId;
 
-  const rootId = await getOrCreateRootFolder(token);
+  const parentId = parentFolderId || await getOrCreateCoachShareFolder(token);
 
-  // Check if it already exists
   const searchRes = await driveRequest(
     token,
-    `https://www.googleapis.com/drive/v3/files?q=name='${COACH_PHOTO_SUBFOLDER}' and '${rootId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false&fields=files(id)&pageSize=1`,
+    `https://www.googleapis.com/drive/v3/files?q=name='${COACH_PHOTO_SUBFOLDER}' and '${parentId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false&fields=files(id)&pageSize=1`,
   );
   const searchData = await searchRes.json();
   if (searchData.files?.[0]) {
@@ -234,32 +278,39 @@ export async function createPhotoFolder(token: string): Promise<string> {
   const res = await driveRequest(token, 'https://www.googleapis.com/drive/v3/files', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name: COACH_PHOTO_SUBFOLDER, mimeType: 'application/vnd.google-apps.folder', parents: [rootId] }),
+    body: JSON.stringify({ name: COACH_PHOTO_SUBFOLDER, mimeType: 'application/vnd.google-apps.folder', parents: [parentId] }),
   });
   const folder = await res.json();
   cachedPhotoFolderId = folder.id;
   return folder.id;
 }
 
-export async function findSharedClientFiles(token: string): Promise<{ fileId: string; ownerEmail: string; ownerName: string; modifiedTime: string }[]> {
-  const res = await driveRequest(token,
-    `https://www.googleapis.com/drive/v3/files?q=name='${COACH_FILE_NAME}' and sharedWithMe=true and trashed=false&fields=files(id,owners,modifiedTime)&pageSize=50`
-  );
-  const data = await res.json();
-  return (data.files || []).map((f: any) => ({
-    fileId: f.id,
-    ownerEmail: f.owners?.[0]?.emailAddress || '',
-    ownerName: f.owners?.[0]?.displayName || '',
-    modifiedTime: f.modifiedTime || '',
-  }));
+export async function findSharedClientFolders(token: string): Promise<{ folderId: string; ownerEmail: string; ownerName: string }[]> {
+  try {
+    const res = await driveRequest(token,
+      `https://www.googleapis.com/drive/v3/files?q=name='${COACH_SHARE_FOLDER}' and mimeType='application/vnd.google-apps.folder' and sharedWithMe=true and trashed=false&fields=files(id,owners)&pageSize=50`
+    );
+    const data = await res.json();
+    return (data.files || []).map((f: any) => ({
+      folderId: f.id,
+      ownerEmail: f.owners?.[0]?.emailAddress || '',
+      ownerName: f.owners?.[0]?.displayName || '',
+    }));
+  } catch {
+    return [];
+  }
 }
 
-export async function sharePhotoFolderWithCoach(token: string, folderId: string, coachEmail: string): Promise<void> {
-  await driveRequest(token, `https://www.googleapis.com/drive/v3/files/${folderId}/permissions?sendNotificationEmail=false`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ role: 'reader', type: 'user', emailAddress: coachEmail }),
-  });
+export async function findDataFileInFolder(token: string, folderId: string): Promise<string | null> {
+  try {
+    const res = await driveRequest(token,
+      `https://www.googleapis.com/drive/v3/files?q=name='${COACH_FILE_NAME}' and '${folderId}' in parents and trashed=false&fields=files(id)&pageSize=1`
+    );
+    const data = await res.json();
+    return data.files?.[0]?.id || null;
+  } catch {
+    return null;
+  }
 }
 
 export async function fetchDriveImage(token: string, fileId: string): Promise<string> {

@@ -176,6 +176,7 @@ export interface ExerciseFeedback {
 
 export interface CoachRelationship {
   fileId: string;
+  shareFolderId?: string;
   photoFolderId?: string;
   coachEmail?: string;
   clientEmail?: string;

@@ -639,8 +639,8 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
                         </button>
                       </div>
                       <div className="text-[9px] text-text-muted">
-                        Your coach can tap "Find Clients" to connect.
-                        <button onClick={() => { navigator.clipboard.writeText(rel.fileId); toast('File ID copied — share with your coach for manual add', 'success'); }} className="text-accent-blue ml-1 underline">Copy ID</button>
+                        Your coach got a Google Drive notification.{' '}
+                        <button onClick={() => { navigator.clipboard.writeText(rel.fileId); toast('Share code copied — send to your coach', 'success'); }} className="text-accent-blue underline">Copy share code</button>
                       </div>
                     </div>
                   ))}
@@ -680,7 +680,8 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
                     try {
                       const fileId = await shareWithCoach(coachEmail.trim(), coachPermission);
                       if (fileId) {
-                        toast('Shared! Your coach can now find you with "Find Clients".', 'success');
+                        navigator.clipboard.writeText(fileId).catch(() => {});
+                        toast('Shared! Coach notified via email. Share code copied.', 'success');
                         setCoachEmail('');
                       }
                     } catch (err) {
@@ -748,61 +749,58 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
                   ))}
                 </div>
               )}
-              {/* Auto-discover clients */}
+              {/* Add client by share code */}
+              <div className="space-y-2">
+                <p className="text-[11px] text-text-muted">
+                  Enter the share code your client sent you, or tap "Find Clients" to auto-discover.
+                </p>
+                <div className="flex gap-2">
+                  <input
+                    className="input-field text-sm flex-1 font-mono"
+                    placeholder="Client's share code"
+                    value={clientCode}
+                    onChange={(e) => setClientCode(e.target.value)}
+                  />
+                  <input
+                    className="input-field text-sm w-24"
+                    placeholder="Name"
+                    value={clientName}
+                    onChange={(e) => setClientName(e.target.value)}
+                  />
+                </div>
+                <button
+                  onClick={() => {
+                    if (!clientCode.trim()) return;
+                    addClient(clientCode.trim(), clientName.trim() || undefined);
+                    toast('Client added', 'success');
+                    setClientCode('');
+                    setClientName('');
+                  }}
+                  disabled={!clientCode.trim()}
+                  className="btn-primary w-full text-sm disabled:opacity-30"
+                >
+                  Add Client
+                </button>
+              </div>
+
+              {/* Auto-discover clients (may require broader scope) */}
               <button
                 onClick={async () => {
                   toast('Searching for clients...', 'info');
                   const found = await discoverClients();
                   if (found.length === 0) {
-                    toast('No new clients found. Make sure they shared with your email.', 'info');
+                    toast('No new clients found. Ask your client for their share code.', 'info');
                   } else {
                     for (const client of found) {
-                      addClient(client.fileId, client.name || client.email, client.email);
+                      addClient(client.fileId, client.name || client.email, client.email, client.folderId);
                     }
                     toast(`Found ${found.length} client${found.length > 1 ? 's' : ''}!`, 'success');
                   }
                 }}
-                className="btn-primary w-full text-sm flex items-center justify-center gap-2"
+                className="btn-secondary w-full text-sm flex items-center justify-center gap-2"
               >
                 Find Clients
               </button>
-              <p className="text-[11px] text-text-muted">
-                When a client shares their data with your email, tap "Find Clients" to automatically discover them. No codes needed.
-              </p>
-
-              {/* Manual add fallback */}
-              <details className="text-[11px] text-text-muted">
-                <summary className="cursor-pointer hover:text-text-secondary">Manual add (advanced)</summary>
-                <div className="space-y-2 pt-2">
-                  <div className="flex gap-2">
-                    <input
-                      className="input-field text-sm flex-1 font-mono"
-                      placeholder="Drive file ID"
-                      value={clientCode}
-                      onChange={(e) => setClientCode(e.target.value)}
-                    />
-                    <input
-                      className="input-field text-sm w-24"
-                      placeholder="Name"
-                      value={clientName}
-                      onChange={(e) => setClientName(e.target.value)}
-                    />
-                  </div>
-                  <button
-                    onClick={() => {
-                      if (!clientCode.trim()) return;
-                      addClient(clientCode.trim(), clientName.trim() || undefined);
-                      toast('Client added', 'success');
-                      setClientCode('');
-                      setClientName('');
-                    }}
-                    disabled={!clientCode.trim()}
-                    className="btn-secondary w-full text-sm disabled:opacity-30"
-                  >
-                    Add by File ID
-                  </button>
-                </div>
-              </details>
             </div>
 
             {/* Coach/Client History */}
