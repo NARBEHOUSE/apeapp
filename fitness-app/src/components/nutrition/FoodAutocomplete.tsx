@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { Clock, Database, Search, X, Pencil, Check, AlertCircle } from 'lucide-react';
 import { searchSavedFoods, getFrequentFoods, updateSavedFood } from '../../db/foodHistory';
 import { FOOD_DATABASE, type BuiltInFood } from '../../data/foods';
+import { searchFoods as searchUSDA } from '../../utils/usda';
 
 export interface SelectedFood {
   name: string;
@@ -76,6 +77,8 @@ export function FoodAutocomplete({ profileId, onSelect, onQueryChange, placehold
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
+  const usdaAbortRef = useRef<AbortController | null>(null);
+
   const computeResults = useCallback(
     (q: string) => {
       const trimmed = q.trim().toLowerCase();
@@ -108,14 +111,49 @@ export function FoodAutocomplete({ profileId, onSelect, onQueryChange, placehold
         return words.every((word) => name.includes(word));
       }).map(convertBuiltIn);
 
-      // Merge: history first, then built-in
-      const merged = [...historyResults, ...builtinResults].slice(
-        0,
-        MAX_RESULTS
-      );
-      setResults(merged);
+      // Show local results immediately
+      const localMerged = [...historyResults, ...builtinResults].slice(0, MAX_RESULTS);
+      setResults(localMerged);
       setIsOpen(true);
       setShowFrequent(false);
+
+      // Fire async USDA search and merge when results arrive
+      if (trimmed.length >= 2) {
+        if (usdaAbortRef.current) usdaAbortRef.current.abort();
+        const controller = new AbortController();
+        usdaAbortRef.current = controller;
+
+        searchUSDA(q.trim()).then((usdaFoods) => {
+          if (controller.signal.aborted) return;
+          const allLocalNames = new Set([
+            ...historyResults.map((r) => r.name.toLowerCase()),
+            ...builtinResults.map((r) => r.name.toLowerCase()),
+          ]);
+          const usdaResults: ResultItem[] = usdaFoods
+            .filter((f) => !allLocalNames.has(f.name.toLowerCase()))
+            .slice(0, 8)
+            .map((f) => ({
+              name: f.name,
+              brand: f.brand,
+              calories: f.caloriesPer100g,
+              protein: f.proteinPer100g,
+              carbs: f.carbsPer100g,
+              fat: f.fatPer100g,
+              fiber: f.fiberPer100g,
+              servingSize: 100,
+              servingUnit: 'g',
+              source: 'usda' as const,
+              isFromHistory: false,
+              category: 'USDA',
+            }));
+          if (usdaResults.length > 0) {
+            setResults((prev) => {
+              const combined = [...prev, ...usdaResults];
+              return combined.slice(0, MAX_RESULTS + 5);
+            });
+          }
+        }).catch(() => {});
+      }
     },
     [profileId]
   );
