@@ -5,6 +5,7 @@ import {
   readSharedFile,
   writeSharedFile,
   deleteFile,
+  revokeSharePermission,
   gatherCoachData,
   createPhotoFolder,
   uploadPhotoToFolder,
@@ -295,12 +296,12 @@ export function useCoach() {
     const rel = relationships.find((r) => r.fileId === fileId);
     try {
       const token = await requireAccessToken();
-      // Delete the entire share folder (contains file + photos)
-      if (rel?.shareFolderId) {
-        await deleteFile(token, rel.shareFolderId);
-      } else {
-        await deleteFile(token, fileId);
+      const targetId = rel?.shareFolderId || fileId;
+      // Revoke the permission FIRST — deleting/trashing a file does not revoke active share grants
+      if (rel?.coachEmail) {
+        await revokeSharePermission(token, targetId, rel.coachEmail);
       }
+      await deleteFile(token, targetId);
     } catch { /* still remove locally */ }
     const updated = relationships.filter((r) => r.fileId !== fileId);
     saveRelationships(updated);

@@ -717,6 +717,13 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
                         <div className="flex gap-1">
                           <button
                             onClick={async () => {
+                              // Ensure coach scope — needed to read files created by another user
+                              if (!hasCoachScope()) {
+                                try { await requestCoachAccess(); } catch {
+                                  toast('Drive access required to view client data.', 'error');
+                                  return;
+                                }
+                              }
                               const data = await getClientData(client.fileId);
                               if (data && !data.error) {
                                 setViewingClient({ fileId: client.fileId, data });

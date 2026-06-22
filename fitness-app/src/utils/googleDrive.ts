@@ -256,6 +256,24 @@ export async function deleteFile(token: string, fileId: string): Promise<void> {
   await driveRequest(token, `https://www.googleapis.com/drive/v3/files/${fileId}`, { method: 'DELETE' });
 }
 
+// Immediately revokes a specific user's share permission on a file/folder.
+// Must be called before deleteFile — trashing a file does NOT revoke active share permissions.
+export async function revokeSharePermission(token: string, fileId: string, email: string): Promise<void> {
+  const res = await fetch(
+    `https://www.googleapis.com/drive/v3/files/${fileId}/permissions?fields=permissions(id,emailAddress)`,
+    { headers: { Authorization: `Bearer ${token}` } },
+  );
+  if (!res.ok) return;
+  const data = await res.json();
+  const perm = (data.permissions as { id: string; emailAddress?: string }[] || [])
+    .find((p) => p.emailAddress?.toLowerCase() === email.toLowerCase());
+  if (!perm) return;
+  await fetch(
+    `https://www.googleapis.com/drive/v3/files/${fileId}/permissions/${perm.id}`,
+    { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } },
+  );
+}
+
 // --- Coach photo folder (inside isolated Coach Share folder) ---
 
 let cachedPhotoFolderId: string | null = null;
