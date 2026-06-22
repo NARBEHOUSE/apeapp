@@ -537,14 +537,15 @@ export function ProgramEditor({ program, fitnessGoal, onSave, onClose }: Props) 
     }));
   }, []);
 
-  const addDay = useCallback(() => {
+  const addDay = useCallback((isRest = false) => {
+    const dayNum = editedProgram.days.length + 1;
     const newDay: WorkoutDay = {
       id: crypto.randomUUID(),
-      label: `D${editedProgram.days.length + 1}`,
-      tag: 'CUSTOM',
-      title: `Day ${editedProgram.days.length + 1}`,
-      subtitle: '',
-      accent: getRandomColor(editedProgram.days[editedProgram.days.length - 1]?.accent),
+      label: isRest ? `R` : `D${dayNum}`,
+      tag: isRest ? 'Rest' : 'CUSTOM',
+      title: isRest ? 'Rest Day' : `Day ${dayNum}`,
+      subtitle: isRest ? 'Recovery' : '',
+      accent: isRest ? '#555555' : getRandomColor(editedProgram.days[editedProgram.days.length - 1]?.accent),
       note: '',
       exercises: [],
     };
@@ -780,11 +781,17 @@ export function ProgramEditor({ program, fitnessGoal, onSave, onClose }: Props) 
           </div>
 
           <button
-            onClick={addDay}
+            onClick={() => addDay(false)}
             className="w-full mt-3 py-3 rounded-xl border border-dashed border-border-light text-text-secondary font-medium hover:border-accent-orange/50 hover:text-accent-orange transition-colors flex items-center justify-center gap-2"
           >
             <Plus size={18} />
-            Add Day
+            Add Training Day
+          </button>
+          <button
+            onClick={() => addDay(true)}
+            className="w-full mt-2 py-2.5 rounded-xl border border-dashed border-border-light text-text-muted font-medium hover:border-text-muted/50 transition-colors flex items-center justify-center gap-2 text-sm"
+          >
+            Add Rest Day
           </button>
         </div>
       </div>
