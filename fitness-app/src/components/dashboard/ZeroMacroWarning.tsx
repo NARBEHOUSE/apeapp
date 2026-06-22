@@ -24,6 +24,7 @@ export function ZeroMacroWarning({ profileId }: Props) {
   const [usdaResults, setUsdaResults] = useState<{ name: string; brand?: string; cal: number; p: number; c: number; f: number }[]>([]);
   const [usdaSearching, setUsdaSearching] = useState(false);
   const [builtinMatches, setBuiltinMatches] = useState<{ name: string; cal: number; p: number; c: number; f: number; serving: number }[]>([]);
+  const [autoMatched, setAutoMatched] = useState(false);
 
   const zeroFoods = useMemo(() => foods.filter((f) => f.calories === 0 && f.protein === 0 && f.carbs === 0 && f.fat === 0), [foods]);
 
@@ -37,29 +38,68 @@ export function ZeroMacroWarning({ profileId }: Props) {
     loadFood(zeroFoods[0]);
   };
 
-  const loadFood = (food: SavedFood) => {
+  const loadFood = async (food: SavedFood) => {
     setEditCal(''); setEditP(''); setEditC(''); setEditF('');
     setEditServing(String(food.servingSize || 1)); setEditUnit(food.servingUnit || 'g');
     setUsdaResults([]);
+    setAutoMatched(false);
 
-    // Auto-search built-in DB
     const q = food.name.toLowerCase();
-    const matches = FOOD_DATABASE
-      .filter((f) => {
-        const words = q.split(/\s+/).filter((w) => w.length > 2);
+    const qWords = q.split(/\s+/).filter((w) => w.length > 2);
+
+    // Score built-in matches by word overlap
+    const scored = FOOD_DATABASE
+      .map((f) => {
         const name = f.name.toLowerCase();
-        return words.some((w) => name.includes(w));
+        const nameWords = name.split(/[\s,]+/);
+        const matchCount = qWords.filter((w) => name.includes(w)).length;
+        const exactish = qWords.length > 0 && matchCount >= Math.ceil(qWords.length * 0.6);
+        return { food: f, matchCount, exactish };
       })
-      .slice(0, 5)
-      .map((f) => ({
-        name: f.name,
-        cal: Math.round(f.per100g.calories * f.commonServing.grams / 100),
-        p: Math.round(f.per100g.protein * f.commonServing.grams / 100 * 10) / 10,
-        c: Math.round(f.per100g.carbs * f.commonServing.grams / 100 * 10) / 10,
-        f: Math.round(f.per100g.fat * f.commonServing.grams / 100 * 10) / 10,
-        serving: f.commonServing.grams,
-      }));
+      .filter((s) => s.matchCount > 0)
+      .sort((a, b) => b.matchCount - a.matchCount)
+      .slice(0, 5);
+
+    const matches = scored.map((s) => ({
+      name: s.food.name,
+      cal: Math.round(s.food.per100g.calories * s.food.commonServing.grams / 100),
+      p: Math.round(s.food.per100g.protein * s.food.commonServing.grams / 100 * 10) / 10,
+      c: Math.round(s.food.per100g.carbs * s.food.commonServing.grams / 100 * 10) / 10,
+      f: Math.round(s.food.per100g.fat * s.food.commonServing.grams / 100 * 10) / 10,
+      serving: s.food.commonServing.grams,
+    }));
     setBuiltinMatches(matches);
+
+    // Auto-fill if strong built-in match
+    const bestMatch = scored[0];
+    if (bestMatch && bestMatch.exactish) {
+      const m = matches[0];
+      setEditCal(String(m.cal)); setEditP(String(m.p)); setEditC(String(m.c)); setEditF(String(m.f));
+      setEditServing(String(m.serving)); setEditUnit('g');
+      setAutoMatched(true);
+      return;
+    }
+
+    // No built-in match — try USDA auto-search
+    const apiKey = localStorage.getItem('fitos-usda-key');
+    if (apiKey) {
+      setUsdaSearching(true);
+      try {
+        const results = await searchUSDA(food.name, apiKey);
+        const mapped = results.slice(0, 5).map((r) => ({
+          name: r.name, brand: r.brand, cal: r.caloriesPer100g, p: r.proteinPer100g, c: r.carbsPer100g, f: r.fatPer100g,
+        }));
+        setUsdaResults(mapped);
+        // Auto-fill from top USDA result
+        if (mapped.length > 0) {
+          const top = mapped[0];
+          setEditCal(String(top.cal)); setEditP(String(top.p)); setEditC(String(top.c)); setEditF(String(top.f));
+          setEditServing('100'); setEditUnit('g');
+          setAutoMatched(true);
+        }
+      } catch { /* ignore */ }
+      setUsdaSearching(false);
+    }
   };
 
   const handleSearchUSDA = async () => {
@@ -149,7 +189,12 @@ export function ZeroMacroWarning({ profileId }: Props) {
         <button onClick={() => setFixing(false)} className="p-1"><X size={14} className="text-text-muted" /></button>
       </div>
 
-      <div className="text-sm font-bold mb-3">{currentFood?.name}</div>
+      <div className="text-sm font-bold mb-1">{currentFood?.name}</div>
+      {autoMatched && (
+        <div className="text-[10px] text-green-500 font-medium mb-2 flex items-center gap-1">
+          <Check size={10} /> Auto-matched — review and hit Save
+        </div>
+      )}
 
       {/* Built-in DB matches */}
       {builtinMatches.length > 0 && (
