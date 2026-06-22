@@ -44,7 +44,7 @@ import { testClaudeKey } from '../utils/claudeVision';
 import {
   exportAllData, downloadJSON, importData, clearAllData,
   exportProgram, importProgram, exportAllPrograms, importProgramsBundle,
-  exportCustomFoods, importCustomFoods, exportCoachUpdate, importCoachUpdate, exportCoachPackage,
+  exportCustomFoods, importCustomFoods,
 } from '../utils/exportImport';
 import { importCSV, importMacroFactorXLSX, getSourceLabel, type ImportResult } from '../utils/csvImport';
 import { getDB } from '../db';
@@ -325,10 +325,6 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
     setActiveTheme(themeId);
   }
 
-  // Coach exchange
-  const [coachName, setCoachName] = useState('');
-  const [coachNotes, setCoachNotes] = useState('');
-  const [coachExportProfile, setCoachExportProfile] = useState(profile.id);
 
   // Reports
   const [reportPeriod, setReportPeriod] = useState<'week' | 'month' | 'custom'>('week');
@@ -2208,120 +2204,6 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
                   </div>
                 </div>
               )}
-            </div>
-
-            {/* Coach Exchange */}
-            <div className="border-t border-border pt-3 space-y-2">
-              <div className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Coach Exchange</div>
-              <p className="text-[11px] text-text-muted">
-                Coaches send program & macro updates to clients. Clients import them without losing their logs.
-              </p>
-
-              {/* Export (Coach sends to client) */}
-              <div className="space-y-2 bg-surface-raised rounded-xl p-3">
-                <div className="text-[10px] font-medium text-text-secondary">Send to Client</div>
-                <input
-                  type="text"
-                  className="input-field text-sm"
-                  placeholder="Your name (coach)"
-                  value={coachName}
-                  onChange={(e) => setCoachName(e.target.value)}
-                />
-                <textarea
-                  className="input-field text-sm resize-none"
-                  rows={2}
-                  placeholder="Notes for client (optional)"
-                  value={coachNotes}
-                  onChange={(e) => setCoachNotes(e.target.value)}
-                />
-                {profiles.length > 1 && (
-                  <select
-                    className="input-field text-sm"
-                    value={coachExportProfile}
-                    onChange={(e) => setCoachExportProfile(e.target.value)}
-                  >
-                    {profiles.map((p) => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
-                    ))}
-                  </select>
-                )}
-
-                {/* Cloud storage tip */}
-                <div className="bg-surface-raised rounded-xl p-3 text-[11px] text-text-muted space-y-1">
-                  <div className="font-medium text-text-secondary">📤 Share with your coach</div>
-                  <div>Upload the exported file to a shared cloud folder:</div>
-                  <div className="space-y-0.5 pt-0.5">
-                    <div>• Google Drive · iCloud Drive · OneDrive · Dropbox</div>
-                  </div>
-                  <div className="pt-1 text-[10px]">
-                    The full package (.zip) includes progress photos. The quick update (.json) is data only.
-                  </div>
-                </div>
-
-                <button
-                  onClick={async () => {
-                    const targetProfile = profiles.find((p) => p.id === coachExportProfile) || profile;
-                    try {
-                      toast('Building package with photos…', 'info');
-                      await exportCoachPackage(targetProfile, coachName || 'Coach', coachNotes);
-                      toast('Coach package exported!', 'success');
-                    } catch { toast('Export failed', 'error'); }
-                  }}
-                  className="btn-primary w-full flex items-center justify-center gap-2 text-sm"
-                >
-                  <Upload size={14} />
-                  Export Full Package (with Photos)
-                </button>
-                <button
-                  onClick={async () => {
-                    const targetProfile = profiles.find((p) => p.id === coachExportProfile) || profile;
-                    try {
-                      const data = await exportCoachUpdate(targetProfile, coachName || 'Coach', coachNotes);
-                      const date = new Date().toISOString().split('T')[0];
-                      await downloadJSON(data, `ape-coach-${targetProfile.name.toLowerCase().replace(/\s+/g, '-')}-${date}.json`);
-                      toast('Coach update exported!', 'success');
-                    } catch { toast('Export failed', 'error'); }
-                  }}
-                  className="btn-secondary w-full flex items-center justify-center gap-2 text-sm"
-                >
-                  <Upload size={14} />
-                  Export Quick Update (data only)
-                </button>
-              </div>
-
-              {/* Import (Client receives from coach) */}
-              <div className="space-y-2 bg-surface-raised rounded-xl p-3">
-                <div className="text-[10px] font-medium text-text-secondary">Receive from Coach</div>
-                <label className="btn-secondary w-full flex items-center justify-center gap-2 cursor-pointer text-sm">
-                  <Download size={14} />
-                  Import Coach Update
-                  <input
-                    type="file"
-                    accept=".json"
-                    className="hidden"
-                    onChange={async (e) => {
-                      const file = e.target.files?.[0];
-                      if (!file) return;
-                      const reader = new FileReader();
-                      reader.onload = async () => {
-                        try {
-                          const result = await importCoachUpdate(
-                            reader.result as string,
-                            onUpdateProfile,
-                            profile
-                          );
-                          const notePreview = result.notes ? result.notes.slice(0, 100) : '';
-                          toast(`Coach update from ${result.coachName} applied. New macros: ${profile.macroTargets.calories}kcal.${notePreview ? ` Notes: ${notePreview}` : ''}`, 'success');
-                        } catch (err) {
-                          toast(err instanceof Error ? err.message : 'Import failed', 'error');
-                        }
-                      };
-                      reader.readAsText(file);
-                      e.target.value = '';
-                    }}
-                  />
-                </label>
-              </div>
             </div>
 
             {/* Danger zone */}
