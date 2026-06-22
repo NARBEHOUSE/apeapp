@@ -33,6 +33,10 @@ export async function getProgram(id: string): Promise<Program | undefined> {
 export async function saveProgram(program: Program): Promise<void> {
   const db = await getDB();
   await db.put('programs', program);
+  // Auto-save all exercises to the custom exercise library
+  const { bulkSaveFromProgram } = await import('./customExercises');
+  const exercises = program.days.flatMap((d) => d.exercises.filter((e) => e.name.trim()).map((e) => ({ name: e.name, muscle: e.muscle || '' })));
+  bulkSaveFromProgram(exercises);
 }
 
 export async function deleteProgram(id: string): Promise<void> {

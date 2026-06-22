@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import type { WorkoutSession, WorkoutDay, SetLog, Exercise, ExerciseLastPerformance, ExerciseFeedback, CardioEntry, Program } from '../../types';
 import { searchExerciseLibrary, getSimilarExercises } from '../../data/exerciseLibrary';
-import { saveCustomExercise, searchCustomExercises } from '../../db/customExercises';
+import { saveCustomExercise, searchCustomExercises, getExerciseVideo, updateExerciseVideo } from '../../db/customExercises';
 import { RestTimer } from './RestTimer';
 import { toast } from '../shared/Toast';
 import { getAllPRs } from '../../db/workouts';
@@ -107,6 +107,8 @@ function ExerciseCard({
   const [deviationNote, setDeviationNote] = useState('');
   const [showNote, setShowNote] = useState(false);
   const [showSwaps, setShowSwaps] = useState(false);
+  const [showVideoInput, setShowVideoInput] = useState(false);
+  const [videoUrl, setVideoUrl] = useState(() => getExerciseVideo(exercise.name) || '');
   const swapSuggestions = useMemo(() => showSwaps ? getSimilarExercises(exercise.name, 5) : [], [showSwaps, exercise.name]);
   const lastSets = lastPerformance?.sets.filter((s) => s.completed);
   const [inputs, setInputs] = useState<SetInput[]>(() =>
@@ -371,13 +373,30 @@ function ExerciseCard({
             </p>
           )}
 
-          {/* Swap suggestions */}
-          <button
-            onClick={() => setShowSwaps(!showSwaps)}
-            className="text-[10px] text-accent-blue font-medium px-0.5"
-          >
-            {showSwaps ? 'Hide alternatives' : 'Similar exercises'}
-          </button>
+          {/* Swap + Video links */}
+          <div className="flex gap-3 flex-wrap">
+            <button onClick={() => setShowSwaps(!showSwaps)} className="text-[10px] text-accent-blue font-medium">
+              {showSwaps ? 'Hide alternatives' : 'Alternatives'}
+            </button>
+            {videoUrl ? (
+              <a href={videoUrl} target="_blank" rel="noopener noreferrer" className="text-[10px] text-accent font-medium">
+                Watch demo
+              </a>
+            ) : (
+              <a href={`https://www.youtube.com/results?search_query=${encodeURIComponent(exercise.name + ' exercise form')}`} target="_blank" rel="noopener noreferrer" className="text-[10px] text-text-muted font-medium">
+                Search YouTube
+              </a>
+            )}
+            <button onClick={() => setShowVideoInput(!showVideoInput)} className="text-[10px] text-text-muted font-medium">
+              {videoUrl ? 'Edit video' : 'Add video'}
+            </button>
+          </div>
+          {showVideoInput && (
+            <div className="flex gap-1">
+              <input type="url" className="input-field text-xs flex-1 py-1" placeholder="Paste YouTube URL..." value={videoUrl} onChange={(e) => setVideoUrl(e.target.value)} />
+              <button onClick={() => { updateExerciseVideo(exercise.name, videoUrl); setShowVideoInput(false); toast('Video saved', 'success'); }} className="bg-accent-blue text-white px-2 rounded-lg text-[10px] font-semibold">Save</button>
+            </div>
+          )}
           {showSwaps && swapSuggestions.length > 0 && (
             <div className="space-y-1 mt-1">
               {swapSuggestions.map((swap) => (
