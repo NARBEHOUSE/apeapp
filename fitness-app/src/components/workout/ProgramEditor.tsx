@@ -775,6 +775,34 @@ export function ProgramEditor({ program, fitnessGoal, onSave, onClose }: Props) 
           </p>
         </div>
 
+        {/* Effort Tracking */}
+        <div>
+          <label className="label mb-1.5 block">Effort Tracking</label>
+          <div className="flex gap-2">
+            {([
+              { value: 'none', label: 'Off' },
+              { value: 'rir', label: 'RIR (Reps in Reserve)' },
+              { value: 'rpe', label: 'RPE (Rate of Perceived Exertion)' },
+            ] as const).map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => updateProgramField({ effortMetric: opt.value })}
+                className={`flex-1 py-2 rounded-lg text-[10px] font-semibold transition-colors ${
+                  (editedProgram.effortMetric || 'none') === opt.value ? 'bg-accent-blue text-white' : 'bg-surface-raised text-text-muted'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+          <p className="text-[10px] text-text-muted mt-1">
+            {editedProgram.effortMetric === 'rir' ? 'RIR: 0 = failure, 3 = could do 3 more reps' :
+             editedProgram.effortMetric === 'rpe' ? 'RPE: 10 = max effort, 7 = moderate' :
+             'Add a per-set effort column to your workout log'}
+          </p>
+        </div>
+
         {/* Days */}
         <div>
           <h3 className="label mb-3">

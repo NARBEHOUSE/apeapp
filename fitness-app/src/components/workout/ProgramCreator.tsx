@@ -225,6 +225,7 @@ export function ProgramCreator({ onSave, onClose }: Props) {
   const [durationWeeks, setDurationWeeks] = useState(8);
   const [daysPerWeek, setDaysPerWeek] = useState(4);
   const [split, setSplit] = useState('');
+  const [effortMetric, setEffortMetric] = useState<'none' | 'rir' | 'rpe'>('none');
 
   // Step 3: Blocks
   const [blocks, setBlocks] = useState<TrainingBlock[]>([]);
@@ -397,6 +398,7 @@ export function ProgramCreator({ onSave, onClose }: Props) {
       blocks: blocks.length > 0 ? blocks : undefined,
       daysPerWeek,
       split,
+      effortMetric: effortMetric !== 'none' ? effortMetric : undefined,
     };
     onSave(program);
   };
@@ -632,6 +634,33 @@ export function ProgramCreator({ onSave, onClose }: Props) {
                 </div>
               </div>
             )}
+
+            {/* Effort Tracking */}
+            <div>
+              <label className="label mb-2 block">Effort Tracking (optional)</label>
+              <div className="flex gap-2">
+                {([
+                  { value: 'none' as const, label: 'Off' },
+                  { value: 'rir' as const, label: 'RIR' },
+                  { value: 'rpe' as const, label: 'RPE' },
+                ]).map((opt) => (
+                  <button
+                    key={opt.value}
+                    onClick={() => setEffortMetric(opt.value)}
+                    className={`flex-1 py-2 rounded-xl text-sm font-medium transition-all ${
+                      effortMetric === opt.value ? 'bg-text-primary text-bg' : 'bg-surface text-text-secondary'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+              <p className="text-[10px] text-text-muted mt-1">
+                {effortMetric === 'rir' ? 'Reps in Reserve: 0 = failure, 3 = could do 3 more' :
+                 effortMetric === 'rpe' ? 'Rate of Perceived Exertion: 10 = max, 7 = moderate' :
+                 'Track how hard each set felt (adds a column per set)'}
+              </p>
+            </div>
           </div>
         )}
 
