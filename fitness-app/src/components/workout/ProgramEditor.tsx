@@ -317,6 +317,7 @@ function DayEditor({
   durationWeeks,
   onUpdateDay,
   onRemoveDay,
+  onDuplicateDay,
   onUpdateExercise,
   onRemoveExercise,
   onAddExercise,
@@ -329,6 +330,7 @@ function DayEditor({
   durationWeeks: number;
   onUpdateDay: (dayId: string, updates: Partial<WorkoutDay>) => void;
   onRemoveDay: (dayId: string) => void;
+  onDuplicateDay: (dayId: string) => void;
   onUpdateExercise: (
     dayId: string,
     exerciseId: string,
@@ -495,14 +497,22 @@ function DayEditor({
             </div>
           </div>
 
-          {/* Remove day */}
-          <button
-            onClick={() => setShowDeleteConfirm(true)}
-            className="w-full btn-danger text-sm"
-          >
-            <Trash2 size={14} className="inline mr-1.5" />
-            Remove Day
-          </button>
+          {/* Duplicate + Remove day */}
+          <div className="flex gap-2">
+            <button
+              onClick={() => onDuplicateDay(day.id)}
+              className="flex-1 btn-secondary text-sm flex items-center justify-center gap-1.5"
+            >
+              <Plus size={14} />
+              Duplicate Day
+            </button>
+            <button
+              onClick={() => setShowDeleteConfirm(true)}
+              className="btn-danger text-sm px-4"
+            >
+              <Trash2 size={14} />
+            </button>
+          </div>
 
           <ConfirmDialog
             open={showDeleteConfirm}
@@ -566,6 +576,20 @@ export function ProgramEditor({ program, fitnessGoal, onSave, onClose }: Props) 
     };
     setEditedProgram((prev) => ({ ...prev, days: [...prev.days, newDay] }));
   }, [editedProgram.days.length]);
+
+  const duplicateDay = useCallback((dayId: string) => {
+    const source = editedProgram.days.find((d) => d.id === dayId);
+    if (!source) return;
+    const newDay: WorkoutDay = {
+      ...source,
+      id: crypto.randomUUID(),
+      label: `D${editedProgram.days.length + 1}`,
+      title: `${source.title} (Copy)`,
+      accent: getRandomColor(source.accent),
+      exercises: source.exercises.map((ex) => ({ ...ex, id: crypto.randomUUID() })),
+    };
+    setEditedProgram((prev) => ({ ...prev, days: [...prev.days, newDay] }));
+  }, [editedProgram.days]);
 
   const updateExercise = useCallback(
     (dayId: string, exerciseId: string, updates: Partial<Exercise>) => {
@@ -831,6 +855,7 @@ export function ProgramEditor({ program, fitnessGoal, onSave, onClose }: Props) 
                       durationWeeks={editedProgram.suggestedDurationWeeks || 8}
                       onUpdateDay={updateDay}
                       onRemoveDay={removeDay}
+                      onDuplicateDay={duplicateDay}
                       onUpdateExercise={updateExercise}
                       onRemoveExercise={removeExercise}
                       onAddExercise={addExercise}

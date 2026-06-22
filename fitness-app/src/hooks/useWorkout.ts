@@ -5,6 +5,22 @@ import { getAllPrograms, initializePrograms } from '../db/programs';
 import type { Program } from '../types';
 
 const ACTIVE_SESSION_KEY = 'fitos-active-workout';
+const ACTIVE_INPUTS_KEY = 'fitos-active-workout-inputs';
+
+export function saveWorkoutInputs(inputs: Record<string, { weight: string; reps: string; effort: string }[]>) {
+  localStorage.setItem(ACTIVE_INPUTS_KEY, JSON.stringify(inputs));
+}
+
+export function loadWorkoutInputs(): Record<string, { weight: string; reps: string; effort: string }[]> | null {
+  try {
+    const raw = localStorage.getItem(ACTIVE_INPUTS_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+
+export function clearWorkoutInputs() {
+  localStorage.removeItem(ACTIVE_INPUTS_KEY);
+}
 
 function loadPersistedSession(): WorkoutSession | null {
   try {
@@ -105,11 +121,13 @@ export function useWorkout(profileId: string | null) {
     await saveWorkoutSession(finished);
     setSessions((prev) => [finished, ...prev]);
     setActiveSession(null);
+    clearWorkoutInputs();
     return finished;
   }, [activeSession]);
 
   const cancelWorkout = useCallback(() => {
     setActiveSession(null);
+    clearWorkoutInputs();
   }, []);
 
   const removeSession = useCallback(async (sessionId: string) => {

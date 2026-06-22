@@ -20,6 +20,7 @@ import { VoiceMicButton } from '../shared/VoiceMicButton';
 import { VoiceConfirmationCard } from '../shared/VoiceConfirmationCard';
 import { toast } from '../shared/Toast';
 import { getAllPRs } from '../../db/workouts';
+import { saveWorkoutInputs, loadWorkoutInputs } from '../../hooks/useWorkout';
 import { useVoiceMode } from '../../hooks/useVoiceMode';
 import { getDashboardConfig } from '../../utils/dashboardConfig';
 import {
@@ -128,6 +129,9 @@ function ExerciseCard({
   const scheme = exercise.setScheme;
 
   const [inputs, setInputs] = useState<SetInput[]>(() => {
+    // Try to restore persisted inputs first
+    const persisted = loadWorkoutInputs();
+    if (persisted?.[exercise.id]) return persisted[exercise.id];
     const totalSets = scheme?.type === 'top_set_backoff' ? 1 + (scheme.backoffSets || 2)
       : scheme?.type === 'pyramid' || scheme?.type === 'reverse_pyramid' ? scheme.pyramidReps?.length || exercise.sets
       : scheme?.type === 'to_failure' ? scheme.failureSets || exercise.sets
@@ -177,6 +181,13 @@ function ExerciseCard({
   useEffect(() => {
     if (allDone) setCollapsed(true);
   }, [allDone]);
+
+  // Persist inputs on change
+  useEffect(() => {
+    const current = loadWorkoutInputs() || {};
+    current[exercise.id] = inputs;
+    saveWorkoutInputs(current);
+  }, [inputs, exercise.id]);
 
   const handleInputChange = (
     setIndex: number,
