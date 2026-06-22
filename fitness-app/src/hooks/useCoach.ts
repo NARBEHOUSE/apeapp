@@ -309,20 +309,31 @@ export function useCoach() {
 
   const getClientData = useCallback(async (fileId: string) => {
     let token = getAccessToken();
-    if (!token) token = await requireAccessToken();
+    if (!token) {
+      try { token = await requireAccessToken(); } catch {
+        console.error('Could not get Google token');
+        return { error: 'Not signed in to Google. Sign in first.' };
+      }
+    }
     try {
       const raw = await readSharedFile(token, fileId);
       return JSON.parse(raw);
     } catch (err: unknown) {
       if (err instanceof Error && err.message.includes('TOKEN_EXPIRED')) {
-        token = await requireAccessToken();
         try {
+          token = await requireAccessToken();
           const raw = await readSharedFile(token, fileId);
           return JSON.parse(raw);
-        } catch { return null; }
+        } catch (retryErr) {
+          console.error('Retry failed:', retryErr);
+          return { error: 'Token expired and refresh failed. Try signing out and back in.' };
+        }
       }
-      console.error('Failed to read client data:', err);
-      return null;
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error('Failed to read client data:', msg);
+      if (msg.includes('404')) return { error: 'Client file not found. They may not have synced yet.' };
+      if (msg.includes('403')) return { error: 'Permission denied. The client needs to share their data with you.' };
+      return { error: `Failed to load: ${msg}` };
     }
   }, []);
 

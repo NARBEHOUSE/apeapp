@@ -718,11 +718,11 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
                           <button
                             onClick={async () => {
                               const data = await getClientData(client.fileId);
-                              if (data) {
+                              if (data && !data.error) {
                                 setViewingClient({ fileId: client.fileId, data });
                                 backupClientData(client.fileId, client.clientName || 'Client');
                               } else {
-                                toast('Could not load client data', 'error');
+                                toast(data?.error || 'Could not load client data', 'error');
                               }
                             }}
                             className="px-2.5 py-1 rounded-lg text-[10px] font-medium bg-accent-blue/10 text-accent-blue"
