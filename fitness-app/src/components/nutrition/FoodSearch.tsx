@@ -192,6 +192,47 @@ export function FoodSearch({ onAdd, onClose, profileId, defaultTab }: FoodSearch
     }
   }
 
+  // Scanner state — must be before any early returns to satisfy rules of hooks
+  const [showScanner, setShowScanner] = useState(defaultTab === 'barcode');
+  const scannerRef = useRef<HTMLDivElement>(null);
+  const html5QrRef = useRef<unknown>(null);
+
+  const startScanner = async () => {
+    setShowScanner(true);
+    await new Promise((r) => setTimeout(r, 150));
+    try {
+      const { Html5Qrcode } = await import('html5-qrcode');
+      const scannerId = 'barcode-scanner-region';
+      if (scannerRef.current) {
+        scannerRef.current.id = scannerId;
+        scannerRef.current.innerHTML = '';
+      }
+      const scanner = new Html5Qrcode(scannerId);
+      html5QrRef.current = scanner;
+      await scanner.start(
+        { facingMode: 'environment' },
+        { fps: 10, qrbox: { width: 260, height: 100 }, aspectRatio: 1.0 },
+        (decodedText) => {
+          scanner.stop().catch(() => {});
+          setShowScanner(false);
+          handleBarcodeLookup(decodedText);
+        },
+        () => {},
+      );
+    } catch (err) {
+      console.error('Scanner error:', err);
+      setShowScanner(false);
+    }
+  };
+
+  const stopScanner = useCallback(() => {
+    const scanner = html5QrRef.current as { stop: () => Promise<void> } | null;
+    if (scanner) scanner.stop().catch(() => {});
+    setShowScanner(false);
+  }, []);
+
+  useEffect(() => { return () => { stopScanner(); }; }, [stopScanner]);
+
   function handleAdd() {
     if (!selected) return;
     const sz = parseFloat(servingSize) || selected.servingSize;
@@ -305,46 +346,6 @@ export function FoodSearch({ onAdd, onClose, profileId, defaultTab }: FoodSearch
       </div>
     );
   }
-
-  const [showScanner, setShowScanner] = useState(defaultTab === 'barcode');
-  const scannerRef = useRef<HTMLDivElement>(null);
-  const html5QrRef = useRef<unknown>(null);
-
-  const startScanner = async () => {
-    setShowScanner(true);
-    await new Promise((r) => setTimeout(r, 150));
-    try {
-      const { Html5Qrcode } = await import('html5-qrcode');
-      const scannerId = 'barcode-scanner-region';
-      if (scannerRef.current) {
-        scannerRef.current.id = scannerId;
-        scannerRef.current.innerHTML = '';
-      }
-      const scanner = new Html5Qrcode(scannerId);
-      html5QrRef.current = scanner;
-      await scanner.start(
-        { facingMode: 'environment' },
-        { fps: 10, qrbox: { width: 260, height: 100 }, aspectRatio: 1.0 },
-        (decodedText) => {
-          scanner.stop().catch(() => {});
-          setShowScanner(false);
-          handleBarcodeLookup(decodedText);
-        },
-        () => {},
-      );
-    } catch (err) {
-      console.error('Scanner error:', err);
-      setShowScanner(false);
-    }
-  };
-
-  const stopScanner = () => {
-    const scanner = html5QrRef.current as { stop: () => Promise<void> } | null;
-    if (scanner) scanner.stop().catch(() => {});
-    setShowScanner(false);
-  };
-
-  useEffect(() => { return () => { stopScanner(); }; }, []);
 
   return (
     <div className="space-y-3">
