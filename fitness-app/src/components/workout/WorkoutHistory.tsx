@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { ChevronDown, ChevronUp, Calendar, TrendingUp, BarChart3, Share2, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, Calendar, TrendingUp, BarChart3, Share2, Trash2, Pencil, Check } from 'lucide-react';
 import {
   BarChart,
   Bar,
@@ -19,19 +19,24 @@ interface Props {
   sessions: WorkoutSession[];
   programs: Program[];
   onDeleteSession?: (sessionId: string) => void;
+  onUpdateSession?: (session: WorkoutSession) => void;
 }
 
 function SessionCard({
   session,
   program,
   onDelete,
+  onUpdate,
 }: {
   session: WorkoutSession;
   program: Program | undefined;
   onDelete?: (sessionId: string) => void;
+  onUpdate?: (session: WorkoutSession) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editSets, setEditSets] = useState<Record<string, { weight: string; reps: string }[]>>({});
 
   const day = program?.days.find((d) => d.id === session.dayId);
   const totalSets = Object.values(session.sets).reduce(
@@ -105,16 +110,38 @@ function SessionCard({
                 <p className="text-xs font-semibold text-text-secondary mb-1">
                   {exercise?.name || exerciseId}
                 </p>
-                <div className="flex flex-wrap gap-1.5">
-                  {completedSets.map((set, i) => (
-                    <span
-                      key={i}
-                      className="text-xs bg-surface-raised border border-border-light rounded-md px-2 py-1 tabular-nums"
-                    >
-                      {set.weight > 0 ? `${set.weight}x${set.reps}` : `${set.reps} reps`}
-                    </span>
-                  ))}
-                </div>
+                {editing ? (
+                  <div className="flex flex-wrap gap-1.5">
+                    {completedSets.map((set, i) => {
+                      const edits = editSets[exerciseId]?.[i];
+                      return (
+                        <div key={i} className="flex gap-1 items-center">
+                          <input type="text" inputMode="decimal" className="w-12 text-xs text-center bg-surface-raised border border-accent-blue/30 rounded-md px-1 py-1" value={edits?.weight ?? String(set.weight)} onChange={(e) => {
+                            const updated = { ...editSets };
+                            if (!updated[exerciseId]) updated[exerciseId] = completedSets.map((s) => ({ weight: String(s.weight), reps: String(s.reps) }));
+                            updated[exerciseId][i] = { ...updated[exerciseId][i], weight: e.target.value };
+                            setEditSets(updated);
+                          }} />
+                          <span className="text-[10px] text-text-muted">×</span>
+                          <input type="text" inputMode="numeric" className="w-10 text-xs text-center bg-surface-raised border border-accent-blue/30 rounded-md px-1 py-1" value={edits?.reps ?? String(set.reps)} onChange={(e) => {
+                            const updated = { ...editSets };
+                            if (!updated[exerciseId]) updated[exerciseId] = completedSets.map((s) => ({ weight: String(s.weight), reps: String(s.reps) }));
+                            updated[exerciseId][i] = { ...updated[exerciseId][i], reps: e.target.value };
+                            setEditSets(updated);
+                          }} />
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap gap-1.5">
+                    {completedSets.map((set, i) => (
+                      <span key={i} className="text-xs bg-surface-raised border border-border-light rounded-md px-2 py-1 tabular-nums">
+                        {set.weight > 0 ? `${set.weight}x${set.reps}` : `${set.reps} reps`}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             );
           })}
@@ -124,6 +151,39 @@ function SessionCard({
           )}
 
           <div className="flex gap-2 mt-2">
+            {onUpdate && (
+              editing ? (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const updatedSets = { ...session.sets };
+                    for (const [exId, edits] of Object.entries(editSets)) {
+                      const original = updatedSets[exId] || [];
+                      let editIdx = 0;
+                      updatedSets[exId] = original.map((s) => {
+                        if (!s.completed) return s;
+                        const edit = edits[editIdx++];
+                        if (!edit) return s;
+                        return { ...s, weight: parseFloat(edit.weight) || s.weight, reps: parseInt(edit.reps) || s.reps };
+                      });
+                    }
+                    onUpdate({ ...session, sets: updatedSets });
+                    setEditing(false);
+                    setEditSets({});
+                  }}
+                  className="flex-1 py-2 rounded-lg bg-accent-blue text-white text-xs font-semibold flex items-center justify-center gap-1.5 active:scale-[0.98] transition-transform"
+                >
+                  <Check size={12} /> Save Changes
+                </button>
+              ) : (
+                <button
+                  onClick={(e) => { e.stopPropagation(); setEditing(true); setEditSets({}); }}
+                  className="py-2 px-3 rounded-lg bg-surface-raised border border-border-light text-xs font-medium text-text-secondary flex items-center justify-center gap-1.5 active:scale-[0.98] transition-transform"
+                >
+                  <Pencil size={12} /> Edit
+                </button>
+              )
+            )}
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -205,7 +265,7 @@ const StrengthTooltip = ({
   );
 };
 
-export function WorkoutHistory({ sessions, programs, onDeleteSession }: Props) {
+export function WorkoutHistory({ sessions, programs, onDeleteSession, onUpdateSession }: Props) {
   const [activeTab, setActiveTab] = useState<'history' | 'volume' | 'strength'>(
     'history'
   );
@@ -312,6 +372,7 @@ export function WorkoutHistory({ sessions, programs, onDeleteSession }: Props) {
               session={session}
               program={programMap[session.programId]}
               onDelete={onDeleteSession}
+              onUpdate={onUpdateSession}
             />
           ))}
         </div>

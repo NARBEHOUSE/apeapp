@@ -676,6 +676,14 @@ export function ActiveWorkout({
 
   const handleComplete = useCallback(
     (exerciseId: string, weight: number, reps: number, rir?: number, rpe?: number) => {
+      // Check if this set already exists (was unchecked then re-checked)
+      const existingSets = session.sets[exerciseId] || [];
+      const uncheckedIdx = existingSets.findIndex((s, i) => !s.completed && i < (existingSets.length));
+      if (uncheckedIdx >= 0) {
+        onUpdateSet(exerciseId, uncheckedIdx, { weight, reps, completed: true, timestamp: Date.now(), rir, rpe });
+        return;
+      }
+
       const setLog: SetLog = {
         weight,
         reps,

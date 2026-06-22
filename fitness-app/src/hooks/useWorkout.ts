@@ -117,6 +117,11 @@ export function useWorkout(profileId: string | null) {
     setSessions((prev) => prev.filter((s) => s.id !== sessionId));
   }, []);
 
+  const updateSession = useCallback(async (session: WorkoutSession) => {
+    await saveWorkoutSession(session);
+    setSessions((prev) => prev.map((s) => s.id === session.id ? session : s));
+  }, []);
+
   const getPreviousSession = useCallback(
     (programId: string, dayId: string): WorkoutSession | undefined => {
       return sessions.find((s) => s.programId === programId && s.dayId === dayId);
@@ -172,6 +177,7 @@ export function useWorkout(profileId: string | null) {
     finishWorkout,
     cancelWorkout,
     removeSession,
+    updateSession,
     getPreviousSession,
     getLastPerformanceMap,
     refreshPrograms: loadData,
