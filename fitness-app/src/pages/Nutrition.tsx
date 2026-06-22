@@ -187,7 +187,7 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
   const location = useLocation();
   const {
     entries, selectedDate, setSelectedDate, loading,
-    addEntry, deleteEntry, updateEntry, updateEntryTime, toggleFavorite, getTodayTotals,
+    addEntry, deleteEntry, updateEntry, updateEntryTime, toggleFavorite, getTodayTotals, refreshEntries,
   } = useNutrition(profile.id);
 
   useEffect(() => {
@@ -753,8 +753,8 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
                                 </div>
                                 <div className="flex gap-2">
                                   <button onClick={() => { setEditingFood(null); setUsdaFoodResults([]); setEditFoodQuery(''); }} className="btn-secondary flex-1 text-xs">Cancel</button>
-                                  <button onClick={() => {
-                                    updateSavedFood(profile.id, food.name, {
+                                  <button onClick={async () => {
+                                    await updateSavedFood(profile.id, food.name, {
                                       calories: parseFloat(editFoodCal) || 0, protein: parseFloat(editFoodP) || 0,
                                       carbs: parseFloat(editFoodC) || 0, fat: parseFloat(editFoodF) || 0,
                                       fiber: parseFloat(editFoodFiber) || undefined,
@@ -768,7 +768,8 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
                                     setEditingFood(null);
                                     setUsdaFoodResults([]);
                                     setEditFoodQuery('');
-                                    toast('Food updated!', 'success');
+                                    await refreshEntries();
+                                    toast('Food updated! All tracked entries synced.', 'success');
                                   }} className="btn-primary flex-1 text-xs">Save</button>
                                 </div>
                               </div>

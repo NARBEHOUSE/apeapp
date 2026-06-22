@@ -137,5 +137,6 @@ export function useNutrition(profileId: string | null) {
     copyYesterday,
     getTodayTotals,
     getAllEntries,
+    refreshEntries: loadEntries,
   };
 }

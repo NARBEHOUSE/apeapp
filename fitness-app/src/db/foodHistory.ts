@@ -93,12 +93,36 @@ export function getFrequentFoods(
   return getSavedFoods(profileId).slice(0, limit);
 }
 
-export function updateSavedFood(profileId: string, name: string, updates: Partial<Omit<SavedFood, 'frequency' | 'lastUsed'>>): void {
+export async function updateSavedFood(profileId: string, name: string, updates: Partial<Omit<SavedFood, 'frequency' | 'lastUsed'>>): Promise<void> {
   const foods = loadFoods(profileId);
   const idx = foods.findIndex((f) => f.name.toLowerCase() === name.toLowerCase());
   if (idx >= 0) {
     foods[idx] = { ...foods[idx], ...updates };
     persistFoods(profileId, foods);
+
+    // Retroactive update: sync all tracked food entries with updated macros
+    const updatedFood = foods[idx];
+    const hasMacroChange = updates.calories != null || updates.protein != null || updates.carbs != null || updates.fat != null || updates.fiber !== undefined || updates.servingSize != null;
+    if (hasMacroChange) {
+      const { getDB } = await import('./index');
+      const db = await getDB();
+      const allEntries = await db.getAllFromIndex('foodEntries', 'by-profile', profileId);
+      const nameLower = name.toLowerCase();
+      for (const entry of allEntries) {
+        if (entry.name.toLowerCase() !== nameLower) continue;
+        const baseServing = updatedFood.servingSize || 1;
+        const entryServing = entry.servingSize || baseServing;
+        const factor = entryServing / baseServing;
+        await db.put('foodEntries', {
+          ...entry,
+          calories: Math.round(updatedFood.calories * factor),
+          protein: Math.round(updatedFood.protein * factor * 10) / 10,
+          carbs: Math.round(updatedFood.carbs * factor * 10) / 10,
+          fat: Math.round(updatedFood.fat * factor * 10) / 10,
+          fiber: updatedFood.fiber ? Math.round(updatedFood.fiber * factor * 10) / 10 : entry.fiber,
+        });
+      }
+    }
   }
 }
 
