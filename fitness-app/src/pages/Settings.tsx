@@ -65,8 +65,11 @@ import {
   GOAL_DESCRIPTIONS,
   type AutoAdjustResult,
 } from '../utils/tdee';
-import { getMeasurementsByProfile } from '../db/progress';
+import { getMeasurementsByProfile, deleteMeasurement } from '../db/progress';
 import { getAllPrograms } from '../db/programs';
+import { deleteWorkoutSession, getSessionsByProfile } from '../db/workouts';
+import { deleteFoodEntry, getFoodEntriesByProfile } from '../db/nutrition';
+import { deleteStepEntry, getStepsByProfile } from '../db/steps';
 import { ConfirmDialog } from '../components/shared/ConfirmDialog';
 import { Modal } from '../components/shared/Modal';
 import { ImageCropper } from '../components/shared/ImageCropper';
@@ -146,9 +149,11 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
   const editAge = editBirthday ? Math.floor((Date.now() - new Date(editBirthday + 'T00:00:00').getTime()) / (365.25 * 86400000)) : (existingStats?.age || 0);
   const [editFeet, setEditFeet] = useState(String(existingHeight.feet || ''));
   const [editInches, setEditInches] = useState(String(existingHeight.inches || ''));
-  const [editWeight, setEditWeight] = useState(
-    existingStats ? String(Math.round(kgToLbs(existingStats.weightKg))) : ''
-  );
+  const [editWeight, setEditWeight] = useState(() => {
+    if (profile.lastKnownWeight) return String(Math.round(profile.lastKnownWeight));
+    if (existingStats?.weightKg) return String(Math.round(kgToLbs(existingStats.weightKg)));
+    return '';
+  });
   const [editBodyFatPercent, setEditBodyFatPercent] = useState(
     existingStats?.bodyFatPercent != null ? String(existingStats.bodyFatPercent) : ''
   );
@@ -241,6 +246,100 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
   const [csvImportResult, setCsvImportResult] = useState<ImportResult | null>(null);
   const [xlsxImportResults, setXlsxImportResults] = useState<ImportResult[] | null>(null);
   const [csvImporting, setCsvImporting] = useState(false);
+
+  // Delete by date range
+  const today = new Date().toISOString().split('T')[0];
+  const [showDataCleaner, setShowDataCleaner] = useState(false);
+  const [dataCleanFrom, setDataCleanFrom] = useState(today);
+  const [dataCleanTo, setDataCleanTo] = useState(today);
+  const [dataCleanTypes, setDataCleanTypes] = useState<Record<string, boolean>>({
+    workouts: true, nutrition: true, steps: true, measurements: false, checkIns: false,
+  });
+  const [dataCleanPreview, setDataCleanPreview] = useState<Record<string, number> | null>(null);
+  const [dataCleanLoading, setDataCleanLoading] = useState(false);
+  const [dataCleanConfirm, setDataCleanConfirm] = useState(false);
+
+  const previewDataRange = useCallback(async () => {
+    setDataCleanLoading(true);
+    try {
+      const db = await getDB();
+      const from = dataCleanFrom; const to = dataCleanTo;
+      const preview: Record<string, number> = {};
+      if (dataCleanTypes.workouts) {
+        const all = await getSessionsByProfile(profile.id);
+        preview.workouts = all.filter((s) => s.date >= from && s.date <= to).length;
+      }
+      if (dataCleanTypes.nutrition) {
+        const all = await getFoodEntriesByProfile(profile.id);
+        preview.nutrition = all.filter((e) => e.date >= from && e.date <= to).length;
+      }
+      if (dataCleanTypes.steps) {
+        const all = await getStepsByProfile(profile.id);
+        preview.steps = all.filter((s) => s.date >= from && s.date <= to).length;
+      }
+      if (dataCleanTypes.measurements) {
+        const all = await getMeasurementsByProfile(profile.id);
+        preview.measurements = all.filter((m) => m.date >= from && m.date <= to).length;
+      }
+      if (dataCleanTypes.checkIns) {
+        const all = await db.getAllFromIndex('checkIns', 'by-profile', profile.id) as { id: string; date: string }[];
+        preview.checkIns = all.filter((c) => c.date >= from && c.date <= to).length;
+      }
+      setDataCleanPreview(preview);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setDataCleanLoading(false);
+    }
+  }, [dataCleanFrom, dataCleanTo, dataCleanTypes, profile.id]);
+
+  const executeDataRangeDelete = useCallback(async () => {
+    setDataCleanLoading(true);
+    try {
+      const db = await getDB();
+      const from = dataCleanFrom; const to = dataCleanTo;
+      let total = 0;
+      if (dataCleanTypes.workouts) {
+        const all = await getSessionsByProfile(profile.id);
+        const toDelete = all.filter((s) => s.date >= from && s.date <= to);
+        for (const s of toDelete) await deleteWorkoutSession(s.id);
+        total += toDelete.length;
+      }
+      if (dataCleanTypes.nutrition) {
+        const all = await getFoodEntriesByProfile(profile.id);
+        const toDelete = all.filter((e) => e.date >= from && e.date <= to);
+        for (const e of toDelete) await deleteFoodEntry(e.id);
+        total += toDelete.length;
+      }
+      if (dataCleanTypes.steps) {
+        const all = await getStepsByProfile(profile.id);
+        const toDelete = all.filter((s) => s.date >= from && s.date <= to);
+        for (const s of toDelete) await deleteStepEntry(s.id);
+        total += toDelete.length;
+      }
+      if (dataCleanTypes.measurements) {
+        const all = await getMeasurementsByProfile(profile.id);
+        const toDelete = all.filter((m) => m.date >= from && m.date <= to);
+        for (const m of toDelete) await deleteMeasurement(m.id);
+        total += toDelete.length;
+      }
+      if (dataCleanTypes.checkIns) {
+        const all = await db.getAllFromIndex('checkIns', 'by-profile', profile.id) as { id: string; date: string }[];
+        const toDelete = all.filter((c) => c.date >= from && c.date <= to);
+        for (const c of toDelete) await db.delete('checkIns', c.id);
+        total += toDelete.length;
+      }
+      toast(`Deleted ${total} entries from ${from} to ${to}`, 'success');
+      setShowDataCleaner(false);
+      setDataCleanPreview(null);
+      setDataCleanConfirm(false);
+    } catch (e) {
+      toast('Delete failed', 'error');
+      console.error(e);
+    } finally {
+      setDataCleanLoading(false);
+    }
+  }, [dataCleanFrom, dataCleanTo, dataCleanTypes, profile.id]);
 
   interface ImportHistoryEntry {
     id: string;
@@ -481,6 +580,7 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
       bodyStats,
       tdee,
       fiberTarget: parseInt(editFiberTarget) || 30,
+      lastKnownWeight: weightNum || profile.lastKnownWeight,
     });
     toast('Settings saved', 'success');
   };
@@ -2201,6 +2301,107 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
                         </div>
                       </div>
                     ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Delete by date range */}
+            <div className="border-t border-border pt-3 space-y-2">
+              <div className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Delete Entries by Date</div>
+              <p className="text-[11px] text-text-muted">
+                Remove specific data entries from a date or date range. Useful for fixing bad imports.
+              </p>
+              {!showDataCleaner ? (
+                <button
+                  onClick={() => setShowDataCleaner(true)}
+                  className="btn-secondary w-full flex items-center justify-center gap-2"
+                >
+                  <Trash2 size={14} />
+                  Delete Entries by Date
+                </button>
+              ) : (
+                <div className="rounded-xl border border-border bg-surface-raised p-3 space-y-3">
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <label className="text-[10px] text-text-muted font-semibold block mb-1">From</label>
+                      <input
+                        type="date"
+                        value={dataCleanFrom}
+                        onChange={(e) => { setDataCleanFrom(e.target.value); setDataCleanPreview(null); setDataCleanConfirm(false); }}
+                        className="input-field text-xs py-1.5 w-full"
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <label className="text-[10px] text-text-muted font-semibold block mb-1">To</label>
+                      <input
+                        type="date"
+                        value={dataCleanTo}
+                        onChange={(e) => { setDataCleanTo(e.target.value); setDataCleanPreview(null); setDataCleanConfirm(false); }}
+                        className="input-field text-xs py-1.5 w-full"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <div className="text-[10px] text-text-muted font-semibold">Data types to delete:</div>
+                    {([['workouts', 'Workouts'], ['nutrition', 'Nutrition entries'], ['steps', 'Steps'], ['measurements', 'Measurements / Weight'], ['checkIns', 'Check-ins']] as [string, string][]).map(([key, label]) => (
+                      <label key={key} className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={dataCleanTypes[key]}
+                          onChange={(e) => { setDataCleanTypes((prev) => ({ ...prev, [key]: e.target.checked })); setDataCleanPreview(null); setDataCleanConfirm(false); }}
+                          className="rounded"
+                        />
+                        <span className="text-xs">{label}</span>
+                      </label>
+                    ))}
+                  </div>
+                  {dataCleanPreview && (
+                    <div className="rounded-lg bg-surface border border-border-light p-2.5 space-y-1">
+                      <div className="text-[10px] font-semibold text-text-secondary">Preview — entries that will be deleted:</div>
+                      {Object.entries(dataCleanPreview).map(([key, count]) => (
+                        <div key={key} className="flex justify-between text-[11px]">
+                          <span className="capitalize text-text-secondary">{key === 'checkIns' ? 'Check-ins' : key.charAt(0).toUpperCase() + key.slice(1)}</span>
+                          <span className={count > 0 ? 'font-semibold text-danger' : 'text-text-muted'}>{count} {count === 1 ? 'entry' : 'entries'}</span>
+                        </div>
+                      ))}
+                      {Object.values(dataCleanPreview).every((n) => n === 0) && (
+                        <div className="text-[11px] text-text-muted">No entries found in this range.</div>
+                      )}
+                    </div>
+                  )}
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => { setShowDataCleaner(false); setDataCleanPreview(null); setDataCleanConfirm(false); }}
+                      className="flex-1 py-2 text-xs font-semibold rounded-lg bg-surface border border-border text-text-secondary"
+                    >
+                      Cancel
+                    </button>
+                    {!dataCleanPreview ? (
+                      <button
+                        onClick={previewDataRange}
+                        disabled={dataCleanLoading || !Object.values(dataCleanTypes).some(Boolean)}
+                        className="flex-1 py-2 text-xs font-semibold rounded-lg bg-accent-blue text-white disabled:opacity-50"
+                      >
+                        {dataCleanLoading ? 'Loading…' : 'Preview'}
+                      </button>
+                    ) : !dataCleanConfirm ? (
+                      <button
+                        onClick={() => setDataCleanConfirm(true)}
+                        disabled={Object.values(dataCleanPreview).every((n) => n === 0)}
+                        className="flex-1 py-2 text-xs font-semibold rounded-lg bg-danger text-white disabled:opacity-40"
+                      >
+                        Delete
+                      </button>
+                    ) : (
+                      <button
+                        onClick={executeDataRangeDelete}
+                        disabled={dataCleanLoading}
+                        className="flex-1 py-2 text-xs font-bold rounded-lg bg-danger text-white disabled:opacity-50 animate-pulse"
+                      >
+                        {dataCleanLoading ? 'Deleting…' : 'Confirm Delete'}
+                      </button>
+                    )}
                   </div>
                 </div>
               )}
