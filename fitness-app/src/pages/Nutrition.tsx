@@ -211,6 +211,8 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
   const [editFoodUnit, setEditFoodUnit] = useState('g');
   const [editFoodFiber, setEditFoodFiber] = useState('');
   const [editFoodQuery, setEditFoodQuery] = useState('');
+  const [editFoodBarcode, setEditFoodBarcode] = useState('');
+  const [editFoodBrand, setEditFoodBrand] = useState('');
   const [usdaFoodResults, setUsdaFoodResults] = useState<{ name: string; brand?: string; cal: number; p: number; c: number; f: number; fiber: number; source: string }[]>([]);
   const [usdaFoodSearching, setUsdaFoodSearching] = useState(false);
   const [editingRecipe, setEditingRecipe] = useState<Recipe | null>(null);
@@ -721,16 +723,29 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
                                   </div>
                                 )}
 
+                                {/* Macros */}
                                 <div className="grid grid-cols-5 gap-1">
-                                  <div><label className="text-[8px] text-text-muted">Cal</label><input type="number" inputMode="decimal" className="input-field text-xs w-full py-1" value={editFoodCal} onChange={(e) => setEditFoodCal(e.target.value)} /></div>
-                                  <div><label className="text-[8px] text-text-muted">Prot</label><input type="number" inputMode="decimal" className="input-field text-xs w-full py-1" value={editFoodP} onChange={(e) => setEditFoodP(e.target.value)} /></div>
-                                  <div><label className="text-[8px] text-text-muted">Carbs</label><input type="number" inputMode="decimal" className="input-field text-xs w-full py-1" value={editFoodC} onChange={(e) => setEditFoodC(e.target.value)} /></div>
-                                  <div><label className="text-[8px] text-text-muted">Fat</label><input type="number" inputMode="decimal" className="input-field text-xs w-full py-1" value={editFoodF} onChange={(e) => setEditFoodF(e.target.value)} /></div>
-                                  <div><label className="text-[8px] text-text-muted">Fiber</label><input type="number" inputMode="decimal" className="input-field text-xs w-full py-1" value={editFoodFiber} onChange={(e) => setEditFoodFiber(e.target.value)} /></div>
+                                  <div><label className="text-[8px] text-text-muted">Cal</label><input type="text" inputMode="decimal" className="input-field text-xs w-full py-1" value={editFoodCal} onChange={(e) => setEditFoodCal(e.target.value)} /></div>
+                                  <div><label className="text-[8px] text-text-muted">Prot</label><input type="text" inputMode="decimal" className="input-field text-xs w-full py-1" value={editFoodP} onChange={(e) => setEditFoodP(e.target.value)} /></div>
+                                  <div><label className="text-[8px] text-text-muted">Carbs</label><input type="text" inputMode="decimal" className="input-field text-xs w-full py-1" value={editFoodC} onChange={(e) => setEditFoodC(e.target.value)} /></div>
+                                  <div><label className="text-[8px] text-text-muted">Fat</label><input type="text" inputMode="decimal" className="input-field text-xs w-full py-1" value={editFoodF} onChange={(e) => setEditFoodF(e.target.value)} /></div>
+                                  <div><label className="text-[8px] text-text-muted">Fiber</label><input type="text" inputMode="decimal" className="input-field text-xs w-full py-1" value={editFoodFiber} onChange={(e) => setEditFoodFiber(e.target.value)} /></div>
                                 </div>
+                                {/* Serving + Brand */}
+                                <div className="grid grid-cols-2 gap-1">
+                                  <div>
+                                    <label className="text-[8px] text-text-muted">Serving (g)</label>
+                                    <input type="text" inputMode="decimal" className="input-field text-xs w-full py-1" value={editFoodServing} onChange={(e) => setEditFoodServing(e.target.value)} />
+                                  </div>
+                                  <div>
+                                    <label className="text-[8px] text-text-muted">Brand</label>
+                                    <input type="text" className="input-field text-xs w-full py-1" placeholder="Optional" value={editFoodBrand} onChange={(e) => setEditFoodBrand(e.target.value)} />
+                                  </div>
+                                </div>
+                                {/* Barcode */}
                                 <div>
-                                  <label className="text-[8px] text-text-muted">Serving size (g)</label>
-                                  <input type="number" inputMode="decimal" className="input-field text-xs w-full py-1" value={editFoodServing} onChange={(e) => setEditFoodServing(e.target.value)} />
+                                  <label className="text-[8px] text-text-muted">Barcode (optional)</label>
+                                  <input type="text" inputMode="numeric" className="input-field text-xs w-full py-1" placeholder="UPC barcode" value={editFoodBarcode} onChange={(e) => setEditFoodBarcode(e.target.value)} />
                                 </div>
                                 <div className="flex gap-2">
                                   <button onClick={() => { setEditingFood(null); setUsdaFoodResults([]); setEditFoodQuery(''); }} className="btn-secondary flex-1 text-xs">Cancel</button>
@@ -741,6 +756,8 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
                                       fiber: parseFloat(editFoodFiber) || undefined,
                                       servingSize: parseFloat(editFoodServing) || 1,
                                       servingUnit: 'g',
+                                      brand: editFoodBrand.trim() || undefined,
+                                      barcode: editFoodBarcode.trim() || undefined,
                                     });
                                     setFoodLibrary(getSavedFoods(profile.id));
                                     setEditingFood(null);
@@ -762,11 +779,16 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
                                 setEditFoodC(String(food.carbs)); setEditFoodF(String(food.fat));
                                 setEditFoodFiber(String(food.fiber || '')); setEditFoodQuery('');
                                 setEditFoodServing(String(food.servingSize || 1)); setEditFoodUnit('g');
+                                setEditFoodBarcode(food.barcode || ''); setEditFoodBrand(food.brand || '');
                                 setUsdaFoodResults([]);
                               }} className="flex-1 min-w-0 text-left">
                                 <div className="text-xs font-medium truncate">{food.name}</div>
+                                {food.brand && <div className="text-[9px] text-text-muted truncate">{food.brand}</div>}
                                 {hasMacros ? (
-                                  <div className="text-[10px] text-text-muted">{food.calories}cal · P{food.protein}g · C{food.carbs}g · F{food.fat}g · {food.servingSize || 1}g</div>
+                                  <div className="text-[10px] text-text-muted">
+                                    {food.calories}cal · P{food.protein}g · C{food.carbs}g · F{food.fat}g · {food.servingSize || 1}g
+                                    {food.barcode && <span className="ml-1 text-[8px] text-green-500">UPC</span>}
+                                  </div>
                                 ) : (
                                   <div className="text-[10px] text-warning">Tap to add macros</div>
                                 )}
