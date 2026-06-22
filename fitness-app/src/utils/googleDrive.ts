@@ -230,6 +230,19 @@ export async function createPhotoFolder(token: string): Promise<string> {
   return folder.id;
 }
 
+export async function findSharedClientFiles(token: string): Promise<{ fileId: string; ownerEmail: string; ownerName: string; modifiedTime: string }[]> {
+  const res = await driveRequest(token,
+    `https://www.googleapis.com/drive/v3/files?q=name='${COACH_FILE_NAME}' and sharedWithMe=true and trashed=false&fields=files(id,owners,modifiedTime)&pageSize=50`
+  );
+  const data = await res.json();
+  return (data.files || []).map((f: any) => ({
+    fileId: f.id,
+    ownerEmail: f.owners?.[0]?.emailAddress || '',
+    ownerName: f.owners?.[0]?.displayName || '',
+    modifiedTime: f.modifiedTime || '',
+  }));
+}
+
 export async function sharePhotoFolderWithCoach(token: string, folderId: string, coachEmail: string): Promise<void> {
   await driveRequest(token, `https://www.googleapis.com/drive/v3/files/${folderId}/permissions?sendNotificationEmail=false`, {
     method: 'POST',

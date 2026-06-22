@@ -10,6 +10,7 @@ import {
   sharePhotoFolderWithCoach,
   uploadPhotoToFolder,
   getOrCreateRootFolder,
+  findSharedClientFiles,
 } from '../utils/googleDrive';
 import { getDB } from '../db';
 import type {
@@ -294,6 +295,20 @@ export function useCoach() {
 
   // --- Coach side ---
 
+  const discoverClients = useCallback(async (): Promise<{ fileId: string; email: string; name: string }[]> => {
+    const token = getAccessToken() || await requireAccessToken();
+    try {
+      const files = await findSharedClientFiles(token);
+      const existingFileIds = new Set(myClients.map((c) => c.fileId));
+      return files
+        .filter((f) => !existingFileIds.has(f.fileId))
+        .map((f) => ({ fileId: f.fileId, email: f.ownerEmail, name: f.ownerName }));
+    } catch (err) {
+      console.error('Failed to discover clients:', err);
+      return [];
+    }
+  }, [myClients]);
+
   const addClient = useCallback((fileId: string, clientName?: string, clientEmail?: string) => {
     const rel: CoachRelationship = { fileId, clientName: clientName || 'Client', clientEmail, role: 'coach', permission: 'full', createdAt: new Date().toISOString() };
     const updated = [...relationships.filter((r) => !(r.role === 'coach' && r.fileId === fileId)), rel];
@@ -427,7 +442,7 @@ export function useCoach() {
     // Client
     shareWithCoach, syncCoachFiles, checkForCoachChanges, finalizeResponses, revokeCoachAccess,
     // Coach
-    addClient, removeClient, getClientData, pushChangesToClient,
+    addClient, removeClient, discoverClients, getClientData, pushChangesToClient,
     checkForClientResponse, acknowledgeClientResponse, backupClientData,
     // Log
     addLogEntry, getLog,

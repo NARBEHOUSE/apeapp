@@ -85,7 +85,7 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
   const {
     myCoachRels, myClients, loading: coachLoading, pendingChanges,
     shareWithCoach, revokeCoachAccess, syncCoachFiles,
-    addClient, removeClient, getClientData, pushChangesToClient,
+    addClient, removeClient, discoverClients, getClientData, pushChangesToClient,
     checkForClientResponse, acknowledgeClientResponse, backupClientData, getLog,
   } = useCoach();
 
@@ -750,36 +750,61 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
                   ))}
                 </div>
               )}
-              <p className="text-[11px] text-text-muted">
-                Enter a client's share code to start coaching them.
-              </p>
-              <div className="flex gap-2">
-                <input
-                  className="input-field text-sm flex-1 font-mono"
-                  placeholder="Client's share code"
-                  value={clientCode}
-                  onChange={(e) => setClientCode(e.target.value)}
-                />
-                <input
-                  className="input-field text-sm w-24"
-                  placeholder="Name"
-                  value={clientName}
-                  onChange={(e) => setClientName(e.target.value)}
-                />
-              </div>
+              {/* Auto-discover clients */}
               <button
-                onClick={() => {
-                  if (!clientCode.trim()) return;
-                  addClient(clientCode.trim(), clientName.trim() || undefined);
-                  toast('Client added', 'success');
-                  setClientCode('');
-                  setClientName('');
+                onClick={async () => {
+                  toast('Searching for clients...', 'info');
+                  const found = await discoverClients();
+                  if (found.length === 0) {
+                    toast('No new clients found. Make sure they shared with your email.', 'info');
+                  } else {
+                    for (const client of found) {
+                      addClient(client.fileId, client.name || client.email, client.email);
+                    }
+                    toast(`Found ${found.length} client${found.length > 1 ? 's' : ''}!`, 'success');
+                  }
                 }}
-                disabled={!clientCode.trim()}
-                className="btn-primary w-full text-sm disabled:opacity-30"
+                className="btn-primary w-full text-sm flex items-center justify-center gap-2"
               >
-                Add Client
+                Find Clients
               </button>
+              <p className="text-[11px] text-text-muted">
+                When a client shares their data with your email, tap "Find Clients" to automatically discover them. No codes needed.
+              </p>
+
+              {/* Manual add fallback */}
+              <details className="text-[11px] text-text-muted">
+                <summary className="cursor-pointer hover:text-text-secondary">Manual add (advanced)</summary>
+                <div className="space-y-2 pt-2">
+                  <div className="flex gap-2">
+                    <input
+                      className="input-field text-sm flex-1 font-mono"
+                      placeholder="Drive file ID"
+                      value={clientCode}
+                      onChange={(e) => setClientCode(e.target.value)}
+                    />
+                    <input
+                      className="input-field text-sm w-24"
+                      placeholder="Name"
+                      value={clientName}
+                      onChange={(e) => setClientName(e.target.value)}
+                    />
+                  </div>
+                  <button
+                    onClick={() => {
+                      if (!clientCode.trim()) return;
+                      addClient(clientCode.trim(), clientName.trim() || undefined);
+                      toast('Client added', 'success');
+                      setClientCode('');
+                      setClientName('');
+                    }}
+                    disabled={!clientCode.trim()}
+                    className="btn-secondary w-full text-sm disabled:opacity-30"
+                  >
+                    Add by File ID
+                  </button>
+                </div>
+              </details>
             </div>
 
             {/* Coach/Client History */}
