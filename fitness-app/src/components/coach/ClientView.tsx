@@ -112,6 +112,27 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
   const CHART_COLORS = ['#e8572a', '#5b6ef5', '#2e9e6b', '#f5a623', '#c44fc4', '#e85757', '#4ecdc4', '#ff6b6b'];
 
   const recentWorkouts = useMemo(() => [...data.workoutSessions].sort((a, b) => b.startTime - a.startTime).slice(0, 20), [data.workoutSessions]);
+
+  // Build fast lookup: exerciseId → name, and dayId → title, from client's programs
+  const exerciseNameMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const prog of data.programs) {
+      for (const day of prog.days) {
+        for (const ex of day.exercises) map[ex.id] = ex.name;
+      }
+    }
+    return map;
+  }, [data.programs]);
+
+  const dayLabelMap = useMemo(() => {
+    const map: Record<string, { programName: string; dayTitle: string }> = {};
+    for (const prog of data.programs) {
+      for (const day of prog.days) {
+        map[day.id] = { programName: prog.name, dayTitle: day.title || day.label || '' };
+      }
+    }
+    return map;
+  }, [data.programs]);
   const today = new Date().toISOString().split('T')[0];
   const todayFood = useMemo(() => data.foodEntries.filter((f) => f.date === today), [data.foodEntries, today]);
   const todayTotals = useMemo(() => todayFood.reduce((acc, f) => ({ calories: acc.calories + f.calories * f.servingsConsumed, protein: acc.protein + f.protein * f.servingsConsumed, carbs: acc.carbs + f.carbs * f.servingsConsumed, fat: acc.fat + f.fat * f.servingsConsumed }), { calories: 0, protein: 0, carbs: 0, fat: 0 }), [todayFood]);
@@ -341,7 +362,59 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
         )}
 
         {/* WORKOUTS */}
-        {tab === 'workouts' && (<>{recentWorkouts.length === 0 ? <p className="text-sm text-text-muted text-center py-8">No workouts</p> : recentWorkouts.map((w) => { const setCount = Object.values(w.sets).reduce((a, s) => a + s.filter((x) => x.completed).length, 0); const dur = w.endTime ? Math.round((w.endTime - w.startTime) / 60000) : null; const isExp = expandedWorkout === w.id; return (<div key={w.id} className="card overflow-hidden"><button onClick={() => setExpandedWorkout(isExp ? null : w.id)} className="w-full p-3 flex items-center justify-between text-left"><div><div className="text-sm font-medium">{w.date}</div><div className="text-xs text-text-muted">{setCount} sets{dur ? ` · ${dur} min` : ''}{w.bodyweight ? ` · ${w.bodyweight} lbs` : ''}</div>{w.cardio && w.cardio.length > 0 && <div className="text-xs text-text-muted mt-0.5 flex items-center gap-1"><Heart size={10} />{w.cardio.map((c) => `${c.type} ${c.durationMin}min`).join(', ')}</div>}</div>{isExp ? <ChevronUp size={14} className="text-text-muted" /> : <ChevronDown size={14} className="text-text-muted" />}</button>{isExp && <div className="px-3 pb-3 space-y-1 border-t border-border pt-2">{Object.entries(w.sets).map(([exId, sets]) => { const completed = sets.filter((s) => s.completed); if (completed.length === 0) return null; return <div key={exId} className="text-xs"><span className="text-text-muted">{completed.map((s) => `${s.weight}×${s.reps}`).join(', ')}</span></div>; })}{w.notes && <div className="text-[10px] text-text-muted italic">{w.notes}</div>}</div>}</div>); })}</>)}
+        {tab === 'workouts' && (
+          <>
+            {recentWorkouts.length === 0 ? (
+              <p className="text-sm text-text-muted text-center py-8">No workouts</p>
+            ) : recentWorkouts.map((w) => {
+              const setCount = Object.values(w.sets).reduce((a, s) => a + s.filter((x) => x.completed).length, 0);
+              const dur = w.endTime ? Math.round((w.endTime - w.startTime) / 60000) : null;
+              const isExp = expandedWorkout === w.id;
+              const dayInfo = dayLabelMap[w.dayId];
+              return (
+                <div key={w.id} className="card overflow-hidden">
+                  <button
+                    onClick={() => setExpandedWorkout(isExp ? null : w.id)}
+                    className="w-full p-3 flex items-center justify-between text-left"
+                  >
+                    <div>
+                      {dayInfo && (
+                        <div className="text-sm font-semibold">{dayInfo.dayTitle || dayInfo.programName}</div>
+                      )}
+                      <div className={dayInfo ? 'text-xs text-text-muted' : 'text-sm font-medium'}>{w.date}</div>
+                      <div className="text-xs text-text-muted">
+                        {setCount} sets{dur ? ` · ${dur} min` : ''}{w.bodyweight ? ` · ${w.bodyweight} lbs` : ''}
+                      </div>
+                      {w.cardio && w.cardio.length > 0 && (
+                        <div className="text-xs text-text-muted mt-0.5 flex items-center gap-1">
+                          <Heart size={10} />
+                          {w.cardio.map((c) => `${c.type} ${c.durationMin}min`).join(', ')}
+                        </div>
+                      )}
+                    </div>
+                    {isExp ? <ChevronUp size={14} className="text-text-muted" /> : <ChevronDown size={14} className="text-text-muted" />}
+                  </button>
+                  {isExp && (
+                    <div className="px-3 pb-3 space-y-1.5 border-t border-border pt-2">
+                      {Object.entries(w.sets).map(([exId, sets]) => {
+                        const completed = sets.filter((s) => s.completed);
+                        if (completed.length === 0) return null;
+                        const name = exerciseNameMap[exId] || exId;
+                        return (
+                          <div key={exId} className="text-xs">
+                            <span className="font-medium text-text-primary">{name}</span>
+                            <span className="text-text-muted ml-1.5">{completed.map((s) => `${s.weight}×${s.reps}`).join(', ')}</span>
+                          </div>
+                        );
+                      })}
+                      {w.notes && <div className="text-[10px] text-text-muted italic mt-1">{w.notes}</div>}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </>
+        )}
 
         {/* NUTRITION */}
         {tab === 'nutrition' && (<><div className="card p-4 space-y-2"><div className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Today</div><div className="text-xl font-bold">{Math.round(todayTotals.calories)} cal</div><div className="flex gap-3 text-xs text-text-secondary"><span>P {Math.round(todayTotals.protein)}g</span><span>C {Math.round(todayTotals.carbs)}g</span><span>F {Math.round(todayTotals.fat)}g</span></div></div>{todayFood.length === 0 ? <p className="text-sm text-text-muted text-center py-4">No food logged today</p> : todayFood.map((f) => (<div key={f.id} className="card p-3 flex items-center justify-between"><div><div className="text-sm font-medium">{f.name}</div><div className="text-xs text-text-muted capitalize">{f.mealType}</div></div><div className="text-right"><div className="text-sm font-medium">{Math.round(f.calories * f.servingsConsumed)} cal</div><div className="text-[10px] text-text-muted">{Math.round(f.protein * f.servingsConsumed)}p · {Math.round(f.carbs * f.servingsConsumed)}c · {Math.round(f.fat * f.servingsConsumed)}f</div></div></div>))}</>)}
