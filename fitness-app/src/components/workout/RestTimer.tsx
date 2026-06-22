@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { X } from 'lucide-react';
 
+const REST_TIMER_KEY = 'fitos-rest-timer';
+
 function playCompletionSound() {
   try {
     const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -21,6 +23,20 @@ function playCompletionSound() {
   } catch {}
 }
 
+function requestNotificationPermission() {
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
+}
+
+function sendRestCompleteNotification() {
+  if ('Notification' in window && Notification.permission === 'granted') {
+    try {
+      new Notification('Rest Complete', { body: 'Time for your next set!', icon: '/icons/icon-192.png', tag: 'rest-timer', requireInteraction: false });
+    } catch {}
+  }
+}
+
 interface Props {
   duration: number;
   onComplete: () => void;
@@ -28,29 +44,45 @@ interface Props {
 }
 
 export function RestTimer({ duration, onComplete, onDismiss }: Props) {
-  const [remaining, setRemaining] = useState(duration);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const completedRef = useRef(false);
+
+  // Persist start time so timer survives minimize/tab switch
+  const [startTime] = useState(() => {
+    const persisted = localStorage.getItem(REST_TIMER_KEY);
+    if (persisted) {
+      const data = JSON.parse(persisted);
+      if (data.duration === duration) return data.startTime;
+    }
+    const now = Date.now();
+    localStorage.setItem(REST_TIMER_KEY, JSON.stringify({ startTime: now, duration }));
+    requestNotificationPermission();
+    return now;
+  });
+
+  const [remaining, setRemaining] = useState(() => {
+    const elapsed = Math.floor((Date.now() - startTime) / 1000);
+    return Math.max(0, duration - elapsed);
+  });
+
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const cleanup = useCallback(() => {
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
     }
+    localStorage.removeItem(REST_TIMER_KEY);
   }, []);
 
   useEffect(() => {
     intervalRef.current = setInterval(() => {
-      setRemaining((prev) => {
-        if (prev <= 1) {
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
+      const elapsed = Math.floor((Date.now() - startTime) / 1000);
+      const r = Math.max(0, duration - elapsed);
+      setRemaining(r);
+    }, 250);
 
-    return cleanup;
-  }, [cleanup]);
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+  }, [startTime, duration]);
 
   useEffect(() => {
     if (remaining <= 0 && !completedRef.current) {
@@ -58,6 +90,7 @@ export function RestTimer({ duration, onComplete, onDismiss }: Props) {
       cleanup();
       playCompletionSound();
       navigator.vibrate?.([50, 100, 50, 100, 50]);
+      sendRestCompleteNotification();
       onComplete();
     }
   }, [remaining, cleanup, onComplete]);
@@ -112,7 +145,7 @@ export function RestTimer({ duration, onComplete, onDismiss }: Props) {
         </div>
 
         <button
-          onClick={onDismiss}
+          onClick={() => { cleanup(); onDismiss(); }}
           className="flex items-center gap-2 px-6 py-3 rounded-xl bg-surface-raised border border-border-light text-text-secondary font-semibold active:scale-95 transition-transform"
         >
           <X size={18} />
