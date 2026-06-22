@@ -154,10 +154,10 @@ export function ProgressionEditor({ exercise, goalType, durationWeeks, onUpdate 
               <div>
                 <label className="text-[9px] text-text-muted mb-0.5 block">+lbs / week</label>
                 <input
-                  type="number"
+                  type="text"
                   inputMode="decimal"
                   className="input-field text-xs py-1.5"
-                  value={prog.weeklyWeightIncrement}
+                  value={prog.weeklyWeightIncrement || ''}
                   onChange={(e) =>
                     onUpdate({
                       progression: { ...prog, weeklyWeightIncrement: parseFloat(e.target.value) || 0 },
@@ -172,10 +172,10 @@ export function ProgressionEditor({ exercise, goalType, durationWeeks, onUpdate 
                   <div>
                     <label className="text-[9px] text-text-muted mb-0.5 block">Rep min</label>
                     <input
-                      type="number"
+                      type="text"
                       inputMode="numeric"
                       className="input-field text-xs py-1.5"
-                      value={prog.repRangeMin}
+                      value={prog.repRangeMin || ''}
                       onChange={(e) =>
                         onUpdate({
                           progression: { ...prog, repRangeMin: parseInt(e.target.value) || 1 },
@@ -187,10 +187,10 @@ export function ProgressionEditor({ exercise, goalType, durationWeeks, onUpdate 
                   <div>
                     <label className="text-[9px] text-text-muted mb-0.5 block">Rep max</label>
                     <input
-                      type="number"
+                      type="text"
                       inputMode="numeric"
                       className="input-field text-xs py-1.5"
-                      value={prog.repRangeMax}
+                      value={prog.repRangeMax || ''}
                       onChange={(e) =>
                         onUpdate({
                           progression: { ...prog, repRangeMax: parseInt(e.target.value) || 1 },
@@ -204,10 +204,10 @@ export function ProgressionEditor({ exercise, goalType, durationWeeks, onUpdate 
                 <div>
                   <label className="text-[9px] text-text-muted mb-0.5 block">Target reps</label>
                   <input
-                    type="number"
+                    type="text"
                     inputMode="numeric"
                     className="input-field text-xs py-1.5"
-                    value={prog.repRangeMin}
+                    value={prog.repRangeMin || ''}
                     onChange={(e) => {
                       const v = parseInt(e.target.value) || 1;
                       onUpdate({
@@ -224,10 +224,10 @@ export function ProgressionEditor({ exercise, goalType, durationWeeks, onUpdate 
               <div>
                 <label className="text-[9px] text-text-muted mb-0.5 block">Deload every (wks)</label>
                 <input
-                  type="number"
+                  type="text"
                   inputMode="numeric"
                   className="input-field text-xs py-1.5"
-                  value={prog.deloadFrequency}
+                  value={prog.deloadFrequency || ''}
                   onChange={(e) =>
                     onUpdate({
                       progression: { ...prog, deloadFrequency: parseInt(e.target.value) || 0 },
@@ -240,10 +240,10 @@ export function ProgressionEditor({ exercise, goalType, durationWeeks, onUpdate 
               <div>
                 <label className="text-[9px] text-text-muted mb-0.5 block">Deload reduce %</label>
                 <input
-                  type="number"
+                  type="text"
                   inputMode="numeric"
                   className="input-field text-xs py-1.5"
-                  value={prog.deloadPercent}
+                  value={prog.deloadPercent || ''}
                   onChange={(e) =>
                     onUpdate({
                       progression: { ...prog, deloadPercent: Math.min(100, parseInt(e.target.value) || 0) },
@@ -312,24 +312,24 @@ export function ProgressionEditor({ exercise, goalType, durationWeeks, onUpdate 
                       {isEditable ? (
                         <>
                           <input
-                            type="number"
+                            type="text"
                             inputMode="numeric"
                             className="input-field text-[10px] py-1 px-1.5 text-center"
-                            value={t.sets}
+                            value={t.sets || ''}
                             onChange={(e) => updateWeek(i, 'sets', parseInt(e.target.value) || 1)}
                           />
                           <input
-                            type="number"
+                            type="text"
                             inputMode="numeric"
                             className="input-field text-[10px] py-1 px-1.5 text-center"
-                            value={t.reps}
+                            value={t.reps || ''}
                             onChange={(e) => updateWeek(i, 'reps', parseInt(e.target.value) || 1)}
                           />
                           <input
-                            type="number"
+                            type="text"
                             inputMode="decimal"
                             className="input-field text-[10px] py-1 px-1.5 text-center"
-                            value={t.weight}
+                            value={t.weight || ''}
                             onChange={(e) => updateWeek(i, 'weight', parseFloat(e.target.value) || 0)}
                             step={2.5}
                           />

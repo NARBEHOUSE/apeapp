@@ -140,7 +140,7 @@ function SortableExercise({
             <div>
               <label className="label mb-1 block">Target Duration (min)</label>
               <input
-                type="number"
+                type="text"
                 inputMode="numeric"
                 className="input-field text-sm"
                 value={exercise.targetDuration ?? ''}
@@ -193,15 +193,16 @@ function SortableExercise({
             <div>
               <label className="label mb-1 block">Sets</label>
               <input
-                type="number"
+                type="text"
                 inputMode="numeric"
                 className="input-field text-sm"
-                value={exercise.sets}
+                value={exercise.sets || ''}
                 onChange={(e) =>
                   onUpdate(exercise.id, {
                     sets: parseInt(e.target.value, 10) || 0,
                   })
                 }
+                placeholder="3"
               />
             </div>
             <div>
@@ -216,7 +217,7 @@ function SortableExercise({
             <div>
               <label className="label mb-1 block">Weight</label>
               <input
-                type="number"
+                type="text"
                 inputMode="decimal"
                 className="input-field text-sm"
                 value={exercise.startingWeight ?? ''}
@@ -263,7 +264,7 @@ function SortableExercise({
           <div>
             <label className="label mb-1 block">Rest Timer Override (seconds)</label>
             <input
-              type="number"
+              type="text"
               inputMode="numeric"
               className="input-field text-sm"
               value={exercise.restTimerOverride ?? ''}
@@ -711,7 +712,7 @@ export function ProgramEditor({ program, fitnessGoal, onSave, onClose }: Props) 
           <div>
             <label className="label mb-1.5 block">Duration (weeks)</label>
             <input
-              type="number"
+              type="text"
               inputMode="numeric"
               className="input-field text-sm"
               value={editedProgram.suggestedDurationWeeks || ''}
@@ -731,7 +732,7 @@ export function ProgramEditor({ program, fitnessGoal, onSave, onClose }: Props) 
         <div>
           <label className="label mb-1.5 block">Default Rest Timer (seconds)</label>
           <input
-            type="number"
+            type="text"
             inputMode="numeric"
             className="input-field text-sm"
             value={editedProgram.defaultRestTimer || ''}
