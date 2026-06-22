@@ -1033,60 +1033,84 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
       </Modal>
 
       <Modal open={modal === 'edit-entry'} onClose={() => { setModal(null); setEditEntryData(null); }} title="Edit Food Entry">
-        {editEntryData && (
+        {editEntryData && (() => {
+          const origServing = editEntryData.servingSize || 1;
+          const origCal = editEntryData.calories;
+          const origP = editEntryData.protein;
+          const origC = editEntryData.carbs;
+          const origF = editEntryData.fat;
+          const origFiber = editEntryData.fiber || 0;
+
+          const newServing = parseFloat(editEntryServing) || origServing;
+          const newQty = parseFloat(editEntryServings) || 1;
+          const scaleFactor = (newServing / origServing) * newQty;
+
+          const scaledCal = Math.round(origCal * scaleFactor);
+          const scaledP = Math.round(origP * scaleFactor * 10) / 10;
+          const scaledC = Math.round(origC * scaleFactor * 10) / 10;
+          const scaledF = Math.round(origF * scaleFactor * 10) / 10;
+          const scaledFiber = Math.round(origFiber * scaleFactor * 10) / 10;
+
+          return (
           <div className="space-y-3">
+            {/* Food name — locked */}
             <div className="flex items-center gap-3 bg-surface rounded-xl p-3">
               <span className="text-lg">{getFoodEmoji(editEntryData.name)}</span>
-              <input
-                className="input-field text-sm flex-1"
-                value={editEntryName}
-                onChange={(e) => setEditEntryName(e.target.value)}
-              />
+              <div className="flex-1">
+                <div className="text-sm font-medium">{editEntryData.name}</div>
+                {editEntryData.brand && <div className="text-[10px] text-text-muted">{editEntryData.brand}</div>}
+              </div>
             </div>
+
+            {/* Base macros — locked, read-only */}
+            <div className="bg-surface-raised rounded-lg px-3 py-2 text-[10px] text-text-muted">
+              Base: {origServing}g = {origCal} cal · P{origP}g · C{origC}g · F{origF}g
+            </div>
+
+            {/* Editable: serving size + quantity */}
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="label mb-1 block">Amount ({editEntryData.servingUnit})</label>
-                <input type="number" inputMode="decimal" className="input-field text-sm" value={editEntryServing} onChange={(e) => setEditEntryServing(e.target.value)} />
+                <label className="label mb-1 block">Your serving (g)</label>
+                <input type="text" inputMode="decimal" className="input-field text-sm" value={editEntryServing} onChange={(e) => setEditEntryServing(e.target.value)} />
               </div>
               <div>
-                <label className="label mb-1 block">Servings</label>
-                <input type="number" inputMode="decimal" className="input-field text-sm" value={editEntryServings} onChange={(e) => setEditEntryServings(e.target.value)} />
+                <label className="label mb-1 block">Quantity</label>
+                <input type="text" inputMode="decimal" className="input-field text-sm" value={editEntryServings} onChange={(e) => setEditEntryServings(e.target.value)} />
               </div>
             </div>
-            <div>
-              <label className="label mb-1 block">Calories</label>
-              <input type="number" inputMode="decimal" className="input-field text-sm" value={editEntryCal} onChange={(e) => setEditEntryCal(e.target.value)} />
+
+            {/* Scaled macros — auto-calculated */}
+            <div className="bg-surface rounded-xl p-3 grid grid-cols-4 gap-2 text-center">
+              <div><div className="text-lg font-bold text-accent-orange">{scaledCal}</div><div className="text-[9px] text-text-muted">kcal</div></div>
+              <div><div className="text-lg font-bold text-accent-blue">{scaledP}g</div><div className="text-[9px] text-text-muted">protein</div></div>
+              <div><div className="text-lg font-bold text-success">{scaledC}g</div><div className="text-[9px] text-text-muted">carbs</div></div>
+              <div><div className="text-lg font-bold text-nutrition">{scaledF}g</div><div className="text-[9px] text-text-muted">fat</div></div>
             </div>
-            <div className="grid grid-cols-4 gap-2">
-              <div>
-                <label className="text-[9px] text-text-muted text-center block mb-0.5">Protein</label>
-                <input type="number" inputMode="decimal" className="input-field text-sm text-center" value={editEntryProtein} onChange={(e) => setEditEntryProtein(e.target.value)} />
-              </div>
-              <div>
-                <label className="text-[9px] text-text-muted text-center block mb-0.5">Carbs</label>
-                <input type="number" inputMode="decimal" className="input-field text-sm text-center" value={editEntryCarbs} onChange={(e) => setEditEntryCarbs(e.target.value)} />
-              </div>
-              <div>
-                <label className="text-[9px] text-text-muted text-center block mb-0.5">Fat</label>
-                <input type="number" inputMode="decimal" className="input-field text-sm text-center" value={editEntryFat} onChange={(e) => setEditEntryFat(e.target.value)} />
-              </div>
-              <div>
-                <label className="text-[9px] text-text-muted text-center block mb-0.5">Fiber</label>
-                <input type="number" inputMode="decimal" className="input-field text-sm text-center" value={editEntryFiber} onChange={(e) => setEditEntryFiber(e.target.value)} />
-              </div>
+
+            <div className="text-[9px] text-accent-blue text-center">
+              Macros scale with serving size · Edit base food in My Foods library
             </div>
-            <div className="bg-surface-raised rounded-lg p-2 text-center text-xs text-text-muted">
-              Total: {Math.round((parseFloat(editEntryCal) || 0) * (parseFloat(editEntryServings) || 1))} cal ·
-              P{Math.round((parseFloat(editEntryProtein) || 0) * (parseFloat(editEntryServings) || 1))}g ·
-              C{Math.round((parseFloat(editEntryCarbs) || 0) * (parseFloat(editEntryServings) || 1))}g ·
-              F{Math.round((parseFloat(editEntryFat) || 0) * (parseFloat(editEntryServings) || 1))}g
-            </div>
+
             <div className="flex gap-2 pt-1">
               <button onClick={() => { setModal(null); setEditEntryData(null); }} className="btn-secondary flex-1 text-sm">Cancel</button>
-              <button onClick={handleSaveEntry} className="btn-primary flex-1 text-sm">Save</button>
+              <button onClick={() => {
+                const factor = newServing / origServing;
+                updateEntry(editEntryData.id, {
+                  servingSize: newServing,
+                  servingsConsumed: newQty,
+                  calories: Math.round(origCal * factor),
+                  protein: Math.round(origP * factor * 10) / 10,
+                  carbs: Math.round(origC * factor * 10) / 10,
+                  fat: Math.round(origF * factor * 10) / 10,
+                  fiber: origFiber > 0 ? Math.round(origFiber * factor * 10) / 10 : undefined,
+                });
+                setModal(null);
+                setEditEntryData(null);
+              }} className="btn-primary flex-1 text-sm">Save</button>
             </div>
           </div>
-        )}
+          );
+        })()}
       </Modal>
 
       <Modal open={modal === 'edit-macros'} onClose={() => setModal(null)} title="Edit Macro Targets">
