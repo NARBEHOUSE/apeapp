@@ -40,7 +40,7 @@ interface ClientData {
 interface Props {
   data: ClientData;
   fileId: string;
-  onPushChanges: (fileId: string, changes: PendingCoachChanges) => Promise<boolean>;
+  onPushChanges: (fileId: string, changes: PendingCoachChanges) => Promise<{ ok: boolean; error?: string }>;
   onCheckClientResponse: (fileId: string) => Promise<PendingClientResponse | null>;
   onAcknowledgeResponse: (fileId: string) => Promise<void>;
   onRefresh: (fileId: string) => Promise<ClientData | null>;
@@ -182,13 +182,13 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
     if (items.length === 0) { toast('No changes to push', 'error'); return; }
 
     setPushing(true);
-    const ok = await onPushChanges(fileId, { items, pushedAt: new Date().toISOString(), coachEmail });
+    const result = await onPushChanges(fileId, { items, pushedAt: new Date().toISOString(), coachEmail });
     setPushing(false);
-    if (ok) {
+    if (result.ok) {
       toast(`${items.length} change${items.length > 1 ? 's' : ''} pushed`, 'success');
       setChangeMacros(false); setMacroNote(''); setChangeNote(''); setChangeQuestions(false); setPendingProgram(null); setProgramNote('');
     } else {
-      toast('Failed to push', 'error');
+      toast(result.error || 'Failed to push changes', 'error');
     }
   }
 
@@ -501,6 +501,7 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
                           <span style={{ color: '#5b6ef5' }}>P {pro}g</span>
                           <span style={{ color: '#2e9e6b' }}>C {carb}g</span>
                           <span style={{ color: '#f5a623' }}>F {fat}g</span>
+                          {f.loggedAt && <span className="text-text-muted">{new Date(f.loggedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</span>}
                         </div>
                       </div>
                       <div className="text-right flex-shrink-0">

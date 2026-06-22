@@ -375,7 +375,7 @@ export function useCoach() {
     }
   }, []);
 
-  const pushChangesToClient = useCallback(async (fileId: string, changes: PendingCoachChanges) => {
+  const pushChangesToClient = useCallback(async (fileId: string, changes: PendingCoachChanges): Promise<{ ok: boolean; error?: string }> => {
     const token = getAccessToken() || await requireAccessToken();
     setLoading(true);
     try {
@@ -387,10 +387,13 @@ export function useCoach() {
         id: crypto.randomUUID(), timestamp: new Date().toISOString(), direction: 'pushed',
         items: changes.items.map((item) => ({ type: item.type, label: item.label, coachNote: item.coachNote })),
       });
-      return true;
+      return { ok: true };
     } catch (err) {
-      console.error('Failed to push changes:', err);
-      return false;
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error('Failed to push changes:', msg);
+      if (msg.includes('403')) return { ok: false, error: 'Permission denied — make sure coach Drive access is granted (re-add the client).' };
+      if (msg.includes('404')) return { ok: false, error: 'Client file not found. Ask client to sync their data.' };
+      return { ok: false, error: `Push failed: ${msg}` };
     } finally {
       setLoading(false);
     }

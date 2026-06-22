@@ -38,10 +38,12 @@ export interface GoogleUser {
 
 const GOOGLE_CLIENT_ID = '898508792096-1inh978c606pb6gfgallaabcaoad12rf.apps.googleusercontent.com';
 const SCOPES = 'openid email profile https://www.googleapis.com/auth/drive.appdata https://www.googleapis.com/auth/drive.file';
-// Coaches need drive.readonly to access shared client files created by another user
-const COACH_SCOPES = `${SCOPES} https://www.googleapis.com/auth/drive.readonly`;
+// Coaches need drive (full) to read AND write shared client files created by another user.
+// drive.readonly was insufficient — coaches need to push changes back, which requires write access.
+const COACH_SCOPES = 'openid email profile https://www.googleapis.com/auth/drive.appdata https://www.googleapis.com/auth/drive';
 const GOOGLE_USER_KEY = 'fitos-google-user';
-const COACH_SCOPE_KEY = 'fitos-coach-scope';
+// v2 key forces re-auth for anyone who previously granted the insufficient drive.readonly scope
+const COACH_SCOPE_KEY = 'fitos-coach-scope-v2';
 
 let tokenClient: TokenClient | null = null;
 let currentAccessToken: string | null = null;
@@ -87,7 +89,7 @@ function ensureClient() {
 }
 
 // Call this directly from a click handler to avoid popup blockers.
-// Requests drive.readonly in addition to base scopes (one-time grant for coaches).
+// Requests drive (full read+write) — coaches need to both read shared client files and write changes back.
 export async function requestCoachAccess(): Promise<string> {
   await loadGoogleScript();
   tokenClient = null;
