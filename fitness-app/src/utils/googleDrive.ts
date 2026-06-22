@@ -172,11 +172,22 @@ export async function createCoachShareFile(token: string, content: string, coach
   });
   const file = await res.json();
 
-  await driveRequest(token, `https://www.googleapis.com/drive/v3/files/${file.id}/permissions?sendNotificationEmail=false`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ role: 'writer', type: 'user', emailAddress: coachEmail }),
-  });
+  try {
+    const permRes = await fetch(`https://www.googleapis.com/drive/v3/files/${file.id}/permissions?sendNotificationEmail=false`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role: 'writer', type: 'user', emailAddress: coachEmail }),
+    });
+    if (!permRes.ok) {
+      const errText = await permRes.text().catch(() => '');
+      console.error('Permission grant failed:', permRes.status, errText);
+      throw new Error(`Failed to share with ${coachEmail}: ${permRes.status}. Make sure the email is a valid Google account.`);
+    }
+  } catch (err) {
+    if (err instanceof Error && err.message.includes('Failed to share')) throw err;
+    console.error('Permission grant error:', err);
+    throw new Error(`Failed to share with ${coachEmail}. Check the email address.`);
+  }
 
   return file.id;
 }

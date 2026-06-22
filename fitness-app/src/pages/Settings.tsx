@@ -639,7 +639,8 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
                         </button>
                       </div>
                       <div className="text-[9px] text-text-muted">
-                        Your coach can tap "Find Clients" to connect automatically.
+                        Your coach can tap "Find Clients" to connect.
+                        <button onClick={() => { navigator.clipboard.writeText(rel.fileId); toast('File ID copied — share with your coach for manual add', 'success'); }} className="text-accent-blue ml-1 underline">Copy ID</button>
                       </div>
                     </div>
                   ))}
