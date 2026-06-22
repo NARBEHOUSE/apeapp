@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef } from 'react';
-import { X, Trash2, ImageIcon, Share2, ArrowLeftRight, ChevronLeft, ChevronRight } from 'lucide-react';
+import { X, Trash2, ImageIcon, Share2, ArrowLeftRight, ChevronLeft, ChevronRight, Pencil } from 'lucide-react';
 import type { ProgressPhoto, Measurement } from '../../types';
 import { formatDate } from '../../utils/dateHelpers';
 import { renderProgressCard, shareOrDownload } from '../../utils/shareCards';
@@ -8,6 +8,7 @@ import { ConfirmDialog } from '../shared/ConfirmDialog';
 interface Props {
   photos: ProgressPhoto[];
   onDelete: (id: string) => void;
+  onUpdate?: (photo: ProgressPhoto) => void;
   measurements?: Measurement[];
   weightUnit?: 'lbs' | 'kg';
   measurementUnit?: 'in' | 'cm';
@@ -67,7 +68,7 @@ function findClosestMeasurement(date: string, measurements: Measurement[]): Meas
   return closest;
 }
 
-export function PhotoGallery({ photos, onDelete, measurements = [], weightUnit = 'lbs', measurementUnit = 'in' }: Props) {
+export function PhotoGallery({ photos, onDelete, onUpdate, measurements = [], weightUnit = 'lbs', measurementUnit = 'in' }: Props) {
   const [filter, setFilter] = useState<PoseFilter>('all');
   const [selectedPhoto, setSelectedPhoto] = useState<ProgressPhoto | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -255,6 +256,7 @@ export function PhotoGallery({ photos, onDelete, measurements = [], weightUnit =
         onClose={() => setSelectedPhoto(null)}
         onNavigate={setSelectedPhoto}
         onDelete={(id) => setDeleteId(id)}
+        onUpdate={onUpdate}
       />}
 
       <ConfirmDialog
@@ -276,14 +278,27 @@ export function PhotoGallery({ photos, onDelete, measurements = [], weightUnit =
   );
 }
 
-function EnlargedPhotoView({ photo, photos, onClose, onNavigate, onDelete }: {
+const POSE_OPTIONS: { value: ProgressPhoto['pose']; label: string }[] = [
+  { value: 'front', label: 'Front' },
+  { value: 'side_left', label: 'Side (L)' },
+  { value: 'side_right', label: 'Side (R)' },
+  { value: 'back', label: 'Back' },
+];
+
+function EnlargedPhotoView({ photo, photos, onClose, onNavigate, onDelete, onUpdate }: {
   photo: ProgressPhoto;
   photos: ProgressPhoto[];
   onClose: () => void;
   onNavigate: (photo: ProgressPhoto) => void;
   onDelete: (id: string) => void;
+  onUpdate?: (photo: ProgressPhoto) => void;
 }) {
   const [rotation, setRotation] = useState(0);
+  const [editing, setEditing] = useState(false);
+  const [editDate, setEditDate] = useState(photo.date);
+  const [editPose, setEditPose] = useState(photo.pose);
+  const [editWeight, setEditWeight] = useState(photo.weight ? String(photo.weight) : '');
+  const [editNotes, setEditNotes] = useState(photo.notes || '');
   const touchStart = useRef<{ x: number; y: number } | null>(null);
   const currentIdx = photos.findIndex((p) => p.id === photo.id);
   const hasPrev = currentIdx > 0;
@@ -347,6 +362,16 @@ function EnlargedPhotoView({ photo, photos, onClose, onNavigate, onDelete }: {
             >
               <Share2 size={18} />
             </button>
+            {onUpdate && (
+              <button onClick={() => {
+                setEditing(!editing);
+                setEditDate(photo.date); setEditPose(photo.pose);
+                setEditWeight(photo.weight ? String(photo.weight) : '');
+                setEditNotes(photo.notes || '');
+              }} className={`p-2 rounded-lg transition-colors ${editing ? 'bg-accent-blue/20 text-accent-blue' : 'hover:bg-white/10 text-white/60 hover:text-white'}`}>
+                <Pencil size={18} />
+              </button>
+            )}
             <button onClick={() => onDelete(photo.id)} className="p-2 rounded-lg hover:bg-danger/20 text-white/60 hover:text-danger transition-colors">
               <Trash2 size={18} />
             </button>
@@ -383,9 +408,52 @@ function EnlargedPhotoView({ photo, photos, onClose, onNavigate, onDelete }: {
         </div>
 
         {/* Notes */}
-        {photo.notes && (
+        {photo.notes && !editing && (
           <div className="px-4 pb-4">
             <p className="text-sm text-white/70 text-center">{photo.notes}</p>
+          </div>
+        )}
+
+        {/* Edit panel */}
+        {editing && onUpdate && (
+          <div className="px-4 pb-4 space-y-3 bg-black/60">
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-[9px] text-white/50 uppercase font-semibold">Date</label>
+                <input type="date" className="w-full bg-white/10 text-white text-sm rounded-lg px-2.5 py-2 border border-white/20" value={editDate} onChange={(e) => setEditDate(e.target.value)} />
+              </div>
+              <div>
+                <label className="text-[9px] text-white/50 uppercase font-semibold">Pose</label>
+                <select className="w-full bg-white/10 text-white text-sm rounded-lg px-2.5 py-2 border border-white/20" value={editPose} onChange={(e) => setEditPose(e.target.value as ProgressPhoto['pose'])}>
+                  {POSE_OPTIONS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
+                </select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-[9px] text-white/50 uppercase font-semibold">Weight</label>
+                <input type="number" inputMode="decimal" className="w-full bg-white/10 text-white text-sm rounded-lg px-2.5 py-2 border border-white/20" placeholder="Optional" value={editWeight} onChange={(e) => setEditWeight(e.target.value)} />
+              </div>
+              <div>
+                <label className="text-[9px] text-white/50 uppercase font-semibold">Notes</label>
+                <input type="text" className="w-full bg-white/10 text-white text-sm rounded-lg px-2.5 py-2 border border-white/20" placeholder="Optional" value={editNotes} onChange={(e) => setEditNotes(e.target.value)} />
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => setEditing(false)} className="flex-1 py-2 rounded-lg bg-white/10 text-white/70 text-xs font-medium">Cancel</button>
+              <button onClick={() => {
+                const weightVal = parseFloat(editWeight);
+                onUpdate({
+                  ...photo,
+                  date: editDate || photo.date,
+                  pose: editPose,
+                  weight: isNaN(weightVal) ? undefined : weightVal,
+                  notes: editNotes.trim() || undefined,
+                });
+                setEditing(false);
+                onNavigate({ ...photo, date: editDate || photo.date, pose: editPose, weight: isNaN(weightVal) ? undefined : weightVal, notes: editNotes.trim() || undefined });
+              }} className="flex-1 py-2 rounded-lg bg-accent-blue text-white text-xs font-semibold">Save Changes</button>
+            </div>
           </div>
         )}
       </div>

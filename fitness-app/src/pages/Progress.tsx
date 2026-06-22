@@ -61,6 +61,7 @@ export function Progress({ profile, onUpdateProfile }: Props) {
     addMeasurement,
     deleteMeasurement,
     addPhoto,
+    updatePhoto,
     deletePhoto,
     getPhotosByPoseType,
   } = useProgress(profile.id);
@@ -275,7 +276,7 @@ export function Progress({ profile, onUpdateProfile }: Props) {
             Take Progress Photo
           </button>
 
-          <PhotoGallery photos={photos} onDelete={deletePhoto} measurements={measurements} weightUnit={profile.units === 'metric' ? 'kg' : 'lbs'} measurementUnit={profile.measurementUnit} />
+          <PhotoGallery photos={photos} onDelete={deletePhoto} onUpdate={updatePhoto} measurements={measurements} weightUnit={profile.units === 'metric' ? 'kg' : 'lbs'} measurementUnit={profile.measurementUnit} />
 
           <Modal
             open={showCapture}

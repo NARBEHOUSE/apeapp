@@ -105,6 +105,14 @@ export function useProgress(profileId: string | null) {
     [loadData]
   );
 
+  const updatePhoto = useCallback(
+    async (photo: ProgressPhoto) => {
+      await saveProgressPhoto(photo);
+      await loadData();
+    },
+    [loadData]
+  );
+
   const getPhotosByPoseType = useCallback(
     async (pose: string): Promise<ProgressPhoto[]> => {
       if (!profileId) return [];
@@ -120,6 +128,7 @@ export function useProgress(profileId: string | null) {
     addMeasurement,
     deleteMeasurement,
     addPhoto,
+    updatePhoto,
     deletePhoto,
     getPhotosByPoseType,
     refreshData: loadData,
