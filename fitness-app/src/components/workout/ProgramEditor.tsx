@@ -37,6 +37,22 @@ import {
   type ExerciseProgression,
 } from '../../utils/progression';
 
+function SecondaryMuscleInput({ value, onChange }: { value: string[]; onChange: (muscles: string[]) => void }) {
+  const [text, setText] = useState(value.join(', '));
+  return (
+    <div>
+      <label className="label mb-1 block">Secondary Muscles</label>
+      <input
+        className="input-field text-sm"
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onBlur={() => onChange(text.split(',').map((m) => m.trim()).filter(Boolean))}
+        placeholder="e.g. Triceps, Shoulders"
+      />
+    </div>
+  );
+}
+
 function SortableDayWrapper({ id, children }: { id: string; children: React.ReactNode }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 };
@@ -257,15 +273,10 @@ function SortableExercise({
               placeholder="e.g. Chest"
             />
           </div>
-          <div>
-            <label className="label mb-1 block">Secondary Muscles</label>
-            <input
-              className="input-field text-sm"
-              value={(exercise.secondaryMuscles || []).join(', ')}
-              onChange={(e) => onUpdate(exercise.id, { secondaryMuscles: e.target.value.split(',').map((m) => m.trim()).filter(Boolean) })}
-              placeholder="e.g. Triceps, Shoulders"
-            />
-          </div>
+          <SecondaryMuscleInput
+            value={exercise.secondaryMuscles || []}
+            onChange={(muscles) => onUpdate(exercise.id, { secondaryMuscles: muscles })}
+          />
           <div>
             <label className="label mb-1 block">Note (optional)</label>
             <input
