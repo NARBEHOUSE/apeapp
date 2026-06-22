@@ -271,20 +271,13 @@ export function FoodSearch({ onAdd, onClose, profileId, defaultTab }: FoodSearch
     const sz = parseFloat(servingSize) || selected.servingSize;
     const qty = parseFloat(servingsConsumed) || 1;
 
-    // For USDA foods, macros are per 100g and need scaling
-    let finalCal = selected.calories;
-    let finalP = selected.protein;
-    let finalC = selected.carbs;
-    let finalF = selected.fat;
-    let finalFb = selected.fiber;
-
-    if (selected.source === 'usda') {
-      const factor = sz / 100;
-      finalCal = Math.round(selected.calories * factor);
-      finalP = Math.round(selected.protein * factor * 10) / 10;
-      finalC = Math.round(selected.carbs * factor * 10) / 10;
-      finalF = Math.round(selected.fat * factor * 10) / 10;
-    }
+    // Scale macros proportionally from base serving size
+    const scaleFactor = sz / (selected.servingSize || 1);
+    const finalCal = Math.round(selected.calories * scaleFactor);
+    const finalP = Math.round(selected.protein * scaleFactor * 10) / 10;
+    const finalC = Math.round(selected.carbs * scaleFactor * 10) / 10;
+    const finalF = Math.round(selected.fat * scaleFactor * 10) / 10;
+    const finalFb = selected.fiber ? Math.round(selected.fiber * scaleFactor * 10) / 10 : undefined;
 
     onAdd({
       date: new Date().toISOString().split('T')[0],
@@ -307,25 +300,21 @@ export function FoodSearch({ onAdd, onClose, profileId, defaultTab }: FoodSearch
 
   // Selected food detail view
   if (selected) {
-    const sz = parseFloat(servingSize) || selected.servingSize;
-    const qty = parseFloat(servingsConsumed) || 1;
-    let dispCal = selected.calories;
-    let dispP = selected.protein;
-    let dispC = selected.carbs;
-    let dispF = selected.fat;
+    const baseServing = selected.servingSize;
+    const baseCal = selected.calories;
+    const baseP = selected.protein;
+    const baseC = selected.carbs;
+    const baseF = selected.fat;
 
-    if (selected.source === 'usda') {
-      const factor = (sz / 100) * qty;
-      dispCal = Math.round(selected.calories * factor);
-      dispP = Math.round(selected.protein * factor * 10) / 10;
-      dispC = Math.round(selected.carbs * factor * 10) / 10;
-      dispF = Math.round(selected.fat * factor * 10) / 10;
-    } else {
-      dispCal = Math.round(selected.calories * qty);
-      dispP = Math.round(selected.protein * qty * 10) / 10;
-      dispC = Math.round(selected.carbs * qty * 10) / 10;
-      dispF = Math.round(selected.fat * qty * 10) / 10;
-    }
+    const myGrams = parseFloat(servingSize) || baseServing;
+    const qty = parseFloat(servingsConsumed) || 1;
+
+    // All foods: scale macros proportionally from base serving size
+    const factor = (myGrams / (baseServing || 1)) * qty;
+    const dispCal = Math.round(baseCal * factor);
+    const dispP = Math.round(baseP * factor * 10) / 10;
+    const dispC = Math.round(baseC * factor * 10) / 10;
+    const dispF = Math.round(baseF * factor * 10) / 10;
 
     return (
       <div className="space-y-4">
@@ -339,14 +328,20 @@ export function FoodSearch({ onAdd, onClose, profileId, defaultTab }: FoodSearch
           </div>
         </div>
 
+        {/* Base info — locked */}
+        <div className="bg-surface-raised rounded-lg px-3 py-2 text-[10px] text-text-muted">
+          Base: {baseServing}{selected.servingUnit} = {baseCal} cal · P{baseP}g · C{baseC}g · F{baseF}g
+        </div>
+
+        {/* Your serving — editable */}
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="label mb-1 block">Serving ({selected.servingUnit})</label>
-            <input type="number" inputMode="decimal" className="input-field text-sm" value={servingSize} onChange={(e) => setServingSize(e.target.value)} />
+            <label className="label mb-1 block">Your serving ({selected.servingUnit})</label>
+            <input type="text" inputMode="decimal" className="input-field text-sm" value={servingSize} onChange={(e) => setServingSize(e.target.value)} placeholder={String(baseServing)} />
           </div>
           <div>
             <label className="label mb-1 block">Quantity</label>
-            <input type="number" inputMode="decimal" className="input-field text-sm" value={servingsConsumed} onChange={(e) => setServingsConsumed(e.target.value)} />
+            <input type="text" inputMode="decimal" className="input-field text-sm" value={servingsConsumed} onChange={(e) => setServingsConsumed(e.target.value)} />
           </div>
         </div>
 
