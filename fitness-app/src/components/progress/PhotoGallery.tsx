@@ -75,7 +75,7 @@ export function PhotoGallery({ photos, onDelete, onUpdate, measurements = [], we
   const [compareMode, setCompareMode] = useState(false);
   const [compareSelection, setCompareSelection] = useState<ProgressPhoto[]>([]);
   const [sharing, setSharing] = useState(false);
-  const [compareStat, setCompareStat] = useState<StatOption>('weight');
+  const [compareStats, setCompareStats] = useState<StatOption[]>(['weight']);
   const [shareFormat, setShareFormat] = useState<'post' | 'story'>('post');
 
   const filtered = useMemo(() => {
@@ -92,26 +92,29 @@ export function PhotoGallery({ photos, onDelete, onUpdate, measurements = [], we
     }
   };
 
-  const getStatForPhoto = (photo: ProgressPhoto): string | undefined => {
-    if (compareStat === 'none') return undefined;
+  const getStatsForPhoto = (photo: ProgressPhoto): string | undefined => {
+    if (compareStats.length === 0 || (compareStats.length === 1 && compareStats[0] === 'none')) return undefined;
 
-    // For weight, use the photo's own weight data first
-    if (compareStat === 'weight') {
-      if (photo.weight != null) return `${photo.weight} ${weightUnit}`;
-      const m = findClosestMeasurement(photo.date, measurements);
-      return m?.weight != null ? `${m.weight} ${weightUnit}` : undefined;
-    }
-
-    // For other stats, fall back to measurements
     const m = findClosestMeasurement(photo.date, measurements);
-    if (!m) return undefined;
-    if (compareStat === 'bodyFat') return m.bodyFatPercent != null ? `${m.bodyFatPercent}% BF` : undefined;
-    const bodyVal = m.measurements?.[compareStat as keyof NonNullable<typeof m.measurements>];
-    if (bodyVal != null) {
-      const label = STAT_OPTIONS.find((o) => o.value === compareStat)?.label || compareStat;
-      return `${label}: ${bodyVal} ${measurementUnit}`;
+    const parts: string[] = [];
+
+    for (const stat of compareStats) {
+      if (stat === 'none') continue;
+      if (stat === 'weight') {
+        if (photo.weight != null) parts.push(`${photo.weight} ${weightUnit}`);
+        else if (m?.weight != null) parts.push(`${m.weight} ${weightUnit}`);
+      } else if (stat === 'bodyFat') {
+        if (m?.bodyFatPercent != null) parts.push(`${m.bodyFatPercent}% BF`);
+      } else {
+        const bodyVal = m?.measurements?.[stat as keyof NonNullable<typeof m.measurements>];
+        if (bodyVal != null) {
+          const label = STAT_OPTIONS.find((o) => o.value === stat)?.label || stat;
+          parts.push(`${label}: ${bodyVal}${measurementUnit}`);
+        }
+      }
     }
-    return undefined;
+
+    return parts.length > 0 ? parts.join(' · ') : undefined;
   };
 
   const handleShareComparison = async () => {
@@ -124,8 +127,8 @@ export function PhotoGallery({ photos, onDelete, onUpdate, measurements = [], we
         afterImage: getImageSrc(after.imageData),
         beforeDate: before.date,
         afterDate: after.date,
-        beforeStat: getStatForPhoto(before),
-        afterStat: getStatForPhoto(after),
+        beforeStat: getStatsForPhoto(before),
+        afterStat: getStatsForPhoto(after),
         pose: POSE_LABELS[before.pose] || before.pose,
         format: shareFormat,
       });
@@ -224,26 +227,42 @@ export function PhotoGallery({ photos, onDelete, onUpdate, measurements = [], we
       {/* Compare share bar */}
       {compareMode && compareSelection.length === 2 && (
         <div className="space-y-2">
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] text-text-muted font-semibold uppercase whitespace-nowrap">Stat:</span>
-            <select
-              className="input-field text-xs flex-1 py-1.5"
-              value={compareStat}
-              onChange={(e) => setCompareStat(e.target.value as StatOption)}
-            >
-              {STAT_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </select>
-            <div className="flex rounded-lg overflow-hidden border border-border-light">
-              <button
-                onClick={() => setShareFormat('post')}
-                className={`px-2 py-1 text-[9px] font-semibold ${shareFormat === 'post' ? 'bg-accent-blue text-white' : 'bg-surface-raised text-text-muted'}`}
-              >4:5</button>
-              <button
-                onClick={() => setShareFormat('story')}
-                className={`px-2 py-1 text-[9px] font-semibold ${shareFormat === 'story' ? 'bg-accent-blue text-white' : 'bg-surface-raised text-text-muted'}`}
-              >9:16</button>
+          {/* Stats multi-select */}
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[10px] text-text-muted font-semibold uppercase">Stats to show (up to 5):</span>
+              <div className="flex rounded-lg overflow-hidden border border-border-light">
+                <button
+                  onClick={() => setShareFormat('post')}
+                  className={`px-2 py-1 text-[9px] font-semibold ${shareFormat === 'post' ? 'bg-accent-blue text-white' : 'bg-surface-raised text-text-muted'}`}
+                >4:5</button>
+                <button
+                  onClick={() => setShareFormat('story')}
+                  className={`px-2 py-1 text-[9px] font-semibold ${shareFormat === 'story' ? 'bg-accent-blue text-white' : 'bg-surface-raised text-text-muted'}`}
+                >9:16</button>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-1">
+              {STAT_OPTIONS.filter((o) => o.value !== 'none').map((opt) => {
+                const selected = compareStats.includes(opt.value);
+                return (
+                  <button
+                    key={opt.value}
+                    onClick={() => {
+                      if (selected) {
+                        setCompareStats(compareStats.filter((s) => s !== opt.value));
+                      } else if (compareStats.filter((s) => s !== 'none').length < 5) {
+                        setCompareStats([...compareStats.filter((s) => s !== 'none'), opt.value]);
+                      }
+                    }}
+                    className={`px-2 py-1 rounded-md text-[9px] font-semibold transition-colors ${
+                      selected ? 'bg-accent-blue text-white' : 'bg-surface-raised text-text-muted border border-border-light'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
             </div>
           </div>
           <button
