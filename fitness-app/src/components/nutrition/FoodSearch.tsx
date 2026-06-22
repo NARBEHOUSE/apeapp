@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { Search, Loader2, ChevronRight, Barcode, Globe, Database, Clock, Camera } from 'lucide-react';
 import { searchFoods, lookupBarcode } from '../../utils/usda';
 import { FOOD_DATABASE, type BuiltInFood } from '../../data/foods';
-import { searchSavedFoods, saveFoodToHistory } from '../../db/foodHistory';
+import { searchSavedFoods, saveFoodToHistory, lookupByBarcode as lookupLocalBarcode } from '../../db/foodHistory';
 import { getFoodEmoji } from '../../utils/foodEmoji';
 import type { FoodEntry } from '../../types';
 
@@ -139,23 +139,56 @@ export function FoodSearch({ onAdd, onClose, profileId, defaultTab }: FoodSearch
     return () => { if (usdaTimerRef.current) clearTimeout(usdaTimerRef.current); };
   }, [query]);
 
-  // Barcode lookup
+  // Barcode lookup — checks local library first, then USDA
   async function handleBarcodeLookup(directCode?: string) {
     const code = directCode || barcodeQuery.trim();
     if (!code) return;
     if (directCode) setBarcodeQuery(directCode);
+
+    // Check local food library first
+    if (profileId) {
+      const local = lookupLocalBarcode(profileId, code);
+      if (local) {
+        setSelected({
+          name: local.name, brand: local.brand, calories: local.calories,
+          protein: local.protein, carbs: local.carbs, fat: local.fat, fiber: local.fiber,
+          servingSize: local.servingSize, servingUnit: local.servingUnit, source: local.source,
+        });
+        setServingSize(String(local.servingSize));
+        setServingsConsumed('1');
+        return;
+      }
+    }
+
     setBarcodeSearching(true);
     setBarcodeError('');
     setBarcodeResult(null);
     try {
       const result = await lookupBarcode(code);
       if (result) {
-        setBarcodeResult(result);
+        // Auto-select so the detail view shows immediately
+        setSelected({
+          name: result.name, brand: result.brand,
+          calories: result.caloriesPer100g, protein: result.proteinPer100g,
+          carbs: result.carbsPer100g, fat: result.fatPer100g, fiber: result.fiberPer100g,
+          servingSize: 100, servingUnit: 'g', source: 'usda', fdcId: result.fdcId,
+        });
+        setServingSize('100');
+        setServingsConsumed('1');
+        // Save to food history with barcode
+        if (profileId) {
+          saveFoodToHistory(profileId, {
+            name: result.name, brand: result.brand, calories: result.caloriesPer100g,
+            protein: result.proteinPer100g, carbs: result.carbsPer100g, fat: result.fatPer100g,
+            fiber: result.fiberPer100g, servingSize: 100, servingUnit: 'g', source: 'usda',
+            fdcId: result.fdcId, barcode: code,
+          });
+        }
       } else {
         setBarcodeError('No product found for this barcode.');
       }
     } catch {
-      setBarcodeError('Lookup failed. Check your API key.');
+      setBarcodeError('Lookup failed.');
     } finally {
       setBarcodeSearching(false);
     }

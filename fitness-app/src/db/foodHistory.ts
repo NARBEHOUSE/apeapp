@@ -10,8 +10,13 @@ export interface SavedFood {
   servingUnit: string;
   source: 'manual' | 'usda' | 'ai_vision' | 'builtin';
   fdcId?: string;
+  barcode?: string;
   frequency: number;
   lastUsed: string;
+}
+
+export function lookupByBarcode(profileId: string, barcode: string): SavedFood | undefined {
+  return loadFoods(profileId).find((f) => f.barcode === barcode);
 }
 
 function getStorageKey(profileId: string): string {
@@ -63,6 +68,7 @@ export function saveFoodToHistory(
     foods[existingIndex].source = food.source;
     if (food.brand !== undefined) foods[existingIndex].brand = food.brand;
     if (food.fdcId !== undefined) foods[existingIndex].fdcId = food.fdcId;
+    if (food.barcode) foods[existingIndex].barcode = food.barcode;
   } else {
     foods.push({
       ...food,

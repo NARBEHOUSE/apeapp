@@ -52,6 +52,7 @@ export function ManualEntry({ onAdd, onClose, profileId, dailyTotals, macroTarge
   });
   const [selectedSource, setSelectedSource] = useState<FoodEntry['source']>('manual');
   const [selectedBrand, setSelectedBrand] = useState<string | undefined>();
+  const [barcode, setBarcode] = useState('');
 
   // Base rates from selected food (per gram) — used to recalculate when serving size changes
   const [basePer100g, setBasePer100g] = useState<BasePer100g | null>(null);
@@ -152,6 +153,7 @@ export function ManualEntry({ onAdd, onClose, profileId, dailyTotals, macroTarge
       servingSize: parsedServingSize,
       servingUnit,
       source: selectedSource,
+      barcode: barcode.trim() || undefined,
     });
 
     onAdd({
@@ -371,7 +373,19 @@ export function ManualEntry({ onAdd, onClose, profileId, dailyTotals, macroTarge
         </div>
       </div>
 
-      {/* Submit */}
+      {/* Optional barcode */}
+      <div>
+        <label className="label mb-1 block">Barcode (optional)</label>
+        <input
+          type="text"
+          inputMode="numeric"
+          className="input-field text-sm"
+          placeholder="UPC barcode for future scanning"
+          value={barcode}
+          onChange={(e) => setBarcode(e.target.value)}
+        />
+      </div>
+
       <div className="flex gap-2 pt-1">
         <button type="button" onClick={onClose} className="btn-secondary flex-1 text-sm">
           Cancel
