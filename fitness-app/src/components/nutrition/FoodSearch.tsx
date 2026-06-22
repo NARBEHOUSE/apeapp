@@ -39,6 +39,7 @@ interface FoodSearchProps {
   onAdd: (entry: Omit<FoodEntry, 'id' | 'profileId' | 'loggedAt'>) => void;
   onClose: () => void;
   profileId?: string;
+  defaultTab?: SearchTab;
 }
 
 function convertBuiltIn(food: BuiltInFood): LocalResult {
@@ -58,9 +59,9 @@ function convertBuiltIn(food: BuiltInFood): LocalResult {
   };
 }
 
-export function FoodSearch({ onAdd, onClose, profileId }: FoodSearchProps) {
+export function FoodSearch({ onAdd, onClose, profileId, defaultTab }: FoodSearchProps) {
 
-  const [tab, setTab] = useState<SearchTab>('search');
+  const [tab, setTab] = useState<SearchTab>(defaultTab || 'search');
   const [query, setQuery] = useState('');
   const [barcodeQuery, setBarcodeQuery] = useState('');
 
@@ -421,17 +422,20 @@ function BarcodeTab({ barcodeQuery, setBarcodeQuery, barcodeResult, barcodeSearc
 
   const startScanner = async () => {
     setScanning(true);
+    // Wait for DOM to render the scanner container
+    await new Promise((r) => setTimeout(r, 100));
     try {
       const { Html5Qrcode } = await import('html5-qrcode');
-      const scannerId = 'barcode-scanner-' + Date.now();
+      const scannerId = 'barcode-scanner-region';
       if (scannerRef.current) {
         scannerRef.current.id = scannerId;
+        scannerRef.current.innerHTML = '';
       }
       const scanner = new Html5Qrcode(scannerId);
       html5QrRef.current = scanner;
       await scanner.start(
         { facingMode: 'environment' },
-        { fps: 10, qrbox: { width: 280, height: 120 } },
+        { fps: 10, qrbox: { width: 260, height: 100 }, aspectRatio: 1.0 },
         (decodedText) => {
           scanner.stop().catch(() => {});
           setScanning(false);
@@ -439,7 +443,8 @@ function BarcodeTab({ barcodeQuery, setBarcodeQuery, barcodeResult, barcodeSearc
         },
         () => {},
       );
-    } catch {
+    } catch (err) {
+      console.error('Barcode scanner error:', err);
       setScanning(false);
     }
   };

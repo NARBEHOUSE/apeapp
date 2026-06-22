@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import {
   ChevronLeft, ChevronRight, Plus, Search, Camera,
-  Loader2, Star, Trash2, BookmarkPlus, Bookmark, GripVertical, Clock, Pencil, AlertCircle,
+  Loader2, Star, Trash2, BookmarkPlus, Bookmark, GripVertical, Clock, Pencil, AlertCircle, ScanBarcode,
 } from 'lucide-react';
 import {
   DndContext, PointerSensor, useSensor, useSensors, useDroppable,
@@ -36,7 +36,7 @@ interface NutritionPageProps {
   onUpdateProfile?: (id: string, updates: Partial<Profile>) => void;
 }
 
-type ModalType = 'manual' | 'search' | 'ai' | 'save-meal' | 'edit-time' | 'edit-macros' | 'edit-entry' | 'recipe-editor' | null;
+type ModalType = 'manual' | 'search' | 'ai' | 'barcode' | 'save-meal' | 'edit-time' | 'edit-macros' | 'edit-entry' | 'recipe-editor' | null;
 type Tab = 'planner' | 'my-foods' | 'recipes' | 'charts';
 
 function MiniMacroBar({ label, current, target, color }: {
@@ -492,8 +492,11 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
             <button type="button" onClick={() => setModal('search')} className="flex-1 bg-surface rounded-xl py-2.5 flex items-center justify-center gap-1.5 active:scale-[0.98] transition-transform">
               <Search size={14} className="text-accent-blue" /><span className="text-xs font-medium">Search</span>
             </button>
+            <button type="button" onClick={() => setModal('barcode')} className="flex-1 bg-surface rounded-xl py-2.5 flex items-center justify-center gap-1.5 active:scale-[0.98] transition-transform">
+              <ScanBarcode size={14} className="text-green-500" /><span className="text-xs font-medium">Barcode</span>
+            </button>
             <button type="button" onClick={() => setModal('ai')} className="flex-1 bg-surface rounded-xl py-2.5 flex items-center justify-center gap-1.5 active:scale-[0.98] transition-transform">
-              <Camera size={14} className="text-nutrition" /><span className="text-xs font-medium">Scan</span>
+              <Camera size={14} className="text-nutrition" /><span className="text-xs font-medium">AI Scan</span>
             </button>
           </div>
 
@@ -988,6 +991,10 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
 
       <Modal open={modal === 'ai'} onClose={() => setModal(null)} title="AI Food Scanner">
         <AIFoodScanner onAdd={addEntry} onClose={() => setModal(null)} />
+      </Modal>
+
+      <Modal open={modal === 'barcode'} onClose={() => setModal(null)} title="Barcode Scanner">
+        <FoodSearch onAdd={addEntry} onClose={() => setModal(null)} profileId={profile.id} defaultTab="barcode" />
       </Modal>
 
       <Modal open={modal === 'edit-time'} onClose={() => { setModal(null); setEditingEntry(null); }} title="Change Time">
