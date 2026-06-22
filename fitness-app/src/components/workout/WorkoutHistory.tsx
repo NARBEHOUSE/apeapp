@@ -37,6 +37,8 @@ function SessionCard({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editSets, setEditSets] = useState<Record<string, { weight: string; reps: string }[]>>({});
+  const [deleteSets, setDeleteSets] = useState<Record<string, number[]>>({});
+  const [deleteExercises, setDeleteExercises] = useState<string[]>([]);
 
   const day = program?.days.find((d) => d.id === session.dayId);
   const totalSets = Object.values(session.sets).reduce(
@@ -101,6 +103,7 @@ function SessionCard({
       {expanded && (
         <div className="mt-3 pt-3 border-t border-border space-y-3">
           {Object.entries(session.sets).map(([exerciseId, sets]) => {
+            if (deleteExercises.includes(exerciseId)) return null;
             const exercise = day?.exercises.find((e) => e.id === exerciseId);
             const completedSets = sets.filter((s) => s.completed);
             if (completedSets.length === 0) return null;
@@ -111,12 +114,12 @@ function SessionCard({
                   {exercise?.name || exerciseId}
                 </p>
                 {editing ? (
-                  <div className="flex flex-wrap gap-1.5">
+                  <div className="space-y-1">
                     {completedSets.map((set, i) => {
                       const edits = editSets[exerciseId]?.[i];
                       return (
                         <div key={i} className="flex gap-1 items-center">
-                          <input type="text" inputMode="decimal" className="w-12 text-xs text-center bg-surface-raised border border-accent-blue/30 rounded-md px-1 py-1" value={edits?.weight ?? String(set.weight)} onChange={(e) => {
+                          <input type="text" inputMode="decimal" className="w-14 text-xs text-center bg-surface-raised border border-accent-blue/30 rounded-md px-1 py-1" value={edits?.weight ?? String(set.weight)} onChange={(e) => {
                             const updated = { ...editSets };
                             if (!updated[exerciseId]) updated[exerciseId] = completedSets.map((s) => ({ weight: String(s.weight), reps: String(s.reps) }));
                             updated[exerciseId][i] = { ...updated[exerciseId][i], weight: e.target.value };
@@ -129,9 +132,24 @@ function SessionCard({
                             updated[exerciseId][i] = { ...updated[exerciseId][i], reps: e.target.value };
                             setEditSets(updated);
                           }} />
+                          <button onClick={() => {
+                            setDeleteSets((prev) => ({ ...prev, [exerciseId]: [...(prev[exerciseId] || []), i] }));
+                          }} className="p-0.5 text-text-muted hover:text-danger"><Trash2 size={10} /></button>
                         </div>
                       );
-                    })}
+                    }).filter((_, i) => !(deleteSets[exerciseId] || []).includes(i))}
+                    <div className="flex gap-2 mt-1">
+                      <button onClick={() => {
+                        const updated = { ...editSets };
+                        if (!updated[exerciseId]) updated[exerciseId] = completedSets.map((s) => ({ weight: String(s.weight), reps: String(s.reps) }));
+                        const last = updated[exerciseId][updated[exerciseId].length - 1];
+                        updated[exerciseId] = [...updated[exerciseId], { weight: last?.weight || '0', reps: last?.reps || '0' }];
+                        setEditSets(updated);
+                      }} className="text-[9px] text-accent-blue font-semibold">+ Add Set</button>
+                      <button onClick={() => {
+                        setDeleteExercises((prev) => [...prev, exerciseId]);
+                      }} className="text-[9px] text-danger font-semibold">Remove Exercise</button>
+                    </div>
                   </div>
                 ) : (
                   <div className="flex flex-wrap gap-1.5">
@@ -156,20 +174,59 @@ function SessionCard({
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    const updatedSets = { ...session.sets };
+                    let updatedSets = { ...session.sets };
+
+                    // Remove deleted exercises
+                    for (const exId of deleteExercises) {
+                      delete updatedSets[exId];
+                    }
+
+                    // Apply edits and deletions per exercise
                     for (const [exId, edits] of Object.entries(editSets)) {
+                      if (deleteExercises.includes(exId)) continue;
                       const original = updatedSets[exId] || [];
+                      const delIndices = new Set(deleteSets[exId] || []);
+                      const completedOnly = original.filter((s) => s.completed);
+                      const result: typeof original = [];
+
+                      // Map edits onto completed sets, skip deleted indices
                       let editIdx = 0;
-                      updatedSets[exId] = original.map((s) => {
-                        if (!s.completed) return s;
+                      for (let i = 0; i < completedOnly.length; i++) {
+                        if (delIndices.has(i)) continue;
                         const edit = edits[editIdx++];
-                        if (!edit) return s;
-                        return { ...s, weight: parseFloat(edit.weight) || s.weight, reps: parseInt(edit.reps) || s.reps };
+                        if (edit) {
+                          result.push({ ...completedOnly[i], weight: parseFloat(edit.weight) || completedOnly[i].weight, reps: parseInt(edit.reps) || completedOnly[i].reps });
+                        } else {
+                          result.push(completedOnly[i]);
+                        }
+                      }
+
+                      // Add new sets (edits beyond original length)
+                      while (editIdx < edits.length) {
+                        const edit = edits[editIdx++];
+                        result.push({ weight: parseFloat(edit.weight) || 0, reps: parseInt(edit.reps) || 0, completed: true, timestamp: Date.now() });
+                      }
+
+                      updatedSets[exId] = result;
+                    }
+
+                    // Handle deletions for exercises with no edits
+                    for (const [exId, delIndices] of Object.entries(deleteSets)) {
+                      if (editSets[exId] || deleteExercises.includes(exId)) continue;
+                      const original = updatedSets[exId] || [];
+                      const delSet = new Set(delIndices);
+                      let completedIdx = 0;
+                      updatedSets[exId] = original.filter((s) => {
+                        if (!s.completed) return true;
+                        return !delSet.has(completedIdx++);
                       });
                     }
+
                     onUpdate({ ...session, sets: updatedSets });
                     setEditing(false);
                     setEditSets({});
+                    setDeleteSets({});
+                    setDeleteExercises([]);
                   }}
                   className="flex-1 py-2 rounded-lg bg-accent-blue text-white text-xs font-semibold flex items-center justify-center gap-1.5 active:scale-[0.98] transition-transform"
                 >
@@ -177,7 +234,7 @@ function SessionCard({
                 </button>
               ) : (
                 <button
-                  onClick={(e) => { e.stopPropagation(); setEditing(true); setEditSets({}); }}
+                  onClick={(e) => { e.stopPropagation(); setEditing(true); setEditSets({}); setDeleteSets({}); setDeleteExercises([]); }}
                   className="py-2 px-3 rounded-lg bg-surface-raised border border-border-light text-xs font-medium text-text-secondary flex items-center justify-center gap-1.5 active:scale-[0.98] transition-transform"
                 >
                   <Pencil size={12} /> Edit
