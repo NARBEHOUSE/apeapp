@@ -173,7 +173,6 @@ function ExerciseCard({
     setSetCount((c) => c + 1);
     const lastInput = inputs[inputs.length - 1];
     setInputs((prev) => [...prev, { weight: lastInput?.weight || '', reps: lastInput?.reps || '', effort: '' }]);
-    if (!showNote) setShowNote(true);
   };
 
   const removeSet = () => {
@@ -182,7 +181,6 @@ function ExerciseCard({
     if (lastCompleted) return;
     setSetCount((c) => c - 1);
     setInputs((prev) => prev.slice(0, -1));
-    if (!showNote) setShowNote(true);
   };
 
   const completedCount = sessionSets.filter((s) => s.completed).length;
@@ -331,22 +329,20 @@ function ExerciseCard({
                 - Set
               </button>
             )}
-            {!showNote && (
-              <button
-                onClick={() => setShowNote(true)}
-                className="text-[11px] text-text-muted hover:text-text-secondary ml-auto"
-              >
-                + Note
-              </button>
-            )}
+            <button
+              onClick={() => setShowNote(!showNote)}
+              className="text-[11px] text-text-muted hover:text-text-secondary ml-auto"
+            >
+              {showNote ? '− Note' : '+ Note'}
+            </button>
           </div>
 
-          {/* Deviation note */}
+          {/* Note */}
           {showNote && (
             <input
               type="text"
               className="w-full bg-surface-raised rounded-lg px-3 py-2 text-[11px] text-text-secondary outline-none placeholder-text-muted"
-              placeholder={setsChanged ? `Why ${setCount > exercise.sets ? 'added' : 'removed'} sets?` : 'Add a note for this exercise...'}
+              placeholder="Add a note for this exercise..."
               value={deviationNote}
               onChange={(e) => setDeviationNote(e.target.value)}
             />
