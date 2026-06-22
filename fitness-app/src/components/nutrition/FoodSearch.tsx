@@ -83,6 +83,12 @@ export function FoodSearch({ onAdd, onClose, profileId, defaultTab }: FoodSearch
   } | null>(null);
   const [servingSize, setServingSize] = useState('');
   const [servingsConsumed, setServingsConsumed] = useState('1');
+  const [editingBase, setEditingBase] = useState(false);
+  const [editBaseCal, setEditBaseCal] = useState('');
+  const [editBaseP, setEditBaseP] = useState('');
+  const [editBaseC, setEditBaseC] = useState('');
+  const [editBaseF, setEditBaseF] = useState('');
+  const [editBaseServing, setEditBaseServing] = useState('');
   const [mealType, setMealType] = useState<MealType>(() => {
     const hour = new Date().getHours();
     if (hour < 11) return 'breakfast';
@@ -328,10 +334,50 @@ export function FoodSearch({ onAdd, onClose, profileId, defaultTab }: FoodSearch
           </div>
         </div>
 
-        {/* Base info — locked */}
-        <div className="bg-surface-raised rounded-lg px-3 py-2 text-[10px] text-text-muted">
-          Base: {baseServing}{selected.servingUnit} = {baseCal} cal · P{baseP}g · C{baseC}g · F{baseF}g
-        </div>
+        {/* Base info — locked with edit option */}
+        {!editingBase ? (
+          <div className="bg-surface-raised rounded-lg px-3 py-2 flex items-center justify-between">
+            <span className="text-[10px] text-text-muted">
+              Base: {baseServing}{selected.servingUnit} = {baseCal} cal · P{baseP}g · C{baseC}g · F{baseF}g
+            </span>
+            <button type="button" onClick={() => {
+              setEditingBase(true);
+              setEditBaseCal(String(baseCal)); setEditBaseP(String(baseP));
+              setEditBaseC(String(baseC)); setEditBaseF(String(baseF));
+              setEditBaseServing(String(baseServing));
+            }} className="text-[9px] text-text-muted hover:text-accent-blue ml-2">Edit</button>
+          </div>
+        ) : (
+          <div className="bg-surface-raised rounded-lg p-3 space-y-2 border border-warning/30">
+            <div className="text-[9px] text-warning font-semibold">Editing base food — this saves as a custom copy</div>
+            <div className="grid grid-cols-5 gap-1">
+              <div><label className="text-[8px] text-text-muted">Serving</label><input type="text" inputMode="decimal" className="input-field text-xs w-full py-1" value={editBaseServing} onChange={(e) => setEditBaseServing(e.target.value)} /></div>
+              <div><label className="text-[8px] text-text-muted">Cal</label><input type="text" inputMode="decimal" className="input-field text-xs w-full py-1" value={editBaseCal} onChange={(e) => setEditBaseCal(e.target.value)} /></div>
+              <div><label className="text-[8px] text-text-muted">Prot</label><input type="text" inputMode="decimal" className="input-field text-xs w-full py-1" value={editBaseP} onChange={(e) => setEditBaseP(e.target.value)} /></div>
+              <div><label className="text-[8px] text-text-muted">Carbs</label><input type="text" inputMode="decimal" className="input-field text-xs w-full py-1" value={editBaseC} onChange={(e) => setEditBaseC(e.target.value)} /></div>
+              <div><label className="text-[8px] text-text-muted">Fat</label><input type="text" inputMode="decimal" className="input-field text-xs w-full py-1" value={editBaseF} onChange={(e) => setEditBaseF(e.target.value)} /></div>
+            </div>
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setEditingBase(false)} className="flex-1 py-1 rounded-md bg-surface text-[10px] text-text-muted font-medium">Cancel</button>
+              <button type="button" onClick={() => {
+                const newCal = parseFloat(editBaseCal) || 0;
+                const newP = parseFloat(editBaseP) || 0;
+                const newC = parseFloat(editBaseC) || 0;
+                const newF = parseFloat(editBaseF) || 0;
+                const newServing = parseFloat(editBaseServing) || baseServing;
+                setSelected({ ...selected, calories: newCal, protein: newP, carbs: newC, fat: newF, servingSize: newServing, source: 'manual' });
+                setServingSize(String(newServing));
+                if (profileId) {
+                  saveFoodToHistory(profileId, {
+                    name: selected.name, brand: selected.brand, calories: newCal, protein: newP,
+                    carbs: newC, fat: newF, servingSize: newServing, servingUnit: selected.servingUnit, source: 'manual',
+                  });
+                }
+                setEditingBase(false);
+              }} className="flex-1 py-1 rounded-md bg-accent-blue text-white text-[10px] font-semibold">Save as Custom</button>
+            </div>
+          </div>
+        )}
 
         {/* Your serving — editable */}
         <div className="grid grid-cols-2 gap-3">
