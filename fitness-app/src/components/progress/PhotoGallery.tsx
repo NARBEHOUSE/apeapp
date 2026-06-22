@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react';
-import { X, Trash2, ImageIcon, Share2, ArrowLeftRight } from 'lucide-react';
+import { useState, useMemo, useRef } from 'react';
+import { X, Trash2, ImageIcon, Share2, ArrowLeftRight, ChevronLeft, ChevronRight } from 'lucide-react';
 import type { ProgressPhoto, Measurement } from '../../types';
 import { formatDate } from '../../utils/dateHelpers';
 import { renderProgressCard, shareOrDownload } from '../../utils/shareCards';
@@ -137,23 +137,21 @@ export function PhotoGallery({ photos, onDelete, measurements = [], weightUnit =
 
   return (
     <div className="space-y-4">
-      {/* Filters + Compare toggle */}
-      <div className="flex items-center gap-2">
-        <div className="flex gap-2 overflow-x-auto pb-1 flex-1">
-          {FILTER_OPTIONS.map((opt) => (
-            <button
-              key={opt.value}
-              onClick={() => setFilter(opt.value)}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-lg whitespace-nowrap transition-colors ${
-                filter === opt.value
-                  ? 'bg-accent-blue text-white'
-                  : 'bg-surface-raised text-text-secondary border border-border-light'
-              }`}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
+      {/* Filters */}
+      <div className="flex gap-2 overflow-x-auto pb-1">
+        {FILTER_OPTIONS.map((opt) => (
+          <button
+            key={opt.value}
+            onClick={() => setFilter(opt.value)}
+            className={`px-3 py-1.5 text-xs font-semibold rounded-lg whitespace-nowrap transition-colors ${
+              filter === opt.value
+                ? 'bg-accent-blue text-white'
+                : 'bg-surface-raised text-text-secondary border border-border-light'
+            }`}
+          >
+            {opt.label}
+          </button>
+        ))}
         <button
           onClick={() => { setCompareMode(!compareMode); setCompareSelection([]); }}
           className={`px-3 py-1.5 text-xs font-semibold rounded-lg whitespace-nowrap transition-colors flex items-center gap-1.5 ${
@@ -250,73 +248,14 @@ export function PhotoGallery({ photos, onDelete, measurements = [], weightUnit =
         </div>
       )}
 
-      {/* Enlarged View */}
-      {selectedPhoto && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm">
-          <div className="relative w-full h-full flex flex-col">
-            {/* Header */}
-            <div className="flex items-center justify-between px-4 py-3 bg-black/50">
-              <div>
-                <p className="text-sm font-semibold text-white">
-                  {formatDate(selectedPhoto.date)}
-                </p>
-                <p className="text-xs text-white/60 uppercase">
-                  {POSE_LABELS[selectedPhoto.pose]}
-                  {selectedPhoto.weight && ` - ${selectedPhoto.weight} lbs`}
-                </p>
-              </div>
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => {
-                    const canvas = document.createElement('canvas');
-                    const img = new Image();
-                    img.onload = () => {
-                      canvas.width = img.width;
-                      canvas.height = img.height;
-                      canvas.getContext('2d')!.drawImage(img, 0, 0);
-                      shareOrDownload(canvas, `progress-${selectedPhoto.date}-${selectedPhoto.pose}.png`);
-                    };
-                    img.src = getImageSrc(selectedPhoto.imageData);
-                  }}
-                  className="p-2 rounded-lg hover:bg-white/10 text-white/60 hover:text-white transition-colors"
-                >
-                  <Share2 size={20} />
-                </button>
-                <button
-                  onClick={() => {
-                    setDeleteId(selectedPhoto.id);
-                  }}
-                  className="p-2 rounded-lg hover:bg-danger/20 text-white/60 hover:text-danger transition-colors"
-                >
-                  <Trash2 size={20} />
-                </button>
-                <button
-                  onClick={() => setSelectedPhoto(null)}
-                  className="p-2 rounded-lg hover:bg-white/10 text-white/60 hover:text-white transition-colors"
-                >
-                  <X size={20} />
-                </button>
-              </div>
-            </div>
-
-            {/* Image */}
-            <div className="flex-1 flex items-center justify-center p-4 overflow-hidden">
-              <img
-                src={getImageSrc(selectedPhoto.imageData)}
-                alt={`${selectedPhoto.pose} - ${selectedPhoto.date}`}
-                className="max-w-full max-h-full object-contain rounded-xl"
-              />
-            </div>
-
-            {/* Notes */}
-            {selectedPhoto.notes && (
-              <div className="px-4 pb-4">
-                <p className="text-sm text-white/70 text-center">{selectedPhoto.notes}</p>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      {/* Enlarged View with swipe */}
+      {selectedPhoto && <EnlargedPhotoView
+        photo={selectedPhoto}
+        photos={filtered}
+        onClose={() => setSelectedPhoto(null)}
+        onNavigate={setSelectedPhoto}
+        onDelete={(id) => setDeleteId(id)}
+      />}
 
       <ConfirmDialog
         open={!!deleteId}
@@ -333,6 +272,123 @@ export function PhotoGallery({ photos, onDelete, measurements = [], weightUnit =
         confirmText="Delete"
         danger
       />
+    </div>
+  );
+}
+
+function EnlargedPhotoView({ photo, photos, onClose, onNavigate, onDelete }: {
+  photo: ProgressPhoto;
+  photos: ProgressPhoto[];
+  onClose: () => void;
+  onNavigate: (photo: ProgressPhoto) => void;
+  onDelete: (id: string) => void;
+}) {
+  const [rotation, setRotation] = useState(0);
+  const touchStart = useRef<{ x: number; y: number } | null>(null);
+  const currentIdx = photos.findIndex((p) => p.id === photo.id);
+  const hasPrev = currentIdx > 0;
+  const hasNext = currentIdx < photos.length - 1;
+
+  const goNext = () => { if (hasNext) { setRotation(0); onNavigate(photos[currentIdx + 1]); } };
+  const goPrev = () => { if (hasPrev) { setRotation(0); onNavigate(photos[currentIdx - 1]); } };
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length === 1) {
+      touchStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    }
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (!touchStart.current || e.changedTouches.length !== 1) return;
+    const dx = e.changedTouches[0].clientX - touchStart.current.x;
+    const dy = e.changedTouches[0].clientY - touchStart.current.y;
+    touchStart.current = null;
+    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+      if (dx < 0) goNext();
+      else goPrev();
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm">
+      <div className="relative w-full h-full flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-3 bg-black/50 z-10">
+          <div>
+            <p className="text-sm font-semibold text-white">
+              {formatDate(photo.date)}
+            </p>
+            <p className="text-xs text-white/60 uppercase">
+              {POSE_LABELS[photo.pose]}
+              {photo.weight && ` · ${photo.weight} lbs`}
+              {photos.length > 1 && ` · ${currentIdx + 1}/${photos.length}`}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setRotation((r) => (r - 90) % 360)} className="p-2 rounded-lg hover:bg-white/10 text-white/60 hover:text-white transition-colors" title="Rotate left">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2.5 2v6h6"/><path d="M2.5 8C5 3.5 10 1.5 15 3s8.5 7 7 12.5S15 24 10 22.5"/></svg>
+            </button>
+            <button onClick={() => setRotation((r) => (r + 90) % 360)} className="p-2 rounded-lg hover:bg-white/10 text-white/60 hover:text-white transition-colors" title="Rotate right">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.5 2v6h-6"/><path d="M21.5 8C19 3.5 14 1.5 9 3S.5 10 2 15.5 9 24 14 22.5"/></svg>
+            </button>
+            <button
+              onClick={() => {
+                const canvas = document.createElement('canvas');
+                const img = new Image();
+                img.onload = () => {
+                  canvas.width = img.width;
+                  canvas.height = img.height;
+                  canvas.getContext('2d')!.drawImage(img, 0, 0);
+                  shareOrDownload(canvas, `progress-${photo.date}-${photo.pose}.png`);
+                };
+                img.src = getImageSrc(photo.imageData);
+              }}
+              className="p-2 rounded-lg hover:bg-white/10 text-white/60 hover:text-white transition-colors"
+            >
+              <Share2 size={18} />
+            </button>
+            <button onClick={() => onDelete(photo.id)} className="p-2 rounded-lg hover:bg-danger/20 text-white/60 hover:text-danger transition-colors">
+              <Trash2 size={18} />
+            </button>
+            <button onClick={onClose} className="p-2 rounded-lg hover:bg-white/10 text-white/60 hover:text-white transition-colors">
+              <X size={18} />
+            </button>
+          </div>
+        </div>
+
+        {/* Image with swipe */}
+        <div
+          className="flex-1 flex items-center justify-center p-4 overflow-hidden relative"
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+        >
+          {/* Prev/Next arrows */}
+          {hasPrev && (
+            <button onClick={goPrev} className="absolute left-2 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full bg-black/40 flex items-center justify-center text-white/70 hover:text-white">
+              <ChevronLeft size={24} />
+            </button>
+          )}
+          {hasNext && (
+            <button onClick={goNext} className="absolute right-2 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full bg-black/40 flex items-center justify-center text-white/70 hover:text-white">
+              <ChevronRight size={24} />
+            </button>
+          )}
+
+          <img
+            src={getImageSrc(photo.imageData)}
+            alt={`${photo.pose} - ${photo.date}`}
+            className="max-w-full max-h-full object-contain rounded-xl transition-transform duration-200"
+            style={{ transform: `rotate(${rotation}deg)` }}
+          />
+        </div>
+
+        {/* Notes */}
+        {photo.notes && (
+          <div className="px-4 pb-4">
+            <p className="text-sm text-white/70 text-center">{photo.notes}</p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
