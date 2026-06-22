@@ -115,10 +115,12 @@
   }
 
   .input-field {
-    @apply w-full bg-surface border-none rounded-xl px-4 py-3
+    @apply w-full bg-surface rounded-xl px-4 py-3
            text-text-primary placeholder-text-muted outline-none
            transition-all;
+    border: 1px solid var(--color-border);
     &:focus {
+      border-color: var(--color-border-light);
       box-shadow: 0 0 0 1px var(--color-border-light);
     }
   }
