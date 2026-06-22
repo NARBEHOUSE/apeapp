@@ -492,9 +492,6 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
             <button type="button" onClick={() => setModal('search')} className="flex-1 bg-surface rounded-xl py-2.5 flex items-center justify-center gap-1.5 active:scale-[0.98] transition-transform">
               <Search size={14} className="text-accent-blue" /><span className="text-xs font-medium">Search</span>
             </button>
-            <button type="button" onClick={() => setModal('barcode')} className="flex-1 bg-surface rounded-xl py-2.5 flex items-center justify-center gap-1.5 active:scale-[0.98] transition-transform">
-              <ScanBarcode size={14} className="text-green-500" /><span className="text-xs font-medium">Barcode</span>
-            </button>
             <button type="button" onClick={() => setModal('ai')} className="flex-1 bg-surface rounded-xl py-2.5 flex items-center justify-center gap-1.5 active:scale-[0.98] transition-transform">
               <Camera size={14} className="text-nutrition" /><span className="text-xs font-medium">AI Scan</span>
             </button>
@@ -993,9 +990,6 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
         <AIFoodScanner onAdd={addEntry} onClose={() => setModal(null)} />
       </Modal>
 
-      <Modal open={modal === 'barcode'} onClose={() => setModal(null)} title="Barcode Scanner">
-        <FoodSearch onAdd={addEntry} onClose={() => setModal(null)} profileId={profile.id} defaultTab="barcode" />
-      </Modal>
 
       <Modal open={modal === 'edit-time'} onClose={() => { setModal(null); setEditingEntry(null); }} title="Change Time">
         <div className="space-y-4">

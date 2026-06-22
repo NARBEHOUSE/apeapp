@@ -306,124 +306,13 @@ export function FoodSearch({ onAdd, onClose, profileId, defaultTab }: FoodSearch
     );
   }
 
-  return (
-    <div className="space-y-3">
-      {/* Tab bar */}
-      <div className="flex gap-1 bg-surface rounded-xl p-1">
-        <button onClick={() => setTab('search')} className={`flex-1 py-1.5 rounded-lg text-[11px] font-medium flex items-center justify-center gap-1 ${tab === 'search' ? 'bg-surface-raised text-text-primary' : 'text-text-muted'}`}>
-          <Search size={11} /> Search Foods
-        </button>
-        <button onClick={() => setTab('barcode')} className={`flex-1 py-1.5 rounded-lg text-[11px] font-medium flex items-center justify-center gap-1 ${tab === 'barcode' ? 'bg-surface-raised text-text-primary' : 'text-text-muted'}`}>
-          <Barcode size={11} /> Barcode
-        </button>
-      </div>
-
-      {/* ========== UNIFIED SEARCH TAB ========== */}
-      {tab === 'search' && (
-        <>
-          <div className="relative">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
-            <input
-              type="text" className="input-field pl-9 text-sm" placeholder="Search foods..."
-              value={query} onChange={(e) => setQuery(e.target.value)} autoFocus
-            />
-            {usdaSearching && <Loader2 size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted animate-spin" />}
-          </div>
-
-          <div className="space-y-1 max-h-72 overflow-y-auto">
-            {/* Local results */}
-            {localResults.map((item, i) => (
-              <button key={`local-${item.name}-${i}`} type="button" onClick={() => selectLocal(item)}
-                className="w-full text-left p-2.5 rounded-xl hover:bg-surface-raised transition-colors flex items-center gap-3">
-                <span className="text-base shrink-0">{getFoodEmoji(item.name)}</span>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-sm font-medium truncate">{item.name}</span>
-                    {item.isHistory && (
-                      <span className="text-[9px] px-1 py-0.5 rounded bg-surface text-text-muted shrink-0 flex items-center gap-0.5"><Clock size={8} /> Recent</span>
-                    )}
-                    {item.category && !item.isHistory && (
-                      <span className="text-[9px] px-1 py-0.5 rounded bg-surface text-text-muted shrink-0">{item.category}</span>
-                    )}
-                  </div>
-                  <div className="text-[10px] text-text-muted mt-0.5">
-                    {Math.round(item.calories)} cal · P{Math.round(item.protein)}g · C{Math.round(item.carbs)}g · F{Math.round(item.fat)}g · {item.servingSize}{item.servingUnit}
-                  </div>
-                </div>
-                <ChevronRight size={14} className="text-text-muted/30 shrink-0" />
-              </button>
-            ))}
-
-            {/* USDA results */}
-            {usdaResults.length > 0 && (
-              <>
-                {localResults.length > 0 && <div className="text-[9px] text-text-muted font-semibold uppercase tracking-wider px-2 pt-2">USDA Database</div>}
-                {usdaResults.map((food) => (
-                  <button key={food.fdcId} type="button" onClick={() => selectUsda(food)}
-                    className="w-full text-left p-2.5 rounded-xl hover:bg-surface-raised transition-colors flex items-center gap-3">
-                    <span className="text-base shrink-0">{getFoodEmoji(food.name)}</span>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-sm font-medium truncate">{food.name}</span>
-                        <span className="text-[8px] px-1 py-0.5 rounded bg-green-500/15 text-green-500 shrink-0">USDA</span>
-                      </div>
-                      {food.brand && <div className="text-[10px] text-text-muted truncate">{food.brand}</div>}
-                      <div className="text-[10px] text-text-muted mt-0.5">
-                        Per 100g: {food.caloriesPer100g} cal · P{food.proteinPer100g}g · C{food.carbsPer100g}g · F{food.fatPer100g}g
-                      </div>
-                    </div>
-                    <ChevronRight size={14} className="text-text-muted/30 shrink-0" />
-                  </button>
-                ))}
-              </>
-            )}
-
-            {localResults.length === 0 && usdaResults.length === 0 && query.trim() && !usdaSearching && (
-              <p className="text-sm text-text-muted text-center py-6">No results found</p>
-            )}
-          </div>
-
-          {usdaError && <p className="text-[10px] text-danger text-center">{usdaError}</p>}
-
-          {!query.trim() && (
-            <p className="text-[11px] text-text-muted text-center">Search {FOOD_DATABASE.length}+ built-in foods, your history, and USDA database</p>
-          )}
-        </>
-      )}
-
-      {/* ========== BARCODE TAB ========== */}
-      {tab === 'barcode' && (
-        <BarcodeTab
-          barcodeQuery={barcodeQuery}
-          setBarcodeQuery={setBarcodeQuery}
-          barcodeResult={barcodeResult}
-          barcodeSearching={barcodeSearching}
-          barcodeError={barcodeError}
-          handleBarcodeLookup={handleBarcodeLookup}
-          selectUsda={selectUsda}
-        />
-      )}
-    </div>
-  );
-}
-
-function BarcodeTab({ barcodeQuery, setBarcodeQuery, barcodeResult, barcodeSearching, barcodeError, handleBarcodeLookup, selectUsda }: {
-  barcodeQuery: string;
-  setBarcodeQuery: (v: string) => void;
-  barcodeResult: ParsedFood | null;
-  barcodeSearching: boolean;
-  barcodeError: string;
-  handleBarcodeLookup: (directCode?: string) => void;
-  selectUsda: (food: ParsedFood) => void;
-}) {
-  const [scanning, setScanning] = useState(false);
+  const [showScanner, setShowScanner] = useState(defaultTab === 'barcode');
   const scannerRef = useRef<HTMLDivElement>(null);
   const html5QrRef = useRef<unknown>(null);
 
   const startScanner = async () => {
-    setScanning(true);
-    // Wait for DOM to render the scanner container
-    await new Promise((r) => setTimeout(r, 100));
+    setShowScanner(true);
+    await new Promise((r) => setTimeout(r, 150));
     try {
       const { Html5Qrcode } = await import('html5-qrcode');
       const scannerId = 'barcode-scanner-region';
@@ -438,92 +327,125 @@ function BarcodeTab({ barcodeQuery, setBarcodeQuery, barcodeResult, barcodeSearc
         { fps: 10, qrbox: { width: 260, height: 100 }, aspectRatio: 1.0 },
         (decodedText) => {
           scanner.stop().catch(() => {});
-          setScanning(false);
+          setShowScanner(false);
           handleBarcodeLookup(decodedText);
         },
         () => {},
       );
     } catch (err) {
-      console.error('Barcode scanner error:', err);
-      setScanning(false);
+      console.error('Scanner error:', err);
+      setShowScanner(false);
     }
   };
 
   const stopScanner = () => {
     const scanner = html5QrRef.current as { stop: () => Promise<void> } | null;
     if (scanner) scanner.stop().catch(() => {});
-    setScanning(false);
+    setShowScanner(false);
   };
 
-  useEffect(() => {
-    return () => { stopScanner(); };
-  }, []);
+  useEffect(() => { return () => { stopScanner(); }; }, []);
 
   return (
     <div className="space-y-3">
-      {/* Camera scanner */}
-      {scanning ? (
-        <div className="space-y-2">
-          <div ref={scannerRef} className="rounded-xl overflow-hidden bg-black" style={{ minHeight: 200 }} />
-          <button onClick={stopScanner} className="btn-secondary w-full text-sm flex items-center justify-center gap-2">
-            Stop Scanner
-          </button>
-        </div>
-      ) : (
-        <button onClick={startScanner} className="w-full bg-surface rounded-xl py-3 flex items-center justify-center gap-2 active:scale-[0.98] transition-transform">
-          <Camera size={16} className="text-accent-blue" />
-          <span className="text-sm font-medium">Scan Barcode with Camera</span>
-        </button>
-      )}
-
-      {/* Manual entry */}
+      {/* Search box with barcode button */}
       <div className="flex gap-2">
         <div className="relative flex-1">
-          <Barcode size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
           <input
-            type="text"
-            inputMode="numeric"
-            className="input-field pl-9 text-sm"
-            placeholder="Or type UPC number..."
-            value={barcodeQuery}
-            onChange={(e) => setBarcodeQuery(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleBarcodeLookup()}
+            type="text" className="input-field pl-9 pr-9 text-sm" placeholder="Search or enter barcode..."
+            value={query} onChange={(e) => { setQuery(e.target.value); setBarcodeQuery(e.target.value); }} autoFocus
           />
+          {usdaSearching && <Loader2 size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted animate-spin" />}
         </div>
-        <button
-          type="button"
-          onClick={() => handleBarcodeLookup()}
-          disabled={barcodeSearching || !barcodeQuery.trim()}
-          className="btn-primary px-4 text-sm disabled:opacity-40"
-        >
-          {barcodeSearching ? <Loader2 size={14} className="animate-spin" /> : 'Lookup'}
+        <button type="button" onClick={showScanner ? stopScanner : startScanner}
+          className={`px-3 rounded-xl flex items-center justify-center transition-colors ${showScanner ? 'bg-accent text-white' : 'bg-surface'}`}>
+          <Barcode size={18} />
         </button>
       </div>
 
-      {barcodeError && <p className="text-sm text-danger text-center">{barcodeError}</p>}
+      {/* Inline barcode scanner */}
+      {showScanner && (
+        <div className="space-y-2">
+          <div ref={scannerRef} className="rounded-xl overflow-hidden bg-black" style={{ minHeight: 200 }} />
+          <p className="text-[10px] text-text-muted text-center">Point camera at barcode</p>
+        </div>
+      )}
 
+      {/* Barcode lookup result */}
       {barcodeResult && (
-        <button
-          type="button"
-          onClick={() => selectUsda(barcodeResult)}
-          className="w-full text-left bg-surface rounded-xl p-4 flex items-center gap-3 active:scale-[0.98] transition-transform"
-        >
-          <span className="text-2xl">{getFoodEmoji(barcodeResult.name)}</span>
+        <button type="button" onClick={() => selectUsda(barcodeResult)}
+          className="w-full text-left bg-green-500/10 border border-green-500/20 rounded-xl p-3 flex items-center gap-3 active:scale-[0.98] transition-transform">
+          <span className="text-xl shrink-0">{getFoodEmoji(barcodeResult.name)}</span>
           <div className="flex-1 min-w-0">
-            <div className="text-sm font-medium">{barcodeResult.name}</div>
-            {barcodeResult.brand && <div className="text-[10px] text-text-muted">{barcodeResult.brand}</div>}
-            <div className="text-[10px] text-text-muted mt-0.5">
+            <div className="flex items-center gap-1.5">
+              <span className="text-sm font-medium truncate">{barcodeResult.name}</span>
+              <span className="text-[8px] px-1 py-0.5 rounded bg-green-500/15 text-green-500 shrink-0">Barcode</span>
+            </div>
+            {barcodeResult.brand && <div className="text-[10px] text-text-muted truncate">{barcodeResult.brand}</div>}
+            <div className="text-[10px] text-text-muted">
               Per 100g: {barcodeResult.caloriesPer100g} cal · P{barcodeResult.proteinPer100g}g · C{barcodeResult.carbsPer100g}g · F{barcodeResult.fatPer100g}g
             </div>
           </div>
-          <ChevronRight size={14} className="text-text-muted" />
+          <ChevronRight size={14} className="text-green-500 shrink-0" />
         </button>
       )}
 
-      {!barcodeSearching && !barcodeResult && !barcodeError && !scanning && (
-        <div className="text-center py-4">
-          <p className="text-[11px] text-text-muted">Point camera at a barcode or type the UPC number manually</p>
-        </div>
+      {barcodeSearching && <div className="flex items-center justify-center py-3"><Loader2 size={16} className="animate-spin text-text-muted" /> <span className="text-xs text-text-muted ml-2">Looking up barcode...</span></div>}
+      {barcodeError && <p className="text-[10px] text-danger text-center">{barcodeError}</p>}
+
+      {/* Search results */}
+      <div className="space-y-1 max-h-64 overflow-y-auto">
+        {localResults.map((item, i) => (
+          <button key={`local-${item.name}-${i}`} type="button" onClick={() => selectLocal(item)}
+            className="w-full text-left p-2.5 rounded-xl hover:bg-surface-raised transition-colors flex items-center gap-3">
+            <span className="text-base shrink-0">{getFoodEmoji(item.name)}</span>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1.5">
+                <span className="text-sm font-medium truncate">{item.name}</span>
+                {item.isHistory && <span className="text-[9px] px-1 py-0.5 rounded bg-surface text-text-muted shrink-0 flex items-center gap-0.5"><Clock size={8} /> Recent</span>}
+                {item.category && !item.isHistory && <span className="text-[9px] px-1 py-0.5 rounded bg-surface text-text-muted shrink-0">{item.category}</span>}
+              </div>
+              <div className="text-[10px] text-text-muted mt-0.5">
+                {Math.round(item.calories)} cal · P{Math.round(item.protein)}g · C{Math.round(item.carbs)}g · F{Math.round(item.fat)}g · {item.servingSize}{item.servingUnit}
+              </div>
+            </div>
+            <ChevronRight size={14} className="text-text-muted/30 shrink-0" />
+          </button>
+        ))}
+
+        {usdaResults.length > 0 && (
+          <>
+            {localResults.length > 0 && <div className="text-[9px] text-text-muted font-semibold uppercase tracking-wider px-2 pt-2">USDA Database</div>}
+            {usdaResults.map((food) => (
+              <button key={food.fdcId} type="button" onClick={() => selectUsda(food)}
+                className="w-full text-left p-2.5 rounded-xl hover:bg-surface-raised transition-colors flex items-center gap-3">
+                <span className="text-base shrink-0">{getFoodEmoji(food.name)}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-sm font-medium truncate">{food.name}</span>
+                    <span className="text-[8px] px-1 py-0.5 rounded bg-green-500/15 text-green-500 shrink-0">USDA</span>
+                  </div>
+                  {food.brand && <div className="text-[10px] text-text-muted truncate">{food.brand}</div>}
+                  <div className="text-[10px] text-text-muted mt-0.5">
+                    Per 100g: {food.caloriesPer100g} cal · P{food.proteinPer100g}g · C{food.carbsPer100g}g · F{food.fatPer100g}g
+                  </div>
+                </div>
+                <ChevronRight size={14} className="text-text-muted/30 shrink-0" />
+              </button>
+            ))}
+          </>
+        )}
+
+        {localResults.length === 0 && usdaResults.length === 0 && query.trim() && !usdaSearching && !barcodeSearching && (
+          <p className="text-sm text-text-muted text-center py-4">No results found</p>
+        )}
+      </div>
+
+      {usdaError && <p className="text-[10px] text-danger text-center">{usdaError}</p>}
+
+      {!query.trim() && !showScanner && !barcodeResult && (
+        <p className="text-[11px] text-text-muted text-center">Search {FOOD_DATABASE.length}+ foods, USDA database, or scan a barcode</p>
       )}
     </div>
   );
