@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { getAccessToken, requireAccessToken } from '../utils/googleAuth';
+import { getAccessToken, requireAccessToken, ensureCoachToken, hasCoachScope } from '../utils/googleAuth';
 import {
   createCoachShareFile,
   readSharedFile,
@@ -31,6 +31,7 @@ import type {
 const COACH_KEY = 'fitos-coach-relationships';
 const LOG_KEY = 'fitos-coach-log';
 const UPLOADED_PHOTOS_KEY = 'fitos-coach-uploaded-photos';
+export const PENDING_COACH_CHANGES_FLAG = 'fitos-pending-coach-changes';
 
 function loadRelationships(): CoachRelationship[] {
   try {
@@ -213,6 +214,7 @@ export function useCoach() {
           if (migrated.items && migrated.items.length > 0) {
             setPendingChanges(migrated);
             setPendingCoachFileId(rel.fileId);
+            localStorage.setItem(PENDING_COACH_CHANGES_FLAG, '1');
             return;
           }
         }
@@ -222,6 +224,7 @@ export function useCoach() {
     }
     setPendingChanges(null);
     setPendingCoachFileId(null);
+    localStorage.removeItem(PENDING_COACH_CHANGES_FLAG);
   }, [myCoachRels]);
 
   const applyChangeItem = useCallback(async (
@@ -288,6 +291,7 @@ export function useCoach() {
 
     setPendingChanges(null);
     setPendingCoachFileId(null);
+    localStorage.removeItem(PENDING_COACH_CHANGES_FLAG);
     // Record the pushedAt timestamp we just handled so we never re-show it
     localStorage.setItem('fitos-last-accepted-push', changes.pushedAt);
   }, [myCoachRels, pendingCoachFileId, applyChangeItem, addLogEntry]);
@@ -346,12 +350,11 @@ export function useCoach() {
   }, [relationships]);
 
   const getClientData = useCallback(async (fileId: string) => {
-    let token = getAccessToken();
-    if (!token) {
-      try { token = await requireAccessToken(); } catch {
-        console.error('Could not get Google token');
-        return { error: 'Not signed in to Google. Sign in first.' };
-      }
+    let token: string;
+    try {
+      token = hasCoachScope() ? await ensureCoachToken() : (getAccessToken() || await requireAccessToken());
+    } catch {
+      return { error: 'Not signed in to Google. Sign in first.' };
     }
     try {
       const raw = await readSharedFile(token, fileId);
@@ -359,7 +362,7 @@ export function useCoach() {
     } catch (err: unknown) {
       if (err instanceof Error && err.message.includes('TOKEN_EXPIRED')) {
         try {
-          token = await requireAccessToken();
+          token = hasCoachScope() ? await ensureCoachToken() : await requireAccessToken();
           const raw = await readSharedFile(token, fileId);
           return JSON.parse(raw);
         } catch (retryErr) {
@@ -376,7 +379,7 @@ export function useCoach() {
   }, []);
 
   const pushChangesToClient = useCallback(async (fileId: string, changes: PendingCoachChanges): Promise<{ ok: boolean; error?: string }> => {
-    const token = getAccessToken() || await requireAccessToken();
+    const token = await ensureCoachToken();
     setLoading(true);
     try {
       const raw = await readSharedFile(token, fileId);
@@ -385,6 +388,7 @@ export function useCoach() {
       await writeSharedFile(token, fileId, JSON.stringify(data));
       addLogEntry({
         id: crypto.randomUUID(), timestamp: new Date().toISOString(), direction: 'pushed',
+        fileId,
         items: changes.items.map((item) => ({ type: item.type, label: item.label, coachNote: item.coachNote })),
       });
       return { ok: true };

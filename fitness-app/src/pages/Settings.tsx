@@ -96,6 +96,7 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
   const [addingClient, setAddingClient] = useState(false);
   const [viewingClient, setViewingClient] = useState<{ fileId: string; data: Record<string, unknown> } | null>(null);
   const [coachNote, setCoachNote] = useState('');
+  const [showCoachHistory, setShowCoachHistory] = useState(false);
 
   // Expanded sections — auto-expand if navigated with state
   const location = useLocation();
@@ -827,11 +828,20 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
               </button>
             </div>
 
-            {/* Coach/Client History */}
+            {/* Coach/Client History — collapsible */}
             {getLog().length > 0 && (
               <div className="border-t border-border pt-3 space-y-2">
-                <div className="text-xs font-semibold text-text-secondary uppercase tracking-wider">History</div>
-                <CoachHistoryComponent log={getLog()} perspective={myCoachRels.length > 0 ? 'client' : 'coach'} />
+                <button
+                  type="button"
+                  onClick={() => setShowCoachHistory((v) => !v)}
+                  className="flex items-center justify-between w-full text-xs font-semibold text-text-secondary uppercase tracking-wider"
+                >
+                  <span>History ({getLog().length})</span>
+                  <ChevronDown size={14} className={`transition-transform ${showCoachHistory ? 'rotate-180' : ''}`} />
+                </button>
+                {showCoachHistory && (
+                  <CoachHistoryComponent log={getLog()} perspective={myCoachRels.length > 0 ? 'client' : 'coach'} />
+                )}
               </div>
             )}
 
@@ -2369,6 +2379,8 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
             onRefresh={getClientData}
             onClose={() => setViewingClient(null)}
             coachEmail={googleUser?.email}
+            coachPicture={googleUser?.picture}
+            coachName={googleUser?.name}
             log={getLog()}
           />
         </div>

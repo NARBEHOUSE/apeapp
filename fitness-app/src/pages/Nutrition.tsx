@@ -12,9 +12,10 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import type { Profile, FoodEntry } from '../types';
 import { useNutrition } from '../hooks/useNutrition';
+import { getFoodEntriesByDate } from '../db/nutrition';
 import { formatDate, today } from '../utils/dateHelpers';
 import { getFoodEmoji } from '../utils/foodEmoji';
-import { getSavedMeals, addSavedMeal, deleteSavedMeal, type SavedMeal } from '../db/savedMeals';
+import { getSavedMeals, addSavedMeal, deleteSavedMeal, updateSavedMeal, type SavedMeal, type MealIngredient } from '../db/savedMeals';
 import { getSavedFoods, updateSavedFood, deleteSavedFood, type SavedFood } from '../db/foodHistory';
 import { FOOD_DATABASE } from '../data/foods';
 import { searchFoods as searchUSDA } from '../utils/usda';
@@ -24,6 +25,7 @@ import { getMealPlans, saveMealPlan, deleteMealPlan, type MealPlan } from '../db
 import { Modal } from '../components/shared/Modal';
 import { ManualEntry } from '../components/nutrition/ManualEntry';
 import { FoodSearch } from '../components/nutrition/FoodSearch';
+import { MealBuilder } from '../components/nutrition/MealBuilder';
 import { AIFoodScanner } from '../components/nutrition/AIFoodScanner';
 import { RecipeEditor } from '../components/nutrition/RecipeEditor';
 import { NutritionCharts } from '../components/nutrition/NutritionCharts';
@@ -40,7 +42,7 @@ interface NutritionPageProps {
   onUpdateProfile?: (id: string, updates: Partial<Profile>) => void;
 }
 
-type ModalType = 'manual' | 'search' | 'ai' | 'barcode' | 'save-meal' | 'edit-time' | 'edit-macros' | 'edit-entry' | 'recipe-editor' | null;
+type ModalType = 'manual' | 'search' | 'ai' | 'barcode' | 'save-meal' | 'save-meal-manual' | 'meal-builder' | 'edit-time' | 'edit-macros' | 'edit-entry' | 'recipe-editor' | null;
 type Tab = 'planner' | 'my-foods' | 'recipes' | 'charts';
 
 function MiniMacroBar({ label, current, target, color }: {
@@ -293,6 +295,10 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
   const [saveMealServing, setSaveMealServing] = useState('1');
   const [saveMealUnit, setSaveMealUnit] = useState('serving');
 
+  const [prevMealGroups, setPrevMealGroups] = useState<{ label: string; date: string; time: string; items: FoodEntry[] }[]>([]);
+  const [copyingMeal, setCopyingMeal] = useState(false);
+  const [editingMeal, setEditingMeal] = useState<SavedMeal | null>(null);
+
   const totals = getTodayTotals();
   const targets = profile.macroTargets;
   const isToday = selectedDate === today();
@@ -434,6 +440,34 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
     toast(`Added ${entry.name}`, 'success');
   }
 
+  async function openMealBuilder() {
+    setAddAtTime(null);
+    setModal('search');
+    // Load last 3 days of entries grouped by hour-slot for the "copy a meal" feature
+    const groups: { label: string; date: string; time: string; items: FoodEntry[] }[] = [];
+    const dayLabels = ['Yesterday', '2 days ago', '3 days ago'];
+    for (let d = 1; d <= 3; d++) {
+      const date = new Date();
+      date.setDate(date.getDate() - d);
+      const dateStr = date.toISOString().split('T')[0];
+      const dayEntries = await getFoodEntriesByDate(profile.id, dateStr);
+      // Group by hour
+      const byHour: Record<string, FoodEntry[]> = {};
+      for (const e of dayEntries) {
+        const hour = e.loggedAt ? new Date(e.loggedAt).getHours() : 8;
+        const slot = `${String(hour).padStart(2, '0')}:00`;
+        (byHour[slot] = byHour[slot] || []).push(e);
+      }
+      for (const [time, items] of Object.entries(byHour).sort()) {
+        if (items.length === 0) continue;
+        const h = parseInt(time);
+        const label = `${dayLabels[d - 1]} ${h < 12 ? 'AM' : 'PM'} (${h === 0 ? '12' : h > 12 ? h - 12 : h}:00${h < 12 ? 'am' : 'pm'})`;
+        groups.push({ label, date: dateStr, time, items });
+      }
+    }
+    setPrevMealGroups(groups);
+  }
+
   function handleSaveMeal() {
     if (!saveMealName.trim()) return;
     addSavedMeal(profile.id, { name: saveMealName.trim(), emoji: getFoodEmoji(saveMealName), calories: parseFloat(saveMealCal) || 0, protein: parseFloat(saveMealProtein) || 0, carbs: parseFloat(saveMealCarbs) || 0, fat: parseFloat(saveMealFat) || 0, fiber: parseFloat(saveMealFiber) || undefined, servingSize: parseFloat(saveMealServing) || 1, servingUnit: saveMealUnit });
@@ -441,6 +475,41 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
     setSaveMealName(''); setSaveMealCal(''); setSaveMealProtein(''); setSaveMealCarbs(''); setSaveMealFat(''); setSaveMealFiber(''); setSaveMealServing('1'); setSaveMealUnit('serving');
     setModal(null);
     toast('Saved to My Foods', 'success');
+  }
+
+  function handleMealBuilderSave(meal: Omit<SavedMeal, 'id' | 'profileId' | 'createdAt'>) {
+    if (editingMeal) {
+      updateSavedMeal(profile.id, { ...editingMeal, ...meal });
+      toast(`${meal.name} updated`, 'success');
+    } else {
+      addSavedMeal(profile.id, meal);
+      toast(`${meal.name} saved to My Foods`, 'success');
+    }
+    setSavedMeals(getSavedMeals(profile.id));
+    setEditingMeal(null);
+    setModal(null);
+  }
+
+  function handleMealBuilderAddToLog(ingredients: MealIngredient[]) {
+    for (const ing of ingredients) {
+      const factor = ing.amount / (ing.servingSize || 1);
+      addEntryWithTime({
+        date: selectedDate,
+        name: ing.name, brand: ing.brand,
+        servingSize: ing.amount, servingUnit: ing.servingUnit,
+        servingsConsumed: 1,
+        calories: Math.round(ing.calories * factor),
+        protein: Math.round(ing.protein * factor * 10) / 10,
+        carbs: Math.round(ing.carbs * factor * 10) / 10,
+        fat: Math.round(ing.fat * factor * 10) / 10,
+        fiber: ing.fiber ? Math.round(ing.fiber * factor * 10) / 10 : undefined,
+        source: 'manual', mealType: 'snack',
+      });
+    }
+    toast(`${ingredients.length} item${ingredients.length > 1 ? 's' : ''} added to log`, 'success');
+    setEditingMeal(null);
+    setModal(null);
+    setAddAtTime(null);
   }
 
   function handleDeleteSavedMeal(id: string) {
@@ -505,8 +574,8 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
             <button type="button" onClick={() => { setAddAtTime(null); setModal('manual'); }} className="flex-1 bg-surface rounded-xl py-2.5 flex items-center justify-center gap-1.5 active:scale-[0.98] transition-transform">
               <Plus size={14} className="text-accent-orange" /><span className="text-xs font-medium">Add</span>
             </button>
-            <button type="button" onClick={() => setModal('search')} className="flex-1 bg-surface rounded-xl py-2.5 flex items-center justify-center gap-1.5 active:scale-[0.98] transition-transform">
-              <Search size={14} className="text-accent-blue" /><span className="text-xs font-medium">Search</span>
+            <button type="button" onClick={openMealBuilder} className="flex-1 bg-surface rounded-xl py-2.5 flex items-center justify-center gap-1.5 active:scale-[0.98] transition-transform">
+              <Search size={14} className="text-accent-blue" /><span className="text-xs font-medium">Meal</span>
             </button>
             <button type="button" onClick={() => setModal('ai')} className="flex-1 bg-surface rounded-xl py-2.5 flex items-center justify-center gap-1.5 active:scale-[0.98] transition-transform">
               <Camera size={14} className="text-nutrition" /><span className="text-xs font-medium">AI Scan</span>
@@ -609,10 +678,24 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
       {/* ===== MY FOODS ===== */}
       {tab === 'my-foods' && (
         <div className="space-y-4">
-          <button onClick={() => setModal('save-meal')} className="w-full bg-surface rounded-2xl p-4 flex items-center gap-3 active:scale-[0.98] transition-transform">
-            <div className="w-10 h-10 rounded-xl bg-accent-blue/15 flex items-center justify-center"><BookmarkPlus size={18} className="text-accent-blue" /></div>
-            <div><div className="text-sm font-medium">Save a New Food / Meal</div><div className="text-[11px] text-text-muted">Pre-add for quick logging later</div></div>
+          {/* Build a Meal — primary CTA */}
+          <button onClick={() => { setEditingMeal(null); setAddAtTime(null); setModal('meal-builder'); }} className="w-full bg-accent-blue/10 border border-accent-blue/20 rounded-2xl p-4 flex items-center gap-3 active:scale-[0.98] transition-transform">
+            <div className="w-10 h-10 rounded-xl bg-accent-blue/20 flex items-center justify-center"><Plus size={20} className="text-accent-blue" /></div>
+            <div>
+              <div className="text-sm font-semibold text-accent-blue">Build a Meal</div>
+              <div className="text-[11px] text-text-muted">Multi-ingredient meal with full macros</div>
+            </div>
           </button>
+
+          {/* Save single food */}
+          <div className="flex gap-2">
+            <button onClick={() => setModal('save-meal')} className="flex-1 bg-surface rounded-xl py-3 flex items-center justify-center gap-2 active:scale-[0.98] transition-transform">
+              <Search size={14} className="text-text-muted" /><span className="text-xs text-text-secondary">Search & Save Food</span>
+            </button>
+            <button onClick={() => setModal('save-meal-manual')} className="flex-1 bg-surface rounded-xl py-3 flex items-center justify-center gap-2 active:scale-[0.98] transition-transform">
+              <BookmarkPlus size={14} className="text-text-muted" /><span className="text-xs text-text-secondary">Enter Manually</span>
+            </button>
+          </div>
 
           {favorites.length > 0 && (
             <div>
@@ -643,8 +726,15 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
                     <span className="text-lg">{meal.emoji}</span>
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-medium truncate">{meal.name}</div>
-                      <div className="text-[10px] text-text-muted">{Math.round(meal.calories)} cal · P{Math.round(meal.protein)}g · C{Math.round(meal.carbs)}g · F{Math.round(meal.fat)}g</div>
+                      <div className="text-[10px] text-text-muted">
+                        {Math.round(meal.calories)} cal · P{Math.round(meal.protein)}g · C{Math.round(meal.carbs)}g · F{Math.round(meal.fat)}g
+                        {meal.servingSize > 0 && <span className="text-text-muted/60"> · {meal.servingSize}{meal.servingUnit}</span>}
+                      </div>
+                      {meal.ingredients && meal.ingredients.length > 0 && (
+                        <div className="text-[9px] text-text-muted/50 mt-0.5 truncate">{meal.ingredients.map((i) => i.name).join(', ')}</div>
+                      )}
                     </div>
+                    <button onClick={() => { setEditingMeal(meal); setAddAtTime(null); setModal('meal-builder'); }} className="px-2 py-1.5 rounded-lg text-[10px] text-text-muted hover:text-accent-blue">Edit</button>
                     <button onClick={() => handleQuickAdd(meal)} className="bg-surface-raised px-3 py-1.5 rounded-lg text-[10px] font-medium text-accent-blue">+ Add</button>
                     <button onClick={() => handleDeleteSavedMeal(meal.id)} className="p-1.5"><Trash2 size={12} className="text-text-muted/40 hover:text-danger" /></button>
                   </div>
@@ -1043,8 +1133,74 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
         <ManualEntry onAdd={addEntryWithTime} onClose={() => { setModal(null); setAddAtTime(null); }} profileId={profile.id} dailyTotals={totals} macroTargets={targets} />
       </Modal>
 
-      <Modal open={modal === 'search'} onClose={() => setModal(null)} title="Search Foods">
-        <FoodSearch onAdd={addEntry} onClose={() => setModal(null)} profileId={profile.id} />
+      <Modal open={modal === 'search'} onClose={() => { setModal(null); setAddAtTime(null); }} title="Build a Meal">
+        <div className="mb-3">
+          <label className="label mb-1 block">Meal Time</label>
+          <select
+            className="input-field text-sm"
+            value={addAtTime || currentTimeRounded()}
+            onChange={(e) => setAddAtTime(e.target.value)}
+          >
+            {TIME_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Copy a previous meal */}
+        {prevMealGroups.length > 0 && (
+          <div className="mb-4">
+            <p className="label mb-2">Copy a previous meal</p>
+            <div className="space-y-1.5">
+              {prevMealGroups.map((group, i) => {
+                const groupCal = group.items.reduce((s, e) => s + e.calories, 0);
+                const groupP = group.items.reduce((s, e) => s + e.protein, 0);
+                return (
+                  <button
+                    key={i}
+                    type="button"
+                    disabled={copyingMeal}
+                    onClick={async () => {
+                      setCopyingMeal(true);
+                      for (const item of group.items) {
+                        await addEntryWithTime({
+                          date: selectedDate,
+                          name: item.name, brand: item.brand,
+                          servingSize: item.servingSize, servingUnit: item.servingUnit,
+                          servingsConsumed: item.servingsConsumed,
+                          calories: item.calories, protein: item.protein,
+                          carbs: item.carbs, fat: item.fat, fiber: item.fiber,
+                          source: item.source, fdcId: item.fdcId, mealType: item.mealType,
+                        });
+                      }
+                      setCopyingMeal(false);
+                      setModal(null);
+                      setAddAtTime(null);
+                      toast(`Added ${group.items.length} items from ${group.label}`, 'success');
+                    }}
+                    className="w-full bg-surface rounded-xl px-3 py-2.5 flex items-center justify-between text-left active:scale-[0.98] transition-transform disabled:opacity-50"
+                  >
+                    <div>
+                      <div className="text-xs font-medium">{group.label}</div>
+                      <div className="text-[10px] text-text-muted mt-0.5">
+                        {group.items.length} item{group.items.length > 1 ? 's' : ''} · {group.items.map((e) => e.name).join(', ').slice(0, 50)}{group.items.map((e) => e.name).join(', ').length > 50 ? '…' : ''}
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0 ml-3">
+                      <div className="text-xs font-semibold text-accent-orange">{Math.round(groupCal)} cal</div>
+                      <div className="text-[10px] text-accent-blue">P{Math.round(groupP)}g</div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="mt-3 border-t border-border pt-3">
+              <p className="label mb-2">Or search for food</p>
+            </div>
+          </div>
+        )}
+
+        <FoodSearch onAdd={addEntryWithTime} onClose={() => { setModal(null); setAddAtTime(null); }} profileId={profile.id} multiMode={true} />
       </Modal>
 
       <Modal open={modal === 'ai'} onClose={() => setModal(null)} title="AI Food Scanner">
@@ -1221,30 +1377,34 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
         </div>
       </Modal>
 
-      <Modal open={modal === 'save-meal'} onClose={() => setModal(null)} title="Save Food / Meal">
-        <div className="space-y-3">
-          <div><label className="label mb-1 block">Name</label><input className="input-field text-sm" placeholder="e.g. Grilled Chicken & Rice" value={saveMealName} onChange={(e) => setSaveMealName(e.target.value)} /></div>
-          <div className="grid grid-cols-2 gap-2">
-            <div><label className="label mb-1 block">Calories</label><input type="number" inputMode="decimal" className="input-field text-sm" placeholder="0" value={saveMealCal} onChange={(e) => setSaveMealCal(e.target.value)} /></div>
-            <div><label className="label mb-1 block">Protein (g)</label><input type="number" inputMode="decimal" className="input-field text-sm" placeholder="0" value={saveMealProtein} onChange={(e) => setSaveMealProtein(e.target.value)} /></div>
-            <div><label className="label mb-1 block">Carbs (g)</label><input type="number" inputMode="decimal" className="input-field text-sm" placeholder="0" value={saveMealCarbs} onChange={(e) => setSaveMealCarbs(e.target.value)} /></div>
-            <div><label className="label mb-1 block">Fat (g)</label><input type="number" inputMode="decimal" className="input-field text-sm" placeholder="0" value={saveMealFat} onChange={(e) => setSaveMealFat(e.target.value)} /></div>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div><label className="label mb-1 block">Fiber (g)</label><input type="number" inputMode="decimal" className="input-field text-sm" placeholder="0" value={saveMealFiber} onChange={(e) => setSaveMealFiber(e.target.value)} /></div>
-            <div><label className="label mb-1 block">Serving</label><div className="flex gap-1"><input type="number" inputMode="decimal" className="input-field text-sm flex-1" placeholder="1" value={saveMealServing} onChange={(e) => setSaveMealServing(e.target.value)} /><select className="input-field text-sm w-16" value={saveMealUnit} onChange={(e) => setSaveMealUnit(e.target.value)}><option value="serving">srv</option><option value="g">g</option><option value="oz">oz</option><option value="cup">cup</option></select></div></div>
-          </div>
-          {saveMealName.trim() && (
-            <div className="bg-surface rounded-xl p-3 flex items-center gap-3">
-              <span className="text-2xl">{getFoodEmoji(saveMealName)}</span>
-              <div><div className="text-sm font-medium">{saveMealName}</div><div className="text-[10px] text-text-muted">{saveMealCal || 0} cal · P{saveMealProtein || 0}g · C{saveMealCarbs || 0}g · F{saveMealFat || 0}g</div></div>
-            </div>
-          )}
-          <div className="flex gap-2 pt-1">
-            <button type="button" onClick={() => setModal(null)} className="btn-secondary flex-1 text-sm">Cancel</button>
-            <button type="button" onClick={handleSaveMeal} disabled={!saveMealName.trim()} className="btn-primary flex-1 text-sm disabled:opacity-30">Save</button>
-          </div>
+      <Modal open={modal === 'save-meal'} onClose={() => setModal(null)} title="Save to Library">
+        <FoodSearch onAdd={() => {}} onClose={() => setModal(null)} profileId={profile.id} saveOnly={true} />
+      </Modal>
+
+      <Modal open={modal === 'save-meal-manual'} onClose={() => setModal(null)} title="Save to Library">
+        <ManualEntry onAdd={() => {}} onClose={() => setModal(null)} profileId={profile.id} dailyTotals={totals} macroTargets={targets} saveOnly={true} />
+      </Modal>
+
+      <Modal open={modal === 'meal-builder'} onClose={() => { setModal(null); setEditingMeal(null); setAddAtTime(null); }} title={editingMeal ? `Edit — ${editingMeal.name}` : 'Build a Meal'}>
+        <div className="mb-3">
+          <label className="label mb-1 block">Log Time (if adding to today)</label>
+          <select
+            className="input-field text-sm"
+            value={addAtTime || currentTimeRounded()}
+            onChange={(e) => setAddAtTime(e.target.value)}
+          >
+            {TIME_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
         </div>
+        <MealBuilder
+          profileId={profile.id}
+          onSave={handleMealBuilderSave}
+          onAddToLog={handleMealBuilderAddToLog}
+          onClose={() => { setModal(null); setEditingMeal(null); setAddAtTime(null); }}
+          existingMeal={editingMeal ?? undefined}
+        />
       </Modal>
 
       {/* Recipe Editor Modal */}

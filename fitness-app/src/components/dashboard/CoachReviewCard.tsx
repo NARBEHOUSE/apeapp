@@ -125,10 +125,21 @@ export function CoachReviewCard({ pendingChanges, profile, onUpdateProfile, onFi
 
   return (
     <div className="bg-accent-orange/10 border border-accent-orange/30 rounded-2xl overflow-hidden">
-      <div className="px-4 pt-4 pb-2">
-        <div className="text-sm font-semibold text-accent-orange">Coach Changes</div>
-        <div className="text-[10px] text-text-muted">
-          {new Date(pendingChanges.pushedAt).toLocaleDateString()} · {pendingChanges.items.length} item{pendingChanges.items.length > 1 ? 's' : ''}
+      <div className="px-4 pt-4 pb-2 flex items-center gap-3">
+        {pendingChanges.coachPicture ? (
+          <img src={pendingChanges.coachPicture} alt="" className="w-10 h-10 rounded-full shrink-0" referrerPolicy="no-referrer" />
+        ) : (
+          <div className="w-10 h-10 rounded-full bg-accent-orange/20 flex items-center justify-center shrink-0 text-accent-orange font-bold text-sm">
+            {pendingChanges.coachName?.[0]?.toUpperCase() || pendingChanges.coachEmail?.[0]?.toUpperCase() || 'C'}
+          </div>
+        )}
+        <div>
+          <div className="text-sm font-semibold text-accent-orange">
+            {pendingChanges.coachName ? `${pendingChanges.coachName} sent changes` : 'Coach Changes'}
+          </div>
+          <div className="text-[10px] text-text-muted">
+            {new Date(pendingChanges.pushedAt).toLocaleDateString()} · {pendingChanges.items.length} item{pendingChanges.items.length > 1 ? 's' : ''}
+          </div>
         </div>
       </div>
 

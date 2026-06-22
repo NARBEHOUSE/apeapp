@@ -48,6 +48,7 @@ const COACH_SCOPE_KEY = 'fitos-coach-scope-v2';
 let tokenClient: TokenClient | null = null;
 let currentAccessToken: string | null = null;
 let tokenExpiresAt = 0;
+let currentTokenIsCoachScoped = false;
 
 let pendingResolve: ((token: string) => void) | null = null;
 let pendingReject: ((error: Error) => void) | null = null;
@@ -66,6 +67,7 @@ function buildClientConfig(scope: string): TokenClientConfig {
       } else {
         currentAccessToken = response.access_token;
         tokenExpiresAt = Date.now() + response.expires_in * 1000;
+        currentTokenIsCoachScoped = scope === COACH_SCOPES;
         pendingResolve?.(response.access_token);
       }
       pendingResolve = null;
@@ -86,6 +88,23 @@ function ensureClient() {
   if (tokenClient) return;
   const scope = hasCoachScope() ? COACH_SCOPES : SCOPES;
   tokenClient = window.google.accounts.oauth2.initTokenClient(buildClientConfig(scope));
+}
+
+// Silently get a coach-scoped token. Call in any async coach operation.
+// If the cached token already has coach scope, returns it immediately.
+// Otherwise re-requests silently (prompt:'') — no popup if already granted.
+export async function ensureCoachToken(): Promise<string> {
+  if (currentAccessToken && Date.now() < tokenExpiresAt - 60_000 && currentTokenIsCoachScoped) {
+    return currentAccessToken;
+  }
+  await loadGoogleScript();
+  tokenClient = null;
+  tokenClient = window.google!.accounts.oauth2.initTokenClient(buildClientConfig(COACH_SCOPES));
+  return new Promise((resolve, reject) => {
+    pendingResolve = resolve;
+    pendingReject = reject;
+    tokenClient!.requestAccessToken({ prompt: '' });
+  });
 }
 
 // Call this directly from a click handler to avoid popup blockers.
@@ -192,4 +211,5 @@ export function clearStoredUser() {
   currentAccessToken = null;
   tokenExpiresAt = 0;
   tokenClient = null;
+  currentTokenIsCoachScoped = false;
 }

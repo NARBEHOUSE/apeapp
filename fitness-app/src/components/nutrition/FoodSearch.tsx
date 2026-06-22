@@ -35,11 +35,21 @@ interface LocalResult {
   isHistory: boolean;
 }
 
+interface PlateItem {
+  name: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+}
+
 interface FoodSearchProps {
   onAdd: (entry: Omit<FoodEntry, 'id' | 'profileId' | 'loggedAt'>) => void;
   onClose: () => void;
   profileId?: string;
   defaultTab?: SearchTab;
+  saveOnly?: boolean;
+  multiMode?: boolean;
 }
 
 function convertBuiltIn(food: BuiltInFood): LocalResult {
@@ -59,8 +69,9 @@ function convertBuiltIn(food: BuiltInFood): LocalResult {
   };
 }
 
-export function FoodSearch({ onAdd, onClose, profileId, defaultTab }: FoodSearchProps) {
+export function FoodSearch({ onAdd, onClose, profileId, defaultTab, saveOnly = false, multiMode = false }: FoodSearchProps) {
 
+  const [plate, setPlate] = useState<PlateItem[]>([]);
   const [tab, setTab] = useState<SearchTab>(defaultTab || 'search');
   const [query, setQuery] = useState('');
   const [barcodeQuery, setBarcodeQuery] = useState('');
@@ -301,7 +312,17 @@ export function FoodSearch({ onAdd, onClose, profileId, defaultTab }: FoodSearch
       fdcId: selected.fdcId,
       mealType,
     });
-    onClose();
+
+    if (multiMode) {
+      setPlate((prev) => [...prev, { name: selected.name, calories: finalCal, protein: finalP, carbs: finalC, fat: finalF }]);
+      setSelected(null);
+      setServingSize('');
+      setServingsConsumed('1');
+      setQuery('');
+      setUsdaResults([]);
+    } else {
+      onClose();
+    }
   }
 
   // Selected food detail view
@@ -391,20 +412,22 @@ export function FoodSearch({ onAdd, onClose, profileId, defaultTab }: FoodSearch
           </div>
         </div>
 
-        {/* Meal type */}
-        <div className="grid grid-cols-4 gap-1.5">
-          {([
-            { value: 'breakfast' as MealType, label: '🌅' },
-            { value: 'lunch' as MealType, label: '☀️' },
-            { value: 'dinner' as MealType, label: '🌙' },
-            { value: 'snack' as MealType, label: '🍿' },
-          ]).map((m) => (
-            <button key={m.value} type="button" onClick={() => setMealType(m.value)}
-              className={`py-2 rounded-lg text-sm transition-colors ${mealType === m.value ? 'bg-surface-raised text-text-primary' : 'text-text-muted'}`}>
-              {m.label}
-            </button>
-          ))}
-        </div>
+        {/* Meal type — hidden in save-only mode */}
+        {!saveOnly && (
+          <div className="grid grid-cols-4 gap-1.5">
+            {([
+              { value: 'breakfast' as MealType, label: '🌅' },
+              { value: 'lunch' as MealType, label: '☀️' },
+              { value: 'dinner' as MealType, label: '🌙' },
+              { value: 'snack' as MealType, label: '🍿' },
+            ]).map((m) => (
+              <button key={m.value} type="button" onClick={() => setMealType(m.value)}
+                className={`py-2 rounded-lg text-sm transition-colors ${mealType === m.value ? 'bg-surface-raised text-text-primary' : 'text-text-muted'}`}>
+                {m.label}
+              </button>
+            ))}
+          </div>
+        )}
 
         <div className="bg-surface rounded-xl p-3 grid grid-cols-4 gap-2 text-center">
           <div><div className="text-lg font-bold text-accent-orange">{dispCal}</div><div className="text-[9px] text-text-muted">kcal</div></div>
@@ -415,14 +438,73 @@ export function FoodSearch({ onAdd, onClose, profileId, defaultTab }: FoodSearch
 
         <div className="flex gap-2">
           <button type="button" onClick={onClose} className="btn-secondary flex-1 text-sm">Cancel</button>
-          <button type="button" onClick={handleAdd} className="btn-primary flex-1 text-sm">Add</button>
+          {saveOnly ? (
+            <button type="button" onClick={() => {
+              if (selected && profileId) {
+                saveFoodToHistory(profileId, {
+                  name: selected.name, brand: selected.brand, calories: selected.calories,
+                  protein: selected.protein, carbs: selected.carbs, fat: selected.fat, fiber: selected.fiber,
+                  servingSize: selected.servingSize, servingUnit: selected.servingUnit, source: selected.source,
+                  fdcId: selected.fdcId,
+                });
+              }
+              onClose();
+            }} className="btn-primary flex-1 text-sm">Save to Library</button>
+          ) : (
+            <>
+              <button type="button" onClick={() => {
+                if (selected && profileId) {
+                  saveFoodToHistory(profileId, {
+                    name: selected.name, brand: selected.brand, calories: selected.calories,
+                    protein: selected.protein, carbs: selected.carbs, fat: selected.fat, fiber: selected.fiber,
+                    servingSize: selected.servingSize, servingUnit: selected.servingUnit, source: selected.source,
+                    fdcId: selected.fdcId,
+                  });
+                }
+                onClose();
+              }} className="btn-secondary flex-1 text-sm">Save to Library</button>
+              <button type="button" onClick={handleAdd} className="btn-primary flex-1 text-sm">{multiMode ? 'Add to Plate' : 'Add to Log'}</button>
+            </>
+          )}
         </div>
       </div>
     );
   }
 
+  // Plate totals
+  const plateTotals = plate.reduce(
+    (acc, item) => ({ cal: acc.cal + item.calories, p: acc.p + item.protein, c: acc.c + item.carbs, f: acc.f + item.fat }),
+    { cal: 0, p: 0, c: 0, f: 0 },
+  );
+
   return (
     <div className="space-y-3">
+      {/* Plate summary (multi-mode) */}
+      {multiMode && plate.length > 0 && (
+        <div className="bg-surface rounded-xl p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold">Plate ({plate.length} item{plate.length > 1 ? 's' : ''})</span>
+            <div className="flex gap-3 text-[10px] text-text-muted">
+              <span className="text-accent-orange font-medium">{plateTotals.cal} cal</span>
+              <span className="text-accent-blue">P{Math.round(plateTotals.p)}g</span>
+              <span className="text-success">C{Math.round(plateTotals.c)}g</span>
+              <span className="text-nutrition">F{Math.round(plateTotals.f)}g</span>
+            </div>
+          </div>
+          <div className="space-y-0.5">
+            {plate.map((item, i) => (
+              <div key={i} className="flex items-center justify-between text-[11px]">
+                <span className="truncate flex-1 text-text-secondary">{item.name}</span>
+                <span className="text-text-muted ml-2 shrink-0">{item.calories} cal</span>
+              </div>
+            ))}
+          </div>
+          <button type="button" onClick={onClose} className="btn-primary w-full text-sm">
+            Done — add {plate.length} item{plate.length > 1 ? 's' : ''} to log
+          </button>
+        </div>
+      )}
+
       {/* Search box with barcode button */}
       <div className="flex gap-2">
         <div className="relative flex-1">

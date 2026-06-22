@@ -46,10 +46,12 @@ interface Props {
   onRefresh: (fileId: string) => Promise<ClientData | null>;
   onClose: () => void;
   coachEmail?: string;
+  coachPicture?: string;
+  coachName?: string;
   log: CoachLogEntry[];
 }
 
-export function ClientView({ data: initialData, fileId, onPushChanges, onCheckClientResponse, onAcknowledgeResponse, onRefresh, onClose, coachEmail, log }: Props) {
+export function ClientView({ data: initialData, fileId, onPushChanges, onCheckClientResponse, onAcknowledgeResponse, onRefresh, onClose, coachEmail, coachPicture, coachName, log }: Props) {
   const [data, setData] = useState<ClientData>(initialData);
   const [refreshing, setRefreshing] = useState(false);
   const readonly = data.coachPermission === 'readonly';
@@ -182,11 +184,12 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
     if (items.length === 0) { toast('No changes to push', 'error'); return; }
 
     setPushing(true);
-    const result = await onPushChanges(fileId, { items, pushedAt: new Date().toISOString(), coachEmail });
+    const result = await onPushChanges(fileId, { items, pushedAt: new Date().toISOString(), coachEmail, coachPicture, coachName });
     setPushing(false);
     if (result.ok) {
-      toast(`${items.length} change${items.length > 1 ? 's' : ''} pushed`, 'success');
+      toast(`${items.length} change${items.length > 1 ? 's' : ''} pushed successfully`, 'success');
       setChangeMacros(false); setMacroNote(''); setChangeNote(''); setChangeQuestions(false); setPendingProgram(null); setProgramNote('');
+      setTab('overview');
     } else {
       toast(result.error || 'Failed to push changes', 'error');
     }
@@ -718,7 +721,7 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
         )}
 
         {/* HISTORY */}
-        {tab === 'history' && <CoachHistory log={log} perspective="coach" />}
+        {tab === 'history' && <CoachHistory log={log.filter((e) => !e.fileId || e.fileId === fileId)} perspective="coach" />}
 
       </div>
 

@@ -207,6 +207,8 @@ export interface PendingCoachChanges {
   items: CoachChangeItem[];
   pushedAt: string;
   coachEmail?: string;
+  coachPicture?: string;
+  coachName?: string;
 }
 
 export interface CoachChangeResponse {
@@ -226,6 +228,7 @@ export interface CoachLogEntry {
   timestamp: string;
   direction: 'pushed' | 'responded';
   coachEmail?: string;
+  fileId?: string;
   items: { type: string; label: string; action?: 'accepted' | 'denied'; clientNote?: string; coachNote?: string }[];
 }
 

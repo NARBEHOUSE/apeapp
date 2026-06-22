@@ -18,6 +18,7 @@ interface ManualEntryProps {
   profileId: string;
   dailyTotals?: DailyTotals;
   macroTargets?: DailyTotals;
+  saveOnly?: boolean;
 }
 
 function calcCalories(p: number, c: number, f: number): number {
@@ -32,7 +33,7 @@ interface BasePer100g {
   fiber: number;
 }
 
-export function ManualEntry({ onAdd, onClose, profileId, dailyTotals, macroTargets }: ManualEntryProps) {
+export function ManualEntry({ onAdd, onClose, profileId, dailyTotals, macroTargets, saveOnly = false }: ManualEntryProps) {
   const [name, setName] = useState('');
   const [protein, setProtein] = useState('');
   const [carbs, setCarbs] = useState('');
@@ -131,45 +132,42 @@ export function ManualEntry({ onAdd, onClose, profileId, dailyTotals, macroTarge
     }
   }, [basePer100g]);
 
-  function handleSubmit() {
-    if (!canSubmit) return;
-
-    const today = new Date().toISOString().split('T')[0];
+  function buildFoodData() {
     const parsedProtein = parseFloat(protein) || 0;
     const parsedCarbs = parseFloat(carbs) || 0;
     const parsedFat = parseFloat(fat) || 0;
     const parsedFiber = fiber ? parseFloat(fiber) : undefined;
     const parsedServingSize = parseFloat(servingSize) || 1;
-    const finalCalories = displayCal;
+    return { parsedProtein, parsedCarbs, parsedFat, parsedFiber, parsedServingSize };
+  }
 
+  function handleSaveToLibrary() {
+    if (!canSubmit) return;
+    const { parsedProtein, parsedCarbs, parsedFat, parsedFiber, parsedServingSize } = buildFoodData();
     saveFoodToHistory(profileId, {
-      name: name.trim(),
-      brand: selectedBrand,
-      calories: finalCalories,
-      protein: parsedProtein,
-      carbs: parsedCarbs,
-      fat: parsedFat,
-      fiber: parsedFiber,
-      servingSize: parsedServingSize,
-      servingUnit,
-      source: selectedSource,
+      name: name.trim(), brand: selectedBrand, calories: displayCal,
+      protein: parsedProtein, carbs: parsedCarbs, fat: parsedFat, fiber: parsedFiber,
+      servingSize: parsedServingSize, servingUnit, source: selectedSource,
       barcode: barcode.trim() || undefined,
     });
+    onClose();
+  }
 
+  function handleSubmit() {
+    if (!canSubmit) return;
+    const { parsedProtein, parsedCarbs, parsedFat, parsedFiber, parsedServingSize } = buildFoodData();
+    saveFoodToHistory(profileId, {
+      name: name.trim(), brand: selectedBrand, calories: displayCal,
+      protein: parsedProtein, carbs: parsedCarbs, fat: parsedFat, fiber: parsedFiber,
+      servingSize: parsedServingSize, servingUnit, source: selectedSource,
+      barcode: barcode.trim() || undefined,
+    });
     onAdd({
-      date: today,
-      name: name.trim(),
-      brand: selectedBrand,
-      servingSize: parsedServingSize,
-      servingUnit,
-      servingsConsumed: parseFloat(servingsConsumed) || 1,
-      calories: finalCalories,
-      protein: parsedProtein,
-      carbs: parsedCarbs,
-      fat: parsedFat,
-      fiber: parsedFiber,
-      source: selectedSource,
-      mealType,
+      date: new Date().toISOString().split('T')[0],
+      name: name.trim(), brand: selectedBrand, servingSize: parsedServingSize, servingUnit,
+      servingsConsumed: parseFloat(servingsConsumed) || 1, calories: displayCal,
+      protein: parsedProtein, carbs: parsedCarbs, fat: parsedFat, fiber: parsedFiber,
+      source: selectedSource, mealType,
     });
     onClose();
   }
@@ -353,29 +351,31 @@ export function ManualEntry({ onAdd, onClose, profileId, dailyTotals, macroTarge
         </div>
       )}
 
-      {/* Meal type */}
-      <div>
-        <label className="label mb-1.5 block">Meal</label>
-        <div className="grid grid-cols-4 gap-1.5">
-          {([
-            { value: 'breakfast' as const, label: '🌅 Breakfast' },
-            { value: 'lunch' as const, label: '☀️ Lunch' },
-            { value: 'dinner' as const, label: '🌙 Dinner' },
-            { value: 'snack' as const, label: '🍿 Snack' },
-          ]).map((m) => (
-            <button
-              key={m.value}
-              type="button"
-              onClick={() => setMealType(m.value)}
-              className={`py-2 rounded-lg text-[11px] font-medium transition-colors ${
-                mealType === m.value ? 'bg-surface-raised text-text-primary' : 'text-text-muted'
-              }`}
-            >
-              {m.label}
-            </button>
-          ))}
+      {/* Meal type — hidden in save-only mode */}
+      {!saveOnly && (
+        <div>
+          <label className="label mb-1.5 block">Meal</label>
+          <div className="grid grid-cols-4 gap-1.5">
+            {([
+              { value: 'breakfast' as const, label: '🌅 Breakfast' },
+              { value: 'lunch' as const, label: '☀️ Lunch' },
+              { value: 'dinner' as const, label: '🌙 Dinner' },
+              { value: 'snack' as const, label: '🍿 Snack' },
+            ]).map((m) => (
+              <button
+                key={m.value}
+                type="button"
+                onClick={() => setMealType(m.value)}
+                className={`py-2 rounded-lg text-[11px] font-medium transition-colors ${
+                  mealType === m.value ? 'bg-surface-raised text-text-primary' : 'text-text-muted'
+                }`}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Optional barcode */}
       <div>
@@ -394,14 +394,20 @@ export function ManualEntry({ onAdd, onClose, profileId, dailyTotals, macroTarge
         <button type="button" onClick={onClose} className="btn-secondary flex-1 text-sm">
           Cancel
         </button>
-        <button
-          type="button"
-          onClick={handleSubmit}
-          disabled={!canSubmit}
-          className="btn-primary flex-1 text-sm disabled:opacity-30"
-        >
-          Add
-        </button>
+        {saveOnly ? (
+          <button type="button" onClick={handleSaveToLibrary} disabled={!canSubmit} className="btn-primary flex-1 text-sm disabled:opacity-30">
+            Save to Library
+          </button>
+        ) : (
+          <>
+            <button type="button" onClick={handleSaveToLibrary} disabled={!canSubmit} className="btn-secondary flex-1 text-sm disabled:opacity-30">
+              Save to Library
+            </button>
+            <button type="button" onClick={handleSubmit} disabled={!canSubmit} className="btn-primary flex-1 text-sm disabled:opacity-30">
+              Add to Log
+            </button>
+          </>
+        )}
       </div>
     </div>
   );

@@ -1,3 +1,16 @@
+export interface MealIngredient {
+  name: string;
+  brand?: string;
+  servingSize: number;   // base serving size (e.g. 100)
+  servingUnit: string;   // base unit (e.g. 'g')
+  calories: number;      // macros per base serving
+  protein: number;
+  carbs: number;
+  fat: number;
+  fiber?: number;
+  amount: number;        // how much used (in servingUnit)
+}
+
 export interface SavedMeal {
   id: string;
   profileId: string;
@@ -10,6 +23,7 @@ export interface SavedMeal {
   fiber?: number;
   servingSize: number;
   servingUnit: string;
+  ingredients?: MealIngredient[];
   createdAt: string;
 }
 
