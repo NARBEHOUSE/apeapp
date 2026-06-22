@@ -25,6 +25,8 @@ export function ProgressPhotoCropper({ imageSrc, onCrop, onCancel }: Props) {
   const touchesRef = useRef<Map<number, { x: number; y: number }>>(new Map());
   const pinchStartDist = useRef(0);
   const pinchStartScale = useRef(1);
+  const pinchStartAngle = useRef(0);
+  const pinchStartRotation = useRef(0);
 
   const viewW = Math.min(320, window.innerWidth - 40);
   const viewH = viewW / ASPECT;
@@ -147,6 +149,12 @@ export function ProgressPhotoCropper({ imageSrc, onCrop, onCancel }: Props) {
     return Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y);
   };
 
+  const getTouchAngle = (touches: Map<number, { x: number; y: number }>) => {
+    const pts = Array.from(touches.values());
+    if (pts.length < 2) return 0;
+    return Math.atan2(pts[1].y - pts[0].y, pts[1].x - pts[0].x) * (180 / Math.PI);
+  };
+
   const handlePointerDown = (e: React.PointerEvent) => {
     touchesRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
@@ -154,6 +162,8 @@ export function ProgressPhotoCropper({ imageSrc, onCrop, onCancel }: Props) {
     if (touchesRef.current.size === 2) {
       pinchStartDist.current = getTouchDist(touchesRef.current);
       pinchStartScale.current = scale;
+      pinchStartAngle.current = getTouchAngle(touchesRef.current);
+      pinchStartRotation.current = rotation;
       setDragging(false);
     } else if (touchesRef.current.size === 1) {
       setDragging(true);
@@ -170,6 +180,9 @@ export function ProgressPhotoCropper({ imageSrc, onCrop, onCancel }: Props) {
         const newScale = pinchStartScale.current * (dist / pinchStartDist.current);
         setScale(Math.max(initialScale * 0.3, Math.min(initialScale * 5, newScale)));
       }
+      const angle = getTouchAngle(touchesRef.current);
+      const angleDiff = angle - pinchStartAngle.current;
+      setRotation(pinchStartRotation.current + angleDiff);
     } else if (dragging) {
       setOffset({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y });
     }
@@ -195,7 +208,7 @@ export function ProgressPhotoCropper({ imageSrc, onCrop, onCancel }: Props) {
     setScale((s) => Math.max(initialScale * 0.3, Math.min(initialScale * 5, s + dir * initialScale * 0.12)));
   };
 
-  const rotate = () => setRotation((r) => (r + 90) % 360);
+  const rotate90 = () => setRotation((r) => Math.round(r / 90) * 90 + 90);
 
   const handleCrop = () => {
     const img = imgRef.current;
@@ -242,10 +255,10 @@ export function ProgressPhotoCropper({ imageSrc, onCrop, onCancel }: Props) {
         />
       </div>
 
-      {/* Controls */}
-      <div className="flex items-center gap-3 mt-4">
-        <button onClick={() => zoom(-1)} className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center text-white active:scale-90 transition-transform">
-          <ZoomOut size={16} />
+      {/* Zoom controls */}
+      <div className="flex items-center gap-3 mt-3">
+        <button onClick={() => zoom(-1)} className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white active:scale-90 transition-transform">
+          <ZoomOut size={14} />
         </button>
         <input
           type="range"
@@ -253,17 +266,37 @@ export function ProgressPhotoCropper({ imageSrc, onCrop, onCancel }: Props) {
           max={initialScale * 500}
           value={scale * 100}
           onChange={(e) => setScale(parseFloat(e.target.value) / 100)}
-          className="w-28 accent-white"
+          className="w-24 accent-white"
         />
-        <button onClick={() => zoom(1)} className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center text-white active:scale-90 transition-transform">
-          <ZoomIn size={16} />
-        </button>
-        <button onClick={rotate} className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center text-white active:scale-90 transition-transform">
-          <RotateCw size={16} />
+        <button onClick={() => zoom(1)} className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white active:scale-90 transition-transform">
+          <ZoomIn size={14} />
         </button>
       </div>
 
-      <p className="text-white/30 text-[9px] mt-2">Drag to position · Pinch or scroll to zoom · Rotate if needed</p>
+      {/* Rotation controls */}
+      <div className="flex items-center gap-3 mt-2">
+        <button onClick={rotate90} className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white active:scale-90 transition-transform">
+          <RotateCw size={14} />
+        </button>
+        <input
+          type="range"
+          min={-45}
+          max={45}
+          step={0.5}
+          value={rotation % 90 > 45 ? rotation % 90 - 90 : rotation % 90 < -45 ? rotation % 90 + 90 : rotation % 90}
+          onChange={(e) => {
+            const base = Math.round(rotation / 90) * 90;
+            setRotation(base + parseFloat(e.target.value));
+          }}
+          className="w-24 accent-white"
+        />
+        <span className="text-white/50 text-[10px] tabular-nums w-10 text-center">{rotation >= 0 ? '+' : ''}{rotation.toFixed(1)}°</span>
+        {Math.abs(rotation % 90) > 0.5 && (
+          <button onClick={() => setRotation(Math.round(rotation / 90) * 90)} className="text-[9px] text-white/40 hover:text-white">Reset</button>
+        )}
+      </div>
+
+      <p className="text-white/30 text-[9px] mt-1">Drag to position · Pinch to zoom · Two-finger rotate for fine adjustments</p>
 
       {/* Actions */}
       <div className="flex gap-3 mt-4">
