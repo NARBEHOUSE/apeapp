@@ -16,8 +16,12 @@ import type { WorkoutSession, WorkoutDay, SetLog, Exercise, ExerciseLastPerforma
 import { searchExerciseLibrary, getSimilarExercises } from '../../data/exerciseLibrary';
 import { saveCustomExercise, searchCustomExercises, getExerciseVideo, updateExerciseVideo } from '../../db/customExercises';
 import { RestTimer } from './RestTimer';
+import { VoiceMicButton } from '../shared/VoiceMicButton';
+import { VoiceConfirmationCard } from '../shared/VoiceConfirmationCard';
 import { toast } from '../shared/Toast';
 import { getAllPRs } from '../../db/workouts';
+import { useVoiceMode } from '../../hooks/useVoiceMode';
+import { getDashboardConfig } from '../../utils/dashboardConfig';
 import {
   calculateWeeklyTargets,
   getAdaptiveTarget,
@@ -564,6 +568,39 @@ export function ActiveWorkout({
     ...day.exercises.filter((e) => !skippedIds.has(e.id)),
     ...addedExercises,
   ];
+
+  // Voice mode
+  const voiceEnabled = getDashboardConfig().aiVoice && !!localStorage.getItem('fitos-claude-key');
+  const currentExercise = useMemo(() => {
+    return activeExercises.find((ex) => {
+      const completed = (session.sets[ex.id] || []).filter((s) => s.completed).length;
+      const total = ex.setScheme?.type === 'top_set_backoff' ? 1 + (ex.setScheme.backoffSets || 2)
+        : ex.setScheme?.pyramidReps ? ex.setScheme.pyramidReps.length
+        : ex.sets;
+      return completed < total;
+    }) || activeExercises[activeExercises.length - 1];
+  }, [activeExercises, session.sets]);
+
+  const voiceMode = useVoiceMode({
+    mode: 'workout',
+    enabled: voiceEnabled,
+    workoutContext: currentExercise ? {
+      currentExercise: { id: currentExercise.id, name: currentExercise.name, sets: currentExercise.sets, reps: currentExercise.reps },
+      currentSetNumber: (session.sets[currentExercise.id] || []).filter((s) => s.completed).length + 1,
+      preFilledWeight: lastPerformance[currentExercise.name.toLowerCase().trim()]?.sets[0]?.weight || 0,
+      completedSets: (session.sets[currentExercise.id] || []).filter((s) => s.completed).map((s) => ({ weight: s.weight, reps: s.reps })),
+      exerciseList: activeExercises.map((e) => ({ id: e.id, name: e.name })),
+    } : undefined,
+    onLogSet: (exId, weight, reps, rir, rpe) => handleComplete(exId, weight, reps, rir, rpe),
+    onSkipExercise: (exId, reason) => {
+      setSkippedExercises((prev) => [...prev, { exerciseId: exId, reason: reason || '' }]);
+      toast(`Skipped ${activeExercises.find((e) => e.id === exId)?.name || 'exercise'}`, 'success');
+    },
+    onFinishWorkout: () => {
+      if (onSaveFeedback && Object.keys(exerciseFeedback).length > 0) onSaveFeedback(exerciseFeedback);
+      onFinish();
+    },
+  });
 
   function handleSkipExercise(exerciseId: string) {
     setSkipTarget(exerciseId);
@@ -1127,6 +1164,25 @@ export function ActiveWorkout({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Voice mode */}
+      {voiceEnabled && (
+        <>
+          <VoiceMicButton
+            onTranscript={voiceMode.handleTranscript}
+            position="workout"
+            isProcessing={voiceMode.isProcessing}
+          />
+          {voiceMode.pendingAction && (
+            <VoiceConfirmationCard
+              message={voiceMode.pendingAction.message}
+              detail={voiceMode.pendingAction.detail}
+              onConfirm={voiceMode.confirmAction}
+              onCancel={voiceMode.cancelAction}
+            />
+          )}
+        </>
       )}
 
       {/* Sticky finish button */}

@@ -29,6 +29,10 @@ import { RecipeEditor } from '../components/nutrition/RecipeEditor';
 import { NutritionCharts } from '../components/nutrition/NutritionCharts';
 import { ConfirmDialog } from '../components/shared/ConfirmDialog';
 import { toast } from '../components/shared/Toast';
+import { VoiceMicButton } from '../components/shared/VoiceMicButton';
+import { VoiceConfirmationCard } from '../components/shared/VoiceConfirmationCard';
+import { useVoiceMode } from '../hooks/useVoiceMode';
+import { getDashboardConfig as getVoiceConfig } from '../utils/dashboardConfig';
 import { calculateMacros } from '../utils/tdee';
 
 interface NutritionPageProps {
@@ -216,6 +220,15 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
   const [editFoodEmoji, setEditFoodEmoji] = useState('');
   const [usdaFoodResults, setUsdaFoodResults] = useState<{ name: string; brand?: string; cal: number; p: number; c: number; f: number; fiber: number; source: string }[]>([]);
   const [usdaFoodSearching, setUsdaFoodSearching] = useState(false);
+
+  // Voice mode
+  const voiceEnabled = getVoiceConfig().aiVoice && !!localStorage.getItem('fitos-claude-key');
+  const voiceMode = useVoiceMode({
+    mode: 'food',
+    enabled: voiceEnabled,
+    onAddFoodEntry: addEntry,
+    selectedDate,
+  });
   const [editingRecipe, setEditingRecipe] = useState<Recipe | null>(null);
   const [deleteRecipeId, setDeleteRecipeId] = useState<string | null>(null);
   const [viewingRecipe, setViewingRecipe] = useState<Recipe | null>(null);
@@ -555,6 +568,25 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
                 )}
               </div>
             </DndContext>
+          )}
+
+          {/* Voice mode */}
+          {voiceEnabled && (
+            <>
+              <VoiceMicButton
+                onTranscript={voiceMode.handleTranscript}
+                position="nutrition"
+                isProcessing={voiceMode.isProcessing}
+              />
+              {voiceMode.pendingAction && (
+                <VoiceConfirmationCard
+                  message={voiceMode.pendingAction.message}
+                  detail={voiceMode.pendingAction.detail}
+                  onConfirm={voiceMode.confirmAction}
+                  onCancel={voiceMode.cancelAction}
+                />
+              )}
+            </>
           )}
 
           {/* Daily note */}
