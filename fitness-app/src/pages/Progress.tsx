@@ -75,6 +75,9 @@ export function Progress({ profile, onUpdateProfile }: Props) {
   );
   const [showManageQuestions, setShowManageQuestions] = useState(false);
   const [newQuestionLabel, setNewQuestionLabel] = useState('');
+  const [editingCheckIn, setEditingCheckIn] = useState<CheckInEntry | null>(null);
+  const [editResponses, setEditResponses] = useState<Record<string, number | string>>({});
+  const [editNotes, setEditNotes] = useState('');
 
   // Re-read questions from localStorage when switching to check-in tab
   useEffect(() => {
@@ -133,6 +136,25 @@ export function Progress({ profile, onUpdateProfile }: Props) {
     setCheckInNotes('');
     await loadCheckIns();
     toast('Check-in saved', 'success');
+  };
+
+  const openEditCheckIn = (ci: CheckInEntry) => {
+    const prefilled: Record<string, number | string> = {};
+    for (const r of ci.responses) prefilled[r.questionId] = r.value;
+    setEditResponses(prefilled);
+    setEditNotes(ci.notes || '');
+    setEditingCheckIn(ci);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingCheckIn) return;
+    const responses = Object.entries(editResponses).map(([questionId, value]) => ({ questionId, value }));
+    const updated: CheckInEntry = { ...editingCheckIn, responses, notes: editNotes.trim() || undefined };
+    const db = await getDB();
+    await db.put('checkIns', updated);
+    setEditingCheckIn(null);
+    await loadCheckIns();
+    toast('Check-in updated', 'success');
   };
 
   const handleSaveMeasurement = async (m: Omit<Measurement, 'id' | 'profileId'>) => {
@@ -353,7 +375,10 @@ export function Progress({ profile, onUpdateProfile }: Props) {
             <div className="card p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <div className="text-sm font-semibold">Today's Check-In</div>
-                <span className="text-[10px] text-success font-medium px-2 py-0.5 rounded-full bg-success/10">Complete</span>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => openEditCheckIn(todayCheckIn)} className="text-[10px] text-accent-blue underline">Edit</button>
+                  <span className="text-[10px] text-success font-medium px-2 py-0.5 rounded-full bg-success/10">Complete</span>
+                </div>
               </div>
               <div className="space-y-2">
                 {todayCheckIn.responses.map((r) => {
@@ -455,7 +480,10 @@ export function Progress({ profile, onUpdateProfile }: Props) {
               <div className="text-xs font-semibold text-text-secondary uppercase tracking-wider">History</div>
               {checkIns.slice(0, 14).map((ci) => (
                 <div key={ci.id} className="card p-3 space-y-1.5">
-                  <div className="text-xs font-medium">{ci.date}</div>
+                  <div className="flex items-center justify-between">
+                    <div className="text-xs font-medium">{ci.date}</div>
+                    <button onClick={() => openEditCheckIn(ci)} className="text-[10px] text-accent-blue underline">Edit</button>
+                  </div>
                   <div className="flex flex-wrap gap-x-3 gap-y-1">
                     {ci.responses.map((r) => {
                       const q = questions.find((qq) => qq.id === r.questionId);
@@ -473,6 +501,43 @@ export function Progress({ profile, onUpdateProfile }: Props) {
           )}
         </div>
       )}
+
+      {/* Edit check-in modal */}
+      <Modal open={!!editingCheckIn} onClose={() => setEditingCheckIn(null)} title={`Edit Check-In — ${editingCheckIn?.date ?? ''}`}>
+        <div className="space-y-4 pt-1">
+          {questions.map((q) => (
+            <div key={q.id}>
+              <div className="text-xs font-medium text-text-secondary mb-2">{q.label}</div>
+              <div className="flex gap-1">
+                {Array.from({ length: 10 }, (_, i) => i + 1).map((v) => (
+                  <button
+                    key={v}
+                    onClick={() => setEditResponses((prev) => ({ ...prev, [q.id]: v }))}
+                    className={`flex-1 py-2 rounded-lg text-xs font-medium transition-colors ${
+                      editResponses[q.id] === v
+                        ? 'bg-accent-blue text-white'
+                        : 'bg-surface-raised text-text-muted'
+                    }`}
+                  >
+                    {v}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+          <div>
+            <div className="text-xs font-medium text-text-secondary mb-1">Notes (optional)</div>
+            <textarea
+              className="input-field text-sm w-full resize-none"
+              rows={2}
+              value={editNotes}
+              onChange={(e) => setEditNotes(e.target.value)}
+              placeholder="How was your day?"
+            />
+          </div>
+          <button onClick={handleSaveEdit} className="btn-primary w-full">Save Changes</button>
+        </div>
+      </Modal>
 
       {/* Weight change recalculate prompt */}
       {showRecalcPrompt && weightChangeInfo && onUpdateProfile && (
