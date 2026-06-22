@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip } from 'recharts';
 import {
   ArrowLeft, Send, Dumbbell, Utensils, TrendingUp, Target,
-  ChevronDown, ChevronUp, Calendar, Plus, Trash2, Check, X, MessageSquare, Heart, RefreshCw, ClipboardCheck, History, Edit3, Upload,
+  ChevronDown, ChevronUp, Calendar, Plus, X, Heart, RefreshCw, ClipboardCheck, History, Edit3, Upload,
 } from 'lucide-react';
 import type { PendingCoachChanges, CoachChangeItem, PendingClientResponse, CoachPhotoMeta, CoachLogEntry, Program, MacroTargets, CheckInEntry, CheckInQuestion } from '../../types';
 import { DEFAULT_CHECKIN_QUESTIONS } from '../../types';
@@ -12,6 +12,8 @@ import { fetchDriveImage } from '../../utils/googleDrive';
 import { getAllPrograms, initializePrograms } from '../../db/programs';
 import { getAccessToken, requireAccessToken } from '../../utils/googleAuth';
 import { toast } from '../shared/Toast';
+import MacroSummary from '../dashboard/MacroSummary';
+import { getFoodEmoji } from '../../utils/foodEmoji';
 
 interface ClientData {
   profile: {
@@ -125,10 +127,10 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
   }, [data.programs]);
 
   const dayLabelMap = useMemo(() => {
-    const map: Record<string, { programName: string; dayTitle: string }> = {};
+    const map: Record<string, { programName: string; dayTitle: string; dayLabel: string; accent: string }> = {};
     for (const prog of data.programs) {
       for (const day of prog.days) {
-        map[day.id] = { programName: prog.name, dayTitle: day.title || day.label || '' };
+        map[day.id] = { programName: prog.name, dayTitle: day.title || day.label || '', dayLabel: day.label || '', accent: day.accent || '#e8572a' };
       }
     }
     return map;
@@ -315,34 +317,71 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
         {/* OVERVIEW */}
         {tab === 'overview' && (
           <>
+            {/* Profile card */}
             <div className="card p-4 space-y-3">
               <h3 className="text-lg font-bold">{data.profile.name}</h3>
-              <div className="text-xs text-text-muted">Goal: {data.profile.goal || '-'}</div>
+              {data.profile.goal && <div className="text-xs text-text-muted">Goal: {data.profile.goal}</div>}
               {data.profile.bodyStats && (
                 <div className="grid grid-cols-4 gap-2 text-center">
-                  {[{ label: 'Age', value: data.profile.bodyStats.age }, { label: 'Height', value: data.profile.bodyStats.heightCm ? `${Math.round(data.profile.bodyStats.heightCm)} cm` : '-' }, { label: 'Weight', value: data.profile.bodyStats.weightKg ? `${Math.round(data.profile.bodyStats.weightKg * 2.205)} lbs` : '-' }, { label: 'TDEE', value: data.profile.tdee || '-' }].map((s) => (
-                    <div key={s.label} className="bg-surface-raised rounded-lg p-2"><div className="text-[9px] text-text-muted uppercase">{s.label}</div><div className="text-sm font-semibold">{s.value}</div></div>
+                  {[
+                    { label: 'Age', value: data.profile.bodyStats.age ?? '-' },
+                    { label: 'Height', value: data.profile.bodyStats.heightCm ? `${Math.round(data.profile.bodyStats.heightCm)} cm` : '-' },
+                    { label: 'Weight', value: data.profile.bodyStats.weightKg ? `${Math.round(data.profile.bodyStats.weightKg * 2.205)} lbs` : '-' },
+                    { label: 'TDEE', value: data.profile.tdee ?? '-' },
+                  ].map((s) => (
+                    <div key={s.label} className="bg-surface-raised rounded-lg p-2">
+                      <div className="text-[9px] text-text-muted uppercase">{s.label}</div>
+                      <div className="text-sm font-semibold">{s.value}</div>
+                    </div>
                   ))}
                 </div>
               )}
-              {data.profile.macroTargets && (
-                <div className="bg-surface-raised rounded-xl p-3">
-                  <div className="text-[9px] text-text-muted uppercase tracking-wider mb-1">Current Targets</div>
-                  <div className="text-xl font-bold">{data.profile.macroTargets.calories} cal</div>
-                  <div className="flex gap-3 text-xs text-text-secondary mt-1"><span>P {data.profile.macroTargets.protein}g</span><span>C {data.profile.macroTargets.carbs}g</span><span>F {data.profile.macroTargets.fat}g</span></div>
-                </div>
-              )}
             </div>
-            <div className="card p-4 space-y-2">
-              <div className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Today's Intake</div>
-              <div className="text-xl font-bold">{Math.round(todayTotals.calories)} cal</div>
-              <div className="flex gap-3 text-xs text-text-secondary"><span>P {Math.round(todayTotals.protein)}g</span><span>C {Math.round(todayTotals.carbs)}g</span><span>F {Math.round(todayTotals.fat)}g</span></div>
-            </div>
+
+            {/* Today's nutrition vs targets */}
+            {data.profile.macroTargets && (
+              <div className="card p-4">
+                <div className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3">Today's Nutrition</div>
+                <MacroSummary
+                  totals={{ ...todayTotals, fiber: 0 }}
+                  targets={data.profile.macroTargets}
+                />
+              </div>
+            )}
+
+            {/* Activity stats */}
             <div className="grid grid-cols-3 gap-2">
-              {[{ v: data.workoutSessions.length, l: 'Workouts' }, { v: data.foodEntries.length, l: 'Food Logs' }, { v: data.measurements.length, l: 'Weigh-ins' }].map((s) => (
-                <div key={s.l} className="card p-3 text-center"><div className="text-lg font-bold">{s.v}</div><div className="text-[9px] text-text-muted uppercase">{s.l}</div></div>
+              {[
+                { v: data.workoutSessions.length, l: 'Workouts', color: '#e8572a' },
+                { v: data.foodEntries.length, l: 'Food Logs', color: '#f5a623' },
+                { v: data.measurements.length, l: 'Weigh-ins', color: '#5b6ef5' },
+              ].map((s) => (
+                <div key={s.l} className="card p-3 text-center">
+                  <div className="text-lg font-bold" style={{ color: s.color }}>{s.v}</div>
+                  <div className="text-[9px] text-text-muted uppercase">{s.l}</div>
+                </div>
               ))}
             </div>
+
+            {/* Macro targets reference */}
+            {data.profile.macroTargets && (
+              <div className="card p-3">
+                <div className="text-[9px] text-text-muted uppercase tracking-wider mb-2">Daily Targets</div>
+                <div className="flex gap-3">
+                  {[
+                    { label: 'Calories', value: data.profile.macroTargets.calories, unit: '', color: '#e8572a' },
+                    { label: 'Protein', value: data.profile.macroTargets.protein, unit: 'g', color: '#5b6ef5' },
+                    { label: 'Carbs', value: data.profile.macroTargets.carbs, unit: 'g', color: '#2e9e6b' },
+                    { label: 'Fat', value: data.profile.macroTargets.fat, unit: 'g', color: '#f5a623' },
+                  ].map((m) => (
+                    <div key={m.label} className="flex-1 text-center">
+                      <div className="text-sm font-bold" style={{ color: m.color }}>{m.value}{m.unit}</div>
+                      <div className="text-[9px] text-text-muted">{m.label}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Denied changes notification */}
             {responses && responses.responses.some((r) => r.action === 'denied') && (
@@ -375,15 +414,19 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
                 <div key={w.id} className="card overflow-hidden">
                   <button
                     onClick={() => setExpandedWorkout(isExp ? null : w.id)}
-                    className="w-full p-3 flex items-center justify-between text-left"
+                    className="w-full p-3 flex items-center gap-3 text-left"
                   >
-                    <div>
-                      {dayInfo && (
-                        <div className="text-sm font-semibold">{dayInfo.dayTitle || dayInfo.programName}</div>
-                      )}
-                      <div className={dayInfo ? 'text-xs text-text-muted' : 'text-sm font-medium'}>{w.date}</div>
+                    <div
+                      className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-white text-xs font-bold"
+                      style={{ backgroundColor: dayInfo?.accent || '#e8572a' }}
+                    >
+                      {dayInfo?.dayLabel?.slice(0, 2) || 'W'}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-semibold truncate">{dayInfo ? (dayInfo.dayTitle || dayInfo.programName) : 'Workout'}</div>
                       <div className="text-xs text-text-muted">
-                        {setCount} sets{dur ? ` · ${dur} min` : ''}{w.bodyweight ? ` · ${w.bodyweight} lbs` : ''}
+                        {new Date(w.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                        {dur ? ` · ${dur} min` : ''}{w.bodyweight ? ` · ${w.bodyweight} lbs` : ''}
                       </div>
                       {w.cardio && w.cardio.length > 0 && (
                         <div className="text-xs text-text-muted mt-0.5 flex items-center gap-1">
@@ -417,10 +460,115 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
         )}
 
         {/* NUTRITION */}
-        {tab === 'nutrition' && (<><div className="card p-4 space-y-2"><div className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Today</div><div className="text-xl font-bold">{Math.round(todayTotals.calories)} cal</div><div className="flex gap-3 text-xs text-text-secondary"><span>P {Math.round(todayTotals.protein)}g</span><span>C {Math.round(todayTotals.carbs)}g</span><span>F {Math.round(todayTotals.fat)}g</span></div></div>{todayFood.length === 0 ? <p className="text-sm text-text-muted text-center py-4">No food logged today</p> : todayFood.map((f) => (<div key={f.id} className="card p-3 flex items-center justify-between"><div><div className="text-sm font-medium">{f.name}</div><div className="text-xs text-text-muted capitalize">{f.mealType}</div></div><div className="text-right"><div className="text-sm font-medium">{Math.round(f.calories * f.servingsConsumed)} cal</div><div className="text-[10px] text-text-muted">{Math.round(f.protein * f.servingsConsumed)}p · {Math.round(f.carbs * f.servingsConsumed)}c · {Math.round(f.fat * f.servingsConsumed)}f</div></div></div>))}</>)}
+        {tab === 'nutrition' && (
+          <>
+            {data.profile.macroTargets ? (
+              <div className="card p-4">
+                <div className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3">Today</div>
+                <MacroSummary
+                  totals={{ ...todayTotals, fiber: 0 }}
+                  targets={data.profile.macroTargets}
+                />
+              </div>
+            ) : (
+              <div className="card p-4 space-y-1">
+                <div className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Today</div>
+                <div className="text-2xl font-bold" style={{ color: '#e8572a' }}>{Math.round(todayTotals.calories)} <span className="text-sm font-normal text-text-muted">cal</span></div>
+                <div className="flex gap-4 text-xs">
+                  <span style={{ color: '#5b6ef5' }}>P {Math.round(todayTotals.protein)}g</span>
+                  <span style={{ color: '#2e9e6b' }}>C {Math.round(todayTotals.carbs)}g</span>
+                  <span style={{ color: '#f5a623' }}>F {Math.round(todayTotals.fat)}g</span>
+                </div>
+              </div>
+            )}
+
+            {todayFood.length === 0 ? (
+              <p className="text-sm text-text-muted text-center py-4">No food logged today</p>
+            ) : (
+              <div className="space-y-2">
+                {todayFood.map((f) => {
+                  const cal = Math.round(f.calories * f.servingsConsumed);
+                  const pro = Math.round(f.protein * f.servingsConsumed);
+                  const carb = Math.round(f.carbs * f.servingsConsumed);
+                  const fat = Math.round(f.fat * f.servingsConsumed);
+                  const emoji = getFoodEmoji(f.name);
+                  return (
+                    <div key={f.id} className="card p-3 flex items-center gap-3">
+                      <div className="text-xl flex-shrink-0">{emoji}</div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium truncate">{f.name}</div>
+                        <div className="flex gap-3 text-[10px] mt-0.5">
+                          <span style={{ color: '#5b6ef5' }}>P {pro}g</span>
+                          <span style={{ color: '#2e9e6b' }}>C {carb}g</span>
+                          <span style={{ color: '#f5a623' }}>F {fat}g</span>
+                        </div>
+                      </div>
+                      <div className="text-right flex-shrink-0">
+                        <div className="text-sm font-semibold" style={{ color: '#e8572a' }}>{cal}</div>
+                        <div className="text-[9px] text-text-muted">cal</div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </>
+        )}
 
         {/* PROGRESS */}
-        {tab === 'progress' && (<>{recentMeasurements.length === 0 ? <p className="text-sm text-text-muted text-center py-8">No measurements</p> : <div className="space-y-2"><div className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Weight History</div>{recentMeasurements.filter((m) => m.weight).map((m) => <div key={m.id} className="card p-3 flex items-center justify-between"><span className="text-sm text-text-muted">{m.date}</span><span className="text-sm font-semibold">{m.weight} {m.weightUnit}</span></div>)}</div>}{data.photoMeta && data.photoMeta.length > 0 && <div className="space-y-2 mt-4"><div className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Progress Photos {photosLoading && <span className="text-text-muted">(loading...)</span>}</div><div className="grid grid-cols-3 gap-2">{data.photoMeta.map((p) => <button key={p.photoId} onClick={() => photoUrls[p.photoId] && setViewingPhoto({ url: photoUrls[p.photoId], date: p.date, pose: p.pose, weight: p.weight })} className="relative rounded-xl overflow-hidden aspect-square bg-surface-raised active:scale-95 transition-transform">{photoUrls[p.photoId] ? <img src={photoUrls[p.photoId]} alt={p.pose} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-text-muted"><RefreshCw size={14} className={photosLoading ? 'animate-spin' : ''} /></div>}<div className="absolute bottom-0 inset-x-0 bg-black/60 px-1.5 py-0.5 text-[8px] text-white">{p.date} · {p.pose}{p.weight ? ` · ${p.weight}` : ''}</div></button>)}</div></div>}</>)}
+        {tab === 'progress' && (
+          <>
+            {recentMeasurements.length === 0 ? (
+              <p className="text-sm text-text-muted text-center py-8">No measurements</p>
+            ) : (
+              <div className="space-y-2">
+                <div className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Weight History</div>
+                {recentMeasurements.filter((m) => m.weight).map((m, i, arr) => {
+                  const prev = arr[i + 1];
+                  const delta = prev?.weight != null && m.weight != null ? m.weight - prev.weight : null;
+                  return (
+                    <div key={m.id} className="card p-3 flex items-center justify-between">
+                      <span className="text-sm text-text-muted">
+                        {new Date(m.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        {delta !== null && (
+                          <span className={`text-[10px] font-medium ${delta < 0 ? 'text-success' : delta > 0 ? 'text-danger' : 'text-text-muted'}`}>
+                            {delta > 0 ? '+' : ''}{delta.toFixed(1)}
+                          </span>
+                        )}
+                        <span className="text-sm font-semibold" style={{ color: '#5b6ef5' }}>{m.weight} {m.weightUnit}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {data.photoMeta && data.photoMeta.length > 0 && (
+              <div className="space-y-2 mt-4">
+                <div className="text-xs font-semibold text-text-secondary uppercase tracking-wider">
+                  Progress Photos {photosLoading && <span className="text-text-muted">(loading…)</span>}
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  {data.photoMeta.map((p) => (
+                    <button
+                      key={p.photoId}
+                      onClick={() => photoUrls[p.photoId] && setViewingPhoto({ url: photoUrls[p.photoId], date: p.date, pose: p.pose, weight: p.weight })}
+                      className="relative rounded-xl overflow-hidden aspect-square bg-surface-raised active:scale-95 transition-transform"
+                    >
+                      {photoUrls[p.photoId]
+                        ? <img src={photoUrls[p.photoId]} alt={p.pose} className="w-full h-full object-cover" />
+                        : <div className="w-full h-full flex items-center justify-center text-text-muted"><RefreshCw size={14} className={photosLoading ? 'animate-spin' : ''} /></div>
+                      }
+                      <div className="absolute bottom-0 inset-x-0 bg-black/60 px-1.5 py-0.5 text-[8px] text-white">{p.date} · {p.pose}{p.weight ? ` · ${p.weight}` : ''}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
+        )}
 
         {/* PROGRAMS */}
         {tab === 'programs' && (() => {
