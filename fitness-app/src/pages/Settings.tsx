@@ -638,11 +638,8 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
                           <UserX size={14} />
                         </button>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <div className="text-[9px] text-text-muted bg-surface rounded px-2 py-1 font-mono flex-1 truncate">{rel.fileId}</div>
-                        <button onClick={() => { navigator.clipboard.writeText(rel.fileId); toast('Code copied', 'success'); }} className="p-1 text-text-muted">
-                          <CopyIcon size={11} />
-                        </button>
+                      <div className="text-[9px] text-text-muted">
+                        Your coach can tap "Find Clients" to connect automatically.
                       </div>
                     </div>
                   ))}
@@ -682,7 +679,7 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
                     try {
                       const fileId = await shareWithCoach(coachEmail.trim(), coachPermission);
                       if (fileId) {
-                        toast('Shared! Send them the code.', 'success');
+                        toast('Shared! Your coach can now find you with "Find Clients".', 'success');
                         setCoachEmail('');
                       }
                     } catch (err) {
