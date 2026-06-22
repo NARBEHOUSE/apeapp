@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback } from 'react';
-import { Camera, RotateCcw, Check, X, ImagePlus } from 'lucide-react';
+import { Camera, RotateCcw, Check, X, ImagePlus, Crop } from 'lucide-react';
 import { today } from '../../utils/dateHelpers';
+import { ProgressPhotoCropper } from './ProgressPhotoCropper';
 
 type Pose = 'front' | 'side_left' | 'side_right' | 'back';
 
@@ -92,12 +93,12 @@ export function PhotoCapture({ onSave, onClose }: Props) {
   const [notes, setNotes] = useState('');
   const [photoDate, setPhotoDate] = useState(today());
   const [processing, setProcessing] = useState(false);
+  const [showCropper, setShowCropper] = useState(false);
+  const [rawImageUrl, setRawImageUrl] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const importRef = useRef<HTMLInputElement>(null);
 
   const handleFile = useCallback(async (file: File) => {
-    setProcessing(true);
-
     // Try to get date from file metadata
     if (file.lastModified) {
       const fileDate = new Date(file.lastModified);
@@ -107,20 +108,36 @@ export function PhotoCapture({ onSave, onClose }: Props) {
     }
 
     const reader = new FileReader();
-    reader.onload = async () => {
+    reader.onload = () => {
       const dataUrl = reader.result as string;
-      setPreview(dataUrl);
-      try {
-        const base64 = await compressImage(dataUrl);
-        setCompressedBase64(base64);
-      } catch {
-        const fallback = dataUrl.split(',')[1];
-        setCompressedBase64(fallback);
-      }
-      setProcessing(false);
+      setRawImageUrl(dataUrl);
+      setShowCropper(true);
     };
     reader.readAsDataURL(file);
   }, []);
+
+  const handleCropComplete = useCallback(async (croppedBase64: string) => {
+    setShowCropper(false);
+    setProcessing(true);
+    setCompressedBase64(croppedBase64);
+    const previewUrl = croppedBase64.startsWith('data:') ? croppedBase64 : `data:image/jpeg;base64,${croppedBase64}`;
+    setPreview(previewUrl);
+    setProcessing(false);
+  }, []);
+
+  const handleSkipCrop = useCallback(async () => {
+    if (!rawImageUrl) return;
+    setShowCropper(false);
+    setProcessing(true);
+    try {
+      const base64 = await compressImage(rawImageUrl);
+      setCompressedBase64(base64);
+    } catch {
+      setCompressedBase64(rawImageUrl.split(',')[1]);
+    }
+    setPreview(rawImageUrl);
+    setProcessing(false);
+  }, [rawImageUrl]);
 
   const handleCapture = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -138,7 +155,10 @@ export function PhotoCapture({ onSave, onClose }: Props) {
   const handleRetake = () => {
     setPreview(null);
     setCompressedBase64(null);
+    setRawImageUrl(null);
+    setShowCropper(false);
     if (fileRef.current) fileRef.current.value = '';
+    if (importRef.current) importRef.current.value = '';
   };
 
   const handleAccept = () => {
@@ -245,14 +265,25 @@ export function PhotoCapture({ onSave, onClose }: Props) {
             </div>
           </div>
 
-          {/* Retake */}
-          <button
-            onClick={handleRetake}
-            className="btn-secondary w-full flex items-center justify-center gap-2"
-          >
-            <RotateCcw size={16} />
-            Choose Different Photo
-          </button>
+          {/* Retake + Re-crop */}
+          <div className="flex gap-2">
+            <button
+              onClick={handleRetake}
+              className="btn-secondary flex-1 flex items-center justify-center gap-2"
+            >
+              <RotateCcw size={16} />
+              Change Photo
+            </button>
+            {rawImageUrl && (
+              <button
+                onClick={() => setShowCropper(true)}
+                className="btn-secondary flex-1 flex items-center justify-center gap-2"
+              >
+                <Crop size={16} />
+                Re-crop
+              </button>
+            )}
+          </div>
 
           {/* Date */}
           <div>
@@ -310,6 +341,14 @@ export function PhotoCapture({ onSave, onClose }: Props) {
             </button>
           </div>
         </div>
+      )}
+      {/* Progress Photo Cropper */}
+      {showCropper && rawImageUrl && (
+        <ProgressPhotoCropper
+          imageSrc={rawImageUrl}
+          onCrop={handleCropComplete}
+          onCancel={handleSkipCrop}
+        />
       )}
     </div>
   );
