@@ -11,6 +11,19 @@ interface Props {
   profileId: string;
 }
 
+interface MatchResult {
+  name: string;
+  cal: number;
+  p: number;
+  c: number;
+  f: number;
+  fiber: number;
+  serving: number;
+  unit: string;
+  source: 'builtin' | 'usda';
+  brand?: string;
+}
+
 export function ZeroMacroWarning({ profileId }: Props) {
   const [foods, setFoods] = useState(() => getSavedFoods(profileId));
   const [fixing, setFixing] = useState(false);
@@ -19,18 +32,46 @@ export function ZeroMacroWarning({ profileId }: Props) {
   const [editP, setEditP] = useState('');
   const [editC, setEditC] = useState('');
   const [editF, setEditF] = useState('');
+  const [editFiber, setEditFiber] = useState('');
   const [editServing, setEditServing] = useState('');
   const [editUnit, setEditUnit] = useState('g');
-  const [usdaResults, setUsdaResults] = useState<{ name: string; brand?: string; cal: number; p: number; c: number; f: number }[]>([]);
+  const [matches, setMatches] = useState<MatchResult[]>([]);
   const [usdaSearching, setUsdaSearching] = useState(false);
-  const [builtinMatches, setBuiltinMatches] = useState<{ name: string; cal: number; p: number; c: number; f: number; serving: number }[]>([]);
   const [autoMatched, setAutoMatched] = useState(false);
+  const [customSearch, setCustomSearch] = useState('');
 
   const zeroFoods = useMemo(() => foods.filter((f) => f.calories === 0 && f.protein === 0 && f.carbs === 0 && f.fat === 0), [foods]);
 
   if (zeroFoods.length === 0) return null;
 
   const currentFood = fixing ? zeroFoods[currentIdx] : null;
+
+  const searchBuiltIn = (query: string): MatchResult[] => {
+    const q = query.toLowerCase();
+    const qWords = q.split(/\s+/).filter((w) => w.length > 2);
+    if (qWords.length === 0) return [];
+
+    return FOOD_DATABASE
+      .map((f) => {
+        const name = f.name.toLowerCase();
+        const matchCount = qWords.filter((w) => name.includes(w)).length;
+        return { food: f, matchCount, ratio: matchCount / qWords.length };
+      })
+      .filter((s) => s.matchCount >= Math.max(1, Math.ceil(qWords.length * 0.5)))
+      .sort((a, b) => b.ratio - a.ratio || b.matchCount - a.matchCount)
+      .slice(0, 5)
+      .map((s) => ({
+        name: s.food.name,
+        cal: Math.round(s.food.per100g.calories * s.food.commonServing.grams / 100),
+        p: Math.round(s.food.per100g.protein * s.food.commonServing.grams / 100 * 10) / 10,
+        c: Math.round(s.food.per100g.carbs * s.food.commonServing.grams / 100 * 10) / 10,
+        f: Math.round(s.food.per100g.fat * s.food.commonServing.grams / 100 * 10) / 10,
+        fiber: s.food.per100g.fiber ? Math.round(s.food.per100g.fiber * s.food.commonServing.grams / 100 * 10) / 10 : 0,
+        serving: s.food.commonServing.grams,
+        unit: 'g',
+        source: 'builtin' as const,
+      }));
+  };
 
   const startFixing = () => {
     setFixing(true);
@@ -39,62 +80,47 @@ export function ZeroMacroWarning({ profileId }: Props) {
   };
 
   const loadFood = async (food: SavedFood) => {
-    setEditCal(''); setEditP(''); setEditC(''); setEditF('');
-    setEditServing(String(food.servingSize || 1)); setEditUnit(food.servingUnit || 'g');
-    setUsdaResults([]);
+    setEditCal(''); setEditP(''); setEditC(''); setEditF(''); setEditFiber('');
+    setEditServing(String(food.servingSize || 1)); setEditUnit('g');
     setAutoMatched(false);
+    setCustomSearch('');
 
+    // Search built-in DB with ALL significant words required
+    const builtinMatches = searchBuiltIn(food.name);
+
+    // Check for strong match (all words match)
     const q = food.name.toLowerCase();
     const qWords = q.split(/\s+/).filter((w) => w.length > 2);
+    const strongMatch = builtinMatches.length > 0 && qWords.length > 0 &&
+      qWords.every((w) => builtinMatches[0].name.toLowerCase().includes(w));
 
-    // Score built-in matches by word overlap
-    const scored = FOOD_DATABASE
-      .map((f) => {
-        const name = f.name.toLowerCase();
-        const nameWords = name.split(/[\s,]+/);
-        const matchCount = qWords.filter((w) => name.includes(w)).length;
-        const exactish = qWords.length > 0 && matchCount >= Math.ceil(qWords.length * 0.6);
-        return { food: f, matchCount, exactish };
-      })
-      .filter((s) => s.matchCount > 0)
-      .sort((a, b) => b.matchCount - a.matchCount)
-      .slice(0, 5);
-
-    const matches = scored.map((s) => ({
-      name: s.food.name,
-      cal: Math.round(s.food.per100g.calories * s.food.commonServing.grams / 100),
-      p: Math.round(s.food.per100g.protein * s.food.commonServing.grams / 100 * 10) / 10,
-      c: Math.round(s.food.per100g.carbs * s.food.commonServing.grams / 100 * 10) / 10,
-      f: Math.round(s.food.per100g.fat * s.food.commonServing.grams / 100 * 10) / 10,
-      serving: s.food.commonServing.grams,
-    }));
-    setBuiltinMatches(matches);
-
-    // Auto-fill if strong built-in match
-    const bestMatch = scored[0];
-    if (bestMatch && bestMatch.exactish) {
-      const m = matches[0];
+    if (strongMatch) {
+      const m = builtinMatches[0];
       setEditCal(String(m.cal)); setEditP(String(m.p)); setEditC(String(m.c)); setEditF(String(m.f));
-      setEditServing(String(m.serving)); setEditUnit('g');
+      setEditFiber(String(m.fiber)); setEditServing(String(m.serving)); setEditUnit('g');
       setAutoMatched(true);
+      setMatches(builtinMatches);
       return;
     }
 
-    // No built-in match — try USDA auto-search
+    setMatches(builtinMatches);
+
+    // No strong built-in match — try USDA
     const apiKey = localStorage.getItem('fitos-usda-key');
     if (apiKey) {
       setUsdaSearching(true);
       try {
         const results = await searchUSDA(food.name, apiKey);
-        const mapped = results.slice(0, 5).map((r) => ({
-          name: r.name, brand: r.brand, cal: r.caloriesPer100g, p: r.proteinPer100g, c: r.carbsPer100g, f: r.fatPer100g,
+        const usdaMatches: MatchResult[] = results.slice(0, 5).map((r) => ({
+          name: r.name, brand: r.brand, cal: r.caloriesPer100g, p: r.proteinPer100g,
+          c: r.carbsPer100g, f: r.fatPer100g, fiber: r.fiberPer100g,
+          serving: 100, unit: 'g', source: 'usda' as const,
         }));
-        setUsdaResults(mapped);
-        // Auto-fill from top USDA result
-        if (mapped.length > 0) {
-          const top = mapped[0];
+        setMatches([...builtinMatches, ...usdaMatches]);
+        if (usdaMatches.length > 0 && builtinMatches.length === 0) {
+          const top = usdaMatches[0];
           setEditCal(String(top.cal)); setEditP(String(top.p)); setEditC(String(top.c)); setEditF(String(top.f));
-          setEditServing('100'); setEditUnit('g');
+          setEditFiber(String(top.fiber)); setEditServing('100'); setEditUnit('g');
           setAutoMatched(true);
         }
       } catch { /* ignore */ }
@@ -102,18 +128,29 @@ export function ZeroMacroWarning({ profileId }: Props) {
     }
   };
 
-  const handleSearchUSDA = async () => {
-    if (!currentFood) return;
+  const handleCustomSearch = async () => {
+    if (!customSearch.trim()) return;
+    const builtinResults = searchBuiltIn(customSearch);
     const apiKey = localStorage.getItem('fitos-usda-key');
-    if (!apiKey) { toast('Add USDA API key in Settings', 'error'); return; }
-    setUsdaSearching(true);
-    try {
-      const results = await searchUSDA(currentFood.name, apiKey);
-      setUsdaResults(results.slice(0, 5).map((r) => ({
-        name: r.name, brand: r.brand, cal: r.caloriesPer100g, p: r.proteinPer100g, c: r.carbsPer100g, f: r.fatPer100g,
-      })));
-    } catch { toast('USDA search failed', 'error'); }
-    setUsdaSearching(false);
+    let usdaMatches: MatchResult[] = [];
+    if (apiKey) {
+      setUsdaSearching(true);
+      try {
+        const results = await searchUSDA(customSearch, apiKey);
+        usdaMatches = results.slice(0, 5).map((r) => ({
+          name: r.name, brand: r.brand, cal: r.caloriesPer100g, p: r.proteinPer100g,
+          c: r.carbsPer100g, f: r.fatPer100g, fiber: r.fiberPer100g,
+          serving: 100, unit: 'g', source: 'usda' as const,
+        }));
+      } catch { /* ignore */ }
+      setUsdaSearching(false);
+    }
+    setMatches([...builtinResults, ...usdaMatches]);
+  };
+
+  const selectMatch = (m: MatchResult) => {
+    setEditCal(String(m.cal)); setEditP(String(m.p)); setEditC(String(m.c)); setEditF(String(m.f));
+    setEditFiber(String(m.fiber)); setEditServing(String(m.serving)); setEditUnit(m.unit);
   };
 
   const applyAndNext = async () => {
@@ -122,29 +159,33 @@ export function ZeroMacroWarning({ profileId }: Props) {
     const p = parseFloat(editP) || 0;
     const c = parseFloat(editC) || 0;
     const f = parseFloat(editF) || 0;
+    const fiber = parseFloat(editFiber) || undefined;
 
     if (cal > 0 || p > 0) {
       updateSavedFood(profileId, currentFood.name, {
-        calories: cal, protein: p, carbs: c, fat: f,
-        servingSize: parseFloat(editServing) || 1, servingUnit: editUnit,
+        calories: cal, protein: p, carbs: c, fat: f, fiber,
+        servingSize: parseFloat(editServing) || 1, servingUnit: editUnit || 'g',
       });
-
-      // Retroactive update of past food entries
       const db = await getDB();
       const allEntries: FoodEntry[] = await db.getAllFromIndex('foodEntries', 'by-profile', profileId);
       const nameLower = currentFood.name.toLowerCase();
       for (const entry of allEntries) {
         if (entry.name.toLowerCase() === nameLower && entry.calories === 0 && entry.protein === 0) {
-          await db.put('foodEntries', { ...entry, calories: cal, protein: p, carbs: c, fat: f });
+          await db.put('foodEntries', { ...entry, calories: cal, protein: p, carbs: c, fat: f, fiber });
         }
       }
     }
+    advance();
+  };
 
+  const advance = () => {
     setFoods(getSavedFoods(profileId));
-    if (currentIdx < zeroFoods.length - 1) {
-      const nextIdx = currentIdx + 1;
-      setCurrentIdx(nextIdx);
-      loadFood(zeroFoods[nextIdx]);
+    const remaining = getSavedFoods(profileId).filter((f) => f.calories === 0 && f.protein === 0 && f.carbs === 0 && f.fat === 0);
+    if (remaining.length > 0 && currentIdx < remaining.length) {
+      loadFood(remaining[Math.min(currentIdx, remaining.length - 1)]);
+    } else if (remaining.length > 0) {
+      setCurrentIdx(0);
+      loadFood(remaining[0]);
     } else {
       setFixing(false);
       toast('All foods updated!', 'success');
@@ -166,7 +207,14 @@ export function ZeroMacroWarning({ profileId }: Props) {
       deleteSavedFood(profileId, currentFood.name);
       setFoods(getSavedFoods(profileId));
     }
-    skipFood();
+    const remaining = getSavedFoods(profileId).filter((f) => f.calories === 0 && f.protein === 0 && f.carbs === 0 && f.fat === 0);
+    if (remaining.length > 0) {
+      setCurrentIdx(Math.min(currentIdx, remaining.length - 1));
+      loadFood(remaining[Math.min(currentIdx, remaining.length - 1)]);
+    } else {
+      setFixing(false);
+      toast('All done!', 'success');
+    }
   };
 
   if (!fixing) {
@@ -184,8 +232,8 @@ export function ZeroMacroWarning({ profileId }: Props) {
 
   return (
     <div className="card border border-warning/20">
-      <div className="flex items-center justify-between mb-3">
-        <div className="text-xs text-text-muted">{currentIdx + 1} of {zeroFoods.length}</div>
+      <div className="flex items-center justify-between mb-2">
+        <div className="text-[10px] text-text-muted font-semibold">{currentIdx + 1} of {zeroFoods.length}</div>
         <button onClick={() => setFixing(false)} className="p-1"><X size={14} className="text-text-muted" /></button>
       </div>
 
@@ -196,62 +244,54 @@ export function ZeroMacroWarning({ profileId }: Props) {
         </div>
       )}
 
-      {/* Built-in DB matches */}
-      {builtinMatches.length > 0 && (
-        <div className="mb-3">
-          <div className="text-[10px] text-text-muted font-semibold uppercase mb-1">Matches in database</div>
-          <div className="space-y-1 max-h-28 overflow-y-auto">
-            {builtinMatches.map((m, i) => (
-              <button key={i} onClick={() => {
-                setEditCal(String(m.cal)); setEditP(String(m.p)); setEditC(String(m.c)); setEditF(String(m.f));
-                setEditServing(String(m.serving)); setEditUnit('g');
-              }} className="w-full text-left bg-surface-raised rounded-md px-2.5 py-1.5 text-[10px] hover:bg-border transition-colors">
-                <div className="font-medium">{m.name}</div>
-                <div className="text-text-muted">{m.cal}cal · P{m.p}g · C{m.c}g · F{m.f}g · {m.serving}g</div>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* Custom search */}
+      <div className="flex gap-1 mb-2">
+        <input
+          type="text" className="input-field text-xs flex-1 py-1.5" placeholder="Search foods & USDA..."
+          value={customSearch} onChange={(e) => setCustomSearch(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') handleCustomSearch(); }}
+        />
+        <button onClick={handleCustomSearch} disabled={usdaSearching} className="bg-accent-blue text-white px-2 rounded-lg">
+          {usdaSearching ? <Loader2 size={12} className="animate-spin" /> : <Search size={12} />}
+        </button>
+      </div>
 
-      {/* USDA search */}
-      <button onClick={handleSearchUSDA} disabled={usdaSearching} className="text-[10px] text-accent-blue font-semibold mb-2 flex items-center gap-1 disabled:opacity-50">
-        {usdaSearching ? <><Loader2 size={10} className="animate-spin" /> Searching...</> : <><Search size={10} /> Search USDA</>}
-      </button>
-
-      {usdaResults.length > 0 && (
-        <div className="space-y-1 mb-3 max-h-28 overflow-y-auto">
-          {usdaResults.map((r, i) => (
-            <button key={i} onClick={() => {
-              setEditCal(String(r.cal)); setEditP(String(r.p)); setEditC(String(r.c)); setEditF(String(r.f));
-              setEditServing('100'); setEditUnit('g');
-              setUsdaResults([]);
-            }} className="w-full text-left bg-surface-raised rounded-md px-2.5 py-1.5 text-[10px] hover:bg-border">
-              <span className="font-medium">{r.name}</span>
-              {r.brand && <span className="text-text-muted ml-1">({r.brand})</span>}
-              <div className="text-text-muted">{r.cal}cal · P{r.p}g · C{r.c}g · F{r.f}g per 100g</div>
+      {/* Matches */}
+      {matches.length > 0 && (
+        <div className="space-y-1 max-h-32 overflow-y-auto mb-2">
+          {matches.map((m, i) => (
+            <button key={i} onClick={() => selectMatch(m)} className="w-full text-left bg-surface-raised rounded-md px-2.5 py-1.5 text-[10px] hover:bg-border transition-colors">
+              <div className="flex items-center gap-1">
+                <span className="font-medium truncate flex-1">{m.name}</span>
+                <span className={`text-[8px] px-1 rounded ${m.source === 'builtin' ? 'bg-accent-blue/15 text-accent-blue' : 'bg-green-500/15 text-green-500'}`}>
+                  {m.source === 'builtin' ? 'DB' : 'USDA'}
+                </span>
+              </div>
+              {m.brand && <div className="text-text-muted">{m.brand}</div>}
+              <div className="text-text-muted">{m.cal}cal · P{m.p}g · C{m.c}g · F{m.f}g · {m.serving}{m.unit}</div>
             </button>
           ))}
         </div>
       )}
 
-      {/* Manual entry */}
-      <div className="grid grid-cols-4 gap-1 mb-2">
-        <div><label className="text-[9px] text-text-muted">Cal</label><input type="number" inputMode="decimal" className="input-field text-xs w-full" value={editCal} onChange={(e) => setEditCal(e.target.value)} /></div>
-        <div><label className="text-[9px] text-text-muted">Prot</label><input type="number" inputMode="decimal" className="input-field text-xs w-full" value={editP} onChange={(e) => setEditP(e.target.value)} /></div>
-        <div><label className="text-[9px] text-text-muted">Carbs</label><input type="number" inputMode="decimal" className="input-field text-xs w-full" value={editC} onChange={(e) => setEditC(e.target.value)} /></div>
-        <div><label className="text-[9px] text-text-muted">Fat</label><input type="number" inputMode="decimal" className="input-field text-xs w-full" value={editF} onChange={(e) => setEditF(e.target.value)} /></div>
+      {/* Macro entry */}
+      <div className="grid grid-cols-5 gap-1 mb-2">
+        <div><label className="text-[8px] text-text-muted">Cal</label><input type="number" inputMode="decimal" className="input-field text-xs w-full py-1" value={editCal} onChange={(e) => setEditCal(e.target.value)} /></div>
+        <div><label className="text-[8px] text-text-muted">Prot</label><input type="number" inputMode="decimal" className="input-field text-xs w-full py-1" value={editP} onChange={(e) => setEditP(e.target.value)} /></div>
+        <div><label className="text-[8px] text-text-muted">Carbs</label><input type="number" inputMode="decimal" className="input-field text-xs w-full py-1" value={editC} onChange={(e) => setEditC(e.target.value)} /></div>
+        <div><label className="text-[8px] text-text-muted">Fat</label><input type="number" inputMode="decimal" className="input-field text-xs w-full py-1" value={editF} onChange={(e) => setEditF(e.target.value)} /></div>
+        <div><label className="text-[8px] text-text-muted">Fiber</label><input type="number" inputMode="decimal" className="input-field text-xs w-full py-1" value={editFiber} onChange={(e) => setEditFiber(e.target.value)} /></div>
       </div>
       <div className="flex gap-2 mb-3">
-        <input type="number" inputMode="decimal" className="input-field text-xs flex-1" placeholder="Serving" value={editServing} onChange={(e) => setEditServing(e.target.value)} />
-        <select className="input-field text-xs w-14" value={editUnit} onChange={(e) => setEditUnit(e.target.value)}>
-          {['g','oz','cup','tbsp','tsp','ml','piece','serving'].map((u) => <option key={u}>{u}</option>)}
-        </select>
+        <div className="flex-1">
+          <label className="text-[8px] text-text-muted">Serving (g)</label>
+          <input type="number" inputMode="decimal" className="input-field text-xs w-full py-1" value={editServing} onChange={(e) => setEditServing(e.target.value)} />
+        </div>
       </div>
 
       {/* Actions */}
       <div className="flex gap-2">
-        <button onClick={removeAndNext} className="py-2 px-3 rounded-lg bg-surface-raised text-[10px] text-danger font-medium"><Trash2 size={10} className="inline mr-1" />Remove</button>
+        <button onClick={removeAndNext} className="py-2 px-3 rounded-lg bg-surface-raised text-[10px] text-danger font-medium"><Trash2 size={10} className="inline mr-0.5" />Remove</button>
         <button onClick={skipFood} className="py-2 px-3 rounded-lg bg-surface-raised text-[10px] text-text-muted font-medium flex-1">Skip</button>
         <button onClick={applyAndNext} disabled={!editCal && !editP} className="py-2 px-3 rounded-lg bg-accent-blue text-white text-[10px] font-semibold flex-1 disabled:opacity-30 flex items-center justify-center gap-1">
           <Check size={10} /> Save & Next

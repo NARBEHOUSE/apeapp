@@ -16,6 +16,7 @@ import { formatDate, today } from '../utils/dateHelpers';
 import { getFoodEmoji } from '../utils/foodEmoji';
 import { getSavedMeals, addSavedMeal, deleteSavedMeal, type SavedMeal } from '../db/savedMeals';
 import { getSavedFoods, updateSavedFood, deleteSavedFood, type SavedFood } from '../db/foodHistory';
+import { FOOD_DATABASE } from '../data/foods';
 import { searchFoods as searchUSDA } from '../utils/usda';
 import { getRecipes, saveRecipe, updateRecipe, deleteRecipe, recipePerServing, type Recipe } from '../db/recipes';
 import { getMealPlans, saveMealPlan, deleteMealPlan, type MealPlan } from '../db/mealPlans';
@@ -206,8 +207,10 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
   const [editFoodC, setEditFoodC] = useState('');
   const [editFoodF, setEditFoodF] = useState('');
   const [editFoodServing, setEditFoodServing] = useState('');
-  const [editFoodUnit, setEditFoodUnit] = useState('');
-  const [usdaFoodResults, setUsdaFoodResults] = useState<{ name: string; brand?: string; cal: number; p: number; c: number; f: number }[]>([]);
+  const [editFoodUnit, setEditFoodUnit] = useState('g');
+  const [editFoodFiber, setEditFoodFiber] = useState('');
+  const [editFoodQuery, setEditFoodQuery] = useState('');
+  const [usdaFoodResults, setUsdaFoodResults] = useState<{ name: string; brand?: string; cal: number; p: number; c: number; f: number; fiber: number; source: string }[]>([]);
   const [usdaFoodSearching, setUsdaFoodSearching] = useState(false);
   const [editingRecipe, setEditingRecipe] = useState<Recipe | null>(null);
   const [deleteRecipeId, setDeleteRecipeId] = useState<string | null>(null);
@@ -644,24 +647,62 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
                               <div key={food.name} className="bg-surface rounded-xl p-3 space-y-2 border border-accent-blue/30">
                                 <div className="text-xs font-semibold">{food.name}</div>
 
-                                {localStorage.getItem('fitos-usda-key') && (
-                                  <button
-                                    onClick={async () => {
+                                {/* Search built-in + USDA */}
+                                <div className="flex gap-1">
+                                  <input type="text" className="input-field text-xs flex-1 py-1.5" placeholder="Search foods & USDA..."
+                                    value={editFoodQuery} onChange={(e) => setEditFoodQuery(e.target.value)}
+                                    onKeyDown={(e) => { if (e.key === 'Enter') {
+                                      const q = (editFoodQuery || food.name).toLowerCase();
+                                      const qw = q.split(/\s+/).filter((w: string) => w.length > 2);
+                                      const builtinR = FOOD_DATABASE.filter((bf) => { const n = bf.name.toLowerCase(); return qw.some((w: string) => n.includes(w)); }).slice(0, 5).map((bf) => ({
+                                        name: bf.name, brand: undefined, cal: Math.round(bf.per100g.calories * bf.commonServing.grams / 100),
+                                        p: Math.round(bf.per100g.protein * bf.commonServing.grams / 100 * 10) / 10,
+                                        c: Math.round(bf.per100g.carbs * bf.commonServing.grams / 100 * 10) / 10,
+                                        f: Math.round(bf.per100g.fat * bf.commonServing.grams / 100 * 10) / 10,
+                                        fiber: bf.per100g.fiber ? Math.round(bf.per100g.fiber * bf.commonServing.grams / 100 * 10) / 10 : 0,
+                                        source: 'DB',
+                                      }));
+                                      setUsdaFoodResults(builtinR);
+                                      const apiKey = localStorage.getItem('fitos-usda-key');
+                                      if (apiKey) {
+                                        setUsdaFoodSearching(true);
+                                        searchUSDA(editFoodQuery || food.name, apiKey).then((results) => {
+                                          setUsdaFoodResults([...builtinR, ...results.slice(0, 5).map((r) => ({
+                                            name: r.name, brand: r.brand, cal: r.caloriesPer100g, p: r.proteinPer100g,
+                                            c: r.carbsPer100g, f: r.fatPer100g, fiber: r.fiberPer100g, source: 'USDA',
+                                          }))]);
+                                          setUsdaFoodSearching(false);
+                                        }).catch(() => setUsdaFoodSearching(false));
+                                      }
+                                    }}}
+                                  />
+                                  <button onClick={() => {
+                                    const q = (editFoodQuery || food.name).toLowerCase();
+                                    const qw = q.split(/\s+/).filter((w: string) => w.length > 2);
+                                    const builtinR = FOOD_DATABASE.filter((bf) => { const n = bf.name.toLowerCase(); return qw.some((w: string) => n.includes(w)); }).slice(0, 5).map((bf) => ({
+                                      name: bf.name, brand: undefined, cal: Math.round(bf.per100g.calories * bf.commonServing.grams / 100),
+                                      p: Math.round(bf.per100g.protein * bf.commonServing.grams / 100 * 10) / 10,
+                                      c: Math.round(bf.per100g.carbs * bf.commonServing.grams / 100 * 10) / 10,
+                                      f: Math.round(bf.per100g.fat * bf.commonServing.grams / 100 * 10) / 10,
+                                      fiber: bf.per100g.fiber ? Math.round(bf.per100g.fiber * bf.commonServing.grams / 100 * 10) / 10 : 0,
+                                      source: 'DB',
+                                    }));
+                                    setUsdaFoodResults(builtinR);
+                                    const apiKey = localStorage.getItem('fitos-usda-key');
+                                    if (apiKey) {
                                       setUsdaFoodSearching(true);
-                                      try {
-                                        const results = await searchUSDA(food.name, localStorage.getItem('fitos-usda-key')!);
-                                        setUsdaFoodResults(results.slice(0, 5).map((r) => ({
-                                          name: r.name, brand: r.brand, cal: r.caloriesPer100g, p: r.proteinPer100g, c: r.carbsPer100g, f: r.fatPer100g,
-                                        })));
-                                      } catch { /* ignore */ }
-                                      setUsdaFoodSearching(false);
-                                    }}
-                                    disabled={usdaFoodSearching}
-                                    className="text-[10px] text-accent-blue font-semibold disabled:opacity-50"
-                                  >
-                                    {usdaFoodSearching ? 'Searching USDA...' : 'Find on USDA Database'}
+                                      searchUSDA(editFoodQuery || food.name, apiKey).then((results) => {
+                                        setUsdaFoodResults([...builtinR, ...results.slice(0, 5).map((r) => ({
+                                          name: r.name, brand: r.brand, cal: r.caloriesPer100g, p: r.proteinPer100g,
+                                          c: r.carbsPer100g, f: r.fatPer100g, fiber: r.fiberPer100g, source: 'USDA',
+                                        }))]);
+                                        setUsdaFoodSearching(false);
+                                      }).catch(() => setUsdaFoodSearching(false));
+                                    }
+                                  }} disabled={usdaFoodSearching} className="bg-accent-blue text-white px-2 rounded-lg">
+                                    {usdaFoodSearching ? <Loader2 size={12} className="animate-spin" /> : <Search size={12} />}
                                   </button>
-                                )}
+                                </div>
 
                                 {usdaFoodResults.length > 0 && (
                                   <div className="space-y-1 max-h-28 overflow-y-auto">
@@ -669,41 +710,47 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
                                       <button key={ri} onClick={() => {
                                         setEditFoodCal(String(r.cal)); setEditFoodP(String(r.p));
                                         setEditFoodC(String(r.c)); setEditFoodF(String(r.f));
-                                        setEditFoodServing('100'); setEditFoodUnit('g');
+                                        setEditFoodFiber(String(r.fiber || 0));
+                                        setEditFoodServing(r.source === 'USDA' ? '100' : String(r.cal > 0 ? Math.round(r.cal / (r.cal / 100)) : 100));
+                                        setEditFoodUnit('g');
                                         setUsdaFoodResults([]);
                                       }} className="w-full text-left bg-surface-raised rounded-md px-2 py-1 text-[10px] hover:bg-border">
-                                        <span className="font-medium">{r.name}</span>
-                                        {r.brand && <span className="text-text-muted ml-1">({r.brand})</span>}
-                                        <div className="text-text-muted">{r.cal}cal · P{r.p}g · C{r.c}g · F{r.f}g per 100g</div>
+                                        <div className="flex items-center gap-1">
+                                          <span className="font-medium truncate flex-1">{r.name}</span>
+                                          <span className={`text-[8px] px-1 rounded ${r.source === 'DB' ? 'bg-accent-blue/15 text-accent-blue' : 'bg-green-500/15 text-green-500'}`}>{r.source}</span>
+                                        </div>
+                                        {r.brand && <div className="text-text-muted">{r.brand}</div>}
+                                        <div className="text-text-muted">{r.cal}cal · P{r.p}g · C{r.c}g · F{r.f}g</div>
                                       </button>
                                     ))}
                                   </div>
                                 )}
 
-                                <div className="grid grid-cols-4 gap-1">
-                                  <div><label className="text-[9px] text-text-muted">Cal</label><input type="number" inputMode="decimal" className="input-field text-xs w-full" value={editFoodCal} onChange={(e) => setEditFoodCal(e.target.value)} /></div>
-                                  <div><label className="text-[9px] text-text-muted">Prot</label><input type="number" inputMode="decimal" className="input-field text-xs w-full" value={editFoodP} onChange={(e) => setEditFoodP(e.target.value)} /></div>
-                                  <div><label className="text-[9px] text-text-muted">Carbs</label><input type="number" inputMode="decimal" className="input-field text-xs w-full" value={editFoodC} onChange={(e) => setEditFoodC(e.target.value)} /></div>
-                                  <div><label className="text-[9px] text-text-muted">Fat</label><input type="number" inputMode="decimal" className="input-field text-xs w-full" value={editFoodF} onChange={(e) => setEditFoodF(e.target.value)} /></div>
+                                <div className="grid grid-cols-5 gap-1">
+                                  <div><label className="text-[8px] text-text-muted">Cal</label><input type="number" inputMode="decimal" className="input-field text-xs w-full py-1" value={editFoodCal} onChange={(e) => setEditFoodCal(e.target.value)} /></div>
+                                  <div><label className="text-[8px] text-text-muted">Prot</label><input type="number" inputMode="decimal" className="input-field text-xs w-full py-1" value={editFoodP} onChange={(e) => setEditFoodP(e.target.value)} /></div>
+                                  <div><label className="text-[8px] text-text-muted">Carbs</label><input type="number" inputMode="decimal" className="input-field text-xs w-full py-1" value={editFoodC} onChange={(e) => setEditFoodC(e.target.value)} /></div>
+                                  <div><label className="text-[8px] text-text-muted">Fat</label><input type="number" inputMode="decimal" className="input-field text-xs w-full py-1" value={editFoodF} onChange={(e) => setEditFoodF(e.target.value)} /></div>
+                                  <div><label className="text-[8px] text-text-muted">Fiber</label><input type="number" inputMode="decimal" className="input-field text-xs w-full py-1" value={editFoodFiber} onChange={(e) => setEditFoodFiber(e.target.value)} /></div>
+                                </div>
+                                <div>
+                                  <label className="text-[8px] text-text-muted">Serving size (g)</label>
+                                  <input type="number" inputMode="decimal" className="input-field text-xs w-full py-1" value={editFoodServing} onChange={(e) => setEditFoodServing(e.target.value)} />
                                 </div>
                                 <div className="flex gap-2">
-                                  <input type="number" inputMode="decimal" className="input-field text-xs flex-1" placeholder="Serving size" value={editFoodServing} onChange={(e) => setEditFoodServing(e.target.value)} />
-                                  <select className="input-field text-xs w-16" value={editFoodUnit} onChange={(e) => setEditFoodUnit(e.target.value)}>
-                                    {['g','oz','cup','tbsp','tsp','ml','piece','serving'].map((u) => <option key={u} value={u}>{u}</option>)}
-                                  </select>
-                                </div>
-                                <div className="flex gap-2">
-                                  <button onClick={() => { setEditingFood(null); setUsdaFoodResults([]); }} className="btn-secondary flex-1 text-xs">Cancel</button>
+                                  <button onClick={() => { setEditingFood(null); setUsdaFoodResults([]); setEditFoodQuery(''); }} className="btn-secondary flex-1 text-xs">Cancel</button>
                                   <button onClick={() => {
                                     updateSavedFood(profile.id, food.name, {
                                       calories: parseFloat(editFoodCal) || 0, protein: parseFloat(editFoodP) || 0,
                                       carbs: parseFloat(editFoodC) || 0, fat: parseFloat(editFoodF) || 0,
-                                      servingSize: parseFloat(editFoodServing) || food.servingSize,
-                                      servingUnit: editFoodUnit || food.servingUnit,
+                                      fiber: parseFloat(editFoodFiber) || undefined,
+                                      servingSize: parseFloat(editFoodServing) || 1,
+                                      servingUnit: 'g',
                                     });
                                     setFoodLibrary(getSavedFoods(profile.id));
                                     setEditingFood(null);
                                     setUsdaFoodResults([]);
+                                    setEditFoodQuery('');
                                     toast('Food updated!', 'success');
                                   }} className="btn-primary flex-1 text-xs">Save</button>
                                 </div>
@@ -718,12 +765,13 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
                                 setEditingFood(food);
                                 setEditFoodCal(String(food.calories)); setEditFoodP(String(food.protein));
                                 setEditFoodC(String(food.carbs)); setEditFoodF(String(food.fat));
-                                setEditFoodServing(String(food.servingSize)); setEditFoodUnit(food.servingUnit);
+                                setEditFoodFiber(String(food.fiber || '')); setEditFoodQuery('');
+                                setEditFoodServing(String(food.servingSize || 1)); setEditFoodUnit('g');
                                 setUsdaFoodResults([]);
                               }} className="flex-1 min-w-0 text-left">
                                 <div className="text-xs font-medium truncate">{food.name}</div>
                                 {hasMacros ? (
-                                  <div className="text-[10px] text-text-muted">{food.calories}cal · P{food.protein}g · C{food.carbs}g · F{food.fat}g</div>
+                                  <div className="text-[10px] text-text-muted">{food.calories}cal · P{food.protein}g · C{food.carbs}g · F{food.fat}g · {food.servingSize || 1}g</div>
                                 ) : (
                                   <div className="text-[10px] text-warning">Tap to add macros</div>
                                 )}
