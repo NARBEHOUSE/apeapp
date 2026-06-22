@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react';
-import { Search, Loader2, ChevronRight, Barcode, Globe, Database, Clock } from 'lucide-react';
+import { useState, useMemo, useEffect, useRef } from 'react';
+import { Search, Loader2, ChevronRight, Barcode, Globe, Database, Clock, Camera } from 'lucide-react';
 import { searchFoods, lookupBarcode } from '../../utils/usda';
 import { FOOD_DATABASE, type BuiltInFood } from '../../data/foods';
 import { searchSavedFoods } from '../../db/foodHistory';
@@ -134,13 +134,15 @@ export function FoodSearch({ onAdd, onClose, profileId }: FoodSearchProps) {
   }
 
   // Barcode lookup
-  async function handleBarcodeLookup() {
-    if (!barcodeQuery.trim()) return;
+  async function handleBarcodeLookup(directCode?: string) {
+    const code = directCode || barcodeQuery.trim();
+    if (!code) return;
+    if (directCode) setBarcodeQuery(directCode);
     setBarcodeSearching(true);
     setBarcodeError('');
     setBarcodeResult(null);
     try {
-      const result = await lookupBarcode(barcodeQuery.trim());
+      const result = await lookupBarcode(code);
       if (result) {
         setBarcodeResult(result);
       } else {
@@ -389,59 +391,133 @@ export function FoodSearch({ onAdd, onClose, profileId }: FoodSearchProps) {
 
       {/* ========== BARCODE TAB ========== */}
       {tab === 'barcode' && (
-        <>
-            <>
-              <div className="flex gap-2">
-                <div className="relative flex-1">
-                  <Barcode size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    className="input-field pl-9 text-sm"
-                    placeholder="Enter UPC barcode number..."
-                    value={barcodeQuery}
-                    onChange={(e) => setBarcodeQuery(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleBarcodeLookup()}
-                  />
-                </div>
-                <button
-                  type="button"
-                  onClick={handleBarcodeLookup}
-                  disabled={barcodeSearching || !barcodeQuery.trim()}
-                  className="btn-primary px-4 text-sm disabled:opacity-40"
-                >
-                  {barcodeSearching ? <Loader2 size={14} className="animate-spin" /> : 'Lookup'}
-                </button>
-              </div>
+        <BarcodeTab
+          barcodeQuery={barcodeQuery}
+          setBarcodeQuery={setBarcodeQuery}
+          barcodeResult={barcodeResult}
+          barcodeSearching={barcodeSearching}
+          barcodeError={barcodeError}
+          handleBarcodeLookup={handleBarcodeLookup}
+          selectUsda={selectUsda}
+        />
+      )}
+    </div>
+  );
+}
 
-              {barcodeError && <p className="text-sm text-danger text-center">{barcodeError}</p>}
+function BarcodeTab({ barcodeQuery, setBarcodeQuery, barcodeResult, barcodeSearching, barcodeError, handleBarcodeLookup, selectUsda }: {
+  barcodeQuery: string;
+  setBarcodeQuery: (v: string) => void;
+  barcodeResult: ParsedFood | null;
+  barcodeSearching: boolean;
+  barcodeError: string;
+  handleBarcodeLookup: (directCode?: string) => void;
+  selectUsda: (food: ParsedFood) => void;
+}) {
+  const [scanning, setScanning] = useState(false);
+  const scannerRef = useRef<HTMLDivElement>(null);
+  const html5QrRef = useRef<unknown>(null);
 
-              {barcodeResult && (
-                <button
-                  type="button"
-                  onClick={() => selectUsda(barcodeResult)}
-                  className="w-full text-left bg-surface rounded-xl p-4 flex items-center gap-3 active:scale-[0.98] transition-transform"
-                >
-                  <span className="text-2xl">{getFoodEmoji(barcodeResult.name)}</span>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium">{barcodeResult.name}</div>
-                    {barcodeResult.brand && <div className="text-[10px] text-text-muted">{barcodeResult.brand}</div>}
-                    <div className="text-[10px] text-text-muted mt-0.5">
-                      Per 100g: {barcodeResult.caloriesPer100g} cal · P{barcodeResult.proteinPer100g}g · C{barcodeResult.carbsPer100g}g · F{barcodeResult.fatPer100g}g
-                    </div>
-                  </div>
-                  <ChevronRight size={14} className="text-text-muted" />
-                </button>
-              )}
+  const startScanner = async () => {
+    setScanning(true);
+    try {
+      const { Html5Qrcode } = await import('html5-qrcode');
+      const scannerId = 'barcode-scanner-' + Date.now();
+      if (scannerRef.current) {
+        scannerRef.current.id = scannerId;
+      }
+      const scanner = new Html5Qrcode(scannerId);
+      html5QrRef.current = scanner;
+      await scanner.start(
+        { facingMode: 'environment' },
+        { fps: 10, qrbox: { width: 280, height: 120 } },
+        (decodedText) => {
+          scanner.stop().catch(() => {});
+          setScanning(false);
+          handleBarcodeLookup(decodedText);
+        },
+        () => {},
+      );
+    } catch {
+      setScanning(false);
+    }
+  };
 
-              {!barcodeSearching && !barcodeResult && !barcodeError && (
-                <div className="text-center py-6 space-y-2">
-                  <Barcode size={36} className="mx-auto text-text-muted/30" />
-                  <p className="text-[11px] text-text-muted">Type or paste a UPC barcode number to look up nutrition info</p>
-                </div>
-              )}
-            </>
-        </>
+  const stopScanner = () => {
+    const scanner = html5QrRef.current as { stop: () => Promise<void> } | null;
+    if (scanner) scanner.stop().catch(() => {});
+    setScanning(false);
+  };
+
+  useEffect(() => {
+    return () => { stopScanner(); };
+  }, []);
+
+  return (
+    <div className="space-y-3">
+      {/* Camera scanner */}
+      {scanning ? (
+        <div className="space-y-2">
+          <div ref={scannerRef} className="rounded-xl overflow-hidden bg-black" style={{ minHeight: 200 }} />
+          <button onClick={stopScanner} className="btn-secondary w-full text-sm flex items-center justify-center gap-2">
+            Stop Scanner
+          </button>
+        </div>
+      ) : (
+        <button onClick={startScanner} className="w-full bg-surface rounded-xl py-3 flex items-center justify-center gap-2 active:scale-[0.98] transition-transform">
+          <Camera size={16} className="text-accent-blue" />
+          <span className="text-sm font-medium">Scan Barcode with Camera</span>
+        </button>
+      )}
+
+      {/* Manual entry */}
+      <div className="flex gap-2">
+        <div className="relative flex-1">
+          <Barcode size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
+          <input
+            type="text"
+            inputMode="numeric"
+            className="input-field pl-9 text-sm"
+            placeholder="Or type UPC number..."
+            value={barcodeQuery}
+            onChange={(e) => setBarcodeQuery(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleBarcodeLookup()}
+          />
+        </div>
+        <button
+          type="button"
+          onClick={() => handleBarcodeLookup()}
+          disabled={barcodeSearching || !barcodeQuery.trim()}
+          className="btn-primary px-4 text-sm disabled:opacity-40"
+        >
+          {barcodeSearching ? <Loader2 size={14} className="animate-spin" /> : 'Lookup'}
+        </button>
+      </div>
+
+      {barcodeError && <p className="text-sm text-danger text-center">{barcodeError}</p>}
+
+      {barcodeResult && (
+        <button
+          type="button"
+          onClick={() => selectUsda(barcodeResult)}
+          className="w-full text-left bg-surface rounded-xl p-4 flex items-center gap-3 active:scale-[0.98] transition-transform"
+        >
+          <span className="text-2xl">{getFoodEmoji(barcodeResult.name)}</span>
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-medium">{barcodeResult.name}</div>
+            {barcodeResult.brand && <div className="text-[10px] text-text-muted">{barcodeResult.brand}</div>}
+            <div className="text-[10px] text-text-muted mt-0.5">
+              Per 100g: {barcodeResult.caloriesPer100g} cal · P{barcodeResult.proteinPer100g}g · C{barcodeResult.carbsPer100g}g · F{barcodeResult.fatPer100g}g
+            </div>
+          </div>
+          <ChevronRight size={14} className="text-text-muted" />
+        </button>
+      )}
+
+      {!barcodeSearching && !barcodeResult && !barcodeError && !scanning && (
+        <div className="text-center py-4">
+          <p className="text-[11px] text-text-muted">Point camera at a barcode or type the UPC number manually</p>
+        </div>
       )}
     </div>
   );
