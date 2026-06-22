@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { Search, Loader2, ChevronRight, Barcode, Globe, Database, Clock, Camera } from 'lucide-react';
 import { searchFoods, lookupBarcode } from '../../utils/usda';
 import { FOOD_DATABASE, type BuiltInFood } from '../../data/foods';
@@ -7,7 +7,7 @@ import { getFoodEmoji } from '../../utils/foodEmoji';
 import type { FoodEntry } from '../../types';
 
 type MealType = FoodEntry['mealType'];
-type SearchTab = 'all' | 'usda' | 'barcode';
+type SearchTab = 'search' | 'barcode';
 
 interface ParsedFood {
   fdcId: string;
@@ -59,7 +59,7 @@ function convertBuiltIn(food: BuiltInFood): LocalResult {
 
 export function FoodSearch({ onAdd, onClose, profileId }: FoodSearchProps) {
 
-  const [tab, setTab] = useState<SearchTab>('all');
+  const [tab, setTab] = useState<SearchTab>('search');
   const [query, setQuery] = useState('');
   const [barcodeQuery, setBarcodeQuery] = useState('');
 
@@ -117,21 +117,25 @@ export function FoodSearch({ onAdd, onClose, profileId }: FoodSearchProps) {
     return [...historyResults, ...builtinResults];
   }, [query, profileId]);
 
-  // USDA search
-  async function handleUsdaSearch() {
-    if (!query.trim()) return;
-    setUsdaSearching(true);
-    setUsdaError('');
-    try {
-      const foods = await searchFoods(query.trim());
-      setUsdaResults(foods);
-      if (foods.length === 0) setUsdaError('No USDA results found.');
-    } catch (err) {
-      setUsdaError(err instanceof Error ? err.message : 'Search failed');
-    } finally {
-      setUsdaSearching(false);
-    }
-  }
+  // Debounced USDA search
+  const usdaTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(() => {
+    if (query.trim().length < 2) { setUsdaResults([]); setUsdaError(''); return; }
+    if (usdaTimerRef.current) clearTimeout(usdaTimerRef.current);
+    usdaTimerRef.current = setTimeout(async () => {
+      setUsdaSearching(true);
+      setUsdaError('');
+      try {
+        const foods = await searchFoods(query.trim());
+        setUsdaResults(foods);
+      } catch (err) {
+        setUsdaError(err instanceof Error ? err.message : 'Search failed');
+      } finally {
+        setUsdaSearching(false);
+      }
+    }, 400);
+    return () => { if (usdaTimerRef.current) clearTimeout(usdaTimerRef.current); };
+  }, [query]);
 
   // Barcode lookup
   async function handleBarcodeLookup(directCode?: string) {
@@ -292,34 +296,30 @@ export function FoodSearch({ onAdd, onClose, profileId }: FoodSearchProps) {
     <div className="space-y-3">
       {/* Tab bar */}
       <div className="flex gap-1 bg-surface rounded-xl p-1">
-        <button onClick={() => setTab('all')} className={`flex-1 py-1.5 rounded-lg text-[11px] font-medium flex items-center justify-center gap-1 ${tab === 'all' ? 'bg-surface-raised text-text-primary' : 'text-text-muted'}`}>
-          <Database size={11} /> All Foods
-        </button>
-        <button onClick={() => setTab('usda')} className={`flex-1 py-1.5 rounded-lg text-[11px] font-medium flex items-center justify-center gap-1 ${tab === 'usda' ? 'bg-surface-raised text-text-primary' : 'text-text-muted'}`}>
-          <Globe size={11} /> USDA
+        <button onClick={() => setTab('search')} className={`flex-1 py-1.5 rounded-lg text-[11px] font-medium flex items-center justify-center gap-1 ${tab === 'search' ? 'bg-surface-raised text-text-primary' : 'text-text-muted'}`}>
+          <Search size={11} /> Search Foods
         </button>
         <button onClick={() => setTab('barcode')} className={`flex-1 py-1.5 rounded-lg text-[11px] font-medium flex items-center justify-center gap-1 ${tab === 'barcode' ? 'bg-surface-raised text-text-primary' : 'text-text-muted'}`}>
           <Barcode size={11} /> Barcode
         </button>
       </div>
 
-      {/* ========== ALL FOODS TAB ========== */}
-      {tab === 'all' && (
+      {/* ========== UNIFIED SEARCH TAB ========== */}
+      {tab === 'search' && (
         <>
           <div className="relative">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
             <input
-              type="text" className="input-field pl-9 text-sm" placeholder="Search built-in & your foods..."
+              type="text" className="input-field pl-9 text-sm" placeholder="Search foods..."
               value={query} onChange={(e) => setQuery(e.target.value)} autoFocus
             />
+            {usdaSearching && <Loader2 size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted animate-spin" />}
           </div>
 
           <div className="space-y-1 max-h-72 overflow-y-auto">
-            {localResults.length === 0 && query.trim() && (
-              <p className="text-sm text-text-muted text-center py-6">No matches. Try the USDA tab or add manually.</p>
-            )}
+            {/* Local results */}
             {localResults.map((item, i) => (
-              <button key={`${item.name}-${i}`} type="button" onClick={() => selectLocal(item)}
+              <button key={`local-${item.name}-${i}`} type="button" onClick={() => selectLocal(item)}
                 className="w-full text-left p-2.5 rounded-xl hover:bg-surface-raised transition-colors flex items-center gap-3">
                 <span className="text-base shrink-0">{getFoodEmoji(item.name)}</span>
                 <div className="flex-1 min-w-0">
@@ -339,39 +339,20 @@ export function FoodSearch({ onAdd, onClose, profileId }: FoodSearchProps) {
                 <ChevronRight size={14} className="text-text-muted/30 shrink-0" />
               </button>
             ))}
-          </div>
 
-          {!query.trim() && (
-            <p className="text-[11px] text-text-muted text-center">Search {FOOD_DATABASE.length}+ built-in foods + your history</p>
-          )}
-        </>
-      )}
-
-      {/* ========== USDA TAB ========== */}
-      {tab === 'usda' && (
-        <>
-            <>
-              <div className="flex gap-2">
-                <div className="relative flex-1">
-                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
-                  <input type="text" className="input-field pl-9 text-sm" placeholder="Search USDA database..."
-                    value={query} onChange={(e) => setQuery(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleUsdaSearch()} />
-                </div>
-                <button type="button" onClick={handleUsdaSearch} disabled={usdaSearching || !query.trim()} className="btn-primary px-4 text-sm disabled:opacity-40">
-                  {usdaSearching ? <Loader2 size={14} className="animate-spin" /> : 'Search'}
-                </button>
-              </div>
-
-              {usdaError && <p className="text-sm text-danger text-center">{usdaError}</p>}
-
-              <div className="space-y-1 max-h-72 overflow-y-auto">
+            {/* USDA results */}
+            {usdaResults.length > 0 && (
+              <>
+                {localResults.length > 0 && <div className="text-[9px] text-text-muted font-semibold uppercase tracking-wider px-2 pt-2">USDA Database</div>}
                 {usdaResults.map((food) => (
                   <button key={food.fdcId} type="button" onClick={() => selectUsda(food)}
                     className="w-full text-left p-2.5 rounded-xl hover:bg-surface-raised transition-colors flex items-center gap-3">
                     <span className="text-base shrink-0">{getFoodEmoji(food.name)}</span>
                     <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium truncate">{food.name}</div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-sm font-medium truncate">{food.name}</span>
+                        <span className="text-[8px] px-1 py-0.5 rounded bg-green-500/15 text-green-500 shrink-0">USDA</span>
+                      </div>
                       {food.brand && <div className="text-[10px] text-text-muted truncate">{food.brand}</div>}
                       <div className="text-[10px] text-text-muted mt-0.5">
                         Per 100g: {food.caloriesPer100g} cal · P{food.proteinPer100g}g · C{food.carbsPer100g}g · F{food.fatPer100g}g
@@ -380,12 +361,19 @@ export function FoodSearch({ onAdd, onClose, profileId }: FoodSearchProps) {
                     <ChevronRight size={14} className="text-text-muted/30 shrink-0" />
                   </button>
                 ))}
-              </div>
+              </>
+            )}
 
-              {!usdaSearching && usdaResults.length === 0 && !usdaError && (
-                <p className="text-[11px] text-text-muted text-center py-4">Search the USDA FoodData Central database</p>
-              )}
-            </>
+            {localResults.length === 0 && usdaResults.length === 0 && query.trim() && !usdaSearching && (
+              <p className="text-sm text-text-muted text-center py-6">No results found</p>
+            )}
+          </div>
+
+          {usdaError && <p className="text-[10px] text-danger text-center">{usdaError}</p>}
+
+          {!query.trim() && (
+            <p className="text-[11px] text-text-muted text-center">Search {FOOD_DATABASE.length}+ built-in foods, your history, and USDA database</p>
+          )}
         </>
       )}
 
