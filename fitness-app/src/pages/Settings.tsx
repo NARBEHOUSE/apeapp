@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import {
   Key,
   User,
@@ -95,8 +96,12 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
   const [viewingClient, setViewingClient] = useState<{ fileId: string; data: Record<string, unknown> } | null>(null);
   const [coachNote, setCoachNote] = useState('');
 
-  // Expanded sections
-  const [expanded, setExpanded] = useState<Set<Section>>(new Set(['api']));
+  // Expanded sections — auto-expand if navigated with state
+  const location = useLocation();
+  const [expanded, setExpanded] = useState<Set<Section>>(() => {
+    const navSection = (location.state as { section?: Section })?.section;
+    return new Set(navSection ? [navSection] : ['api']);
+  });
 
   // API Keys
   const [usdaKey, setUsdaKey] = useState(() => localStorage.getItem('fitos-usda-key') || '');

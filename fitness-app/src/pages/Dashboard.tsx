@@ -53,6 +53,7 @@ export default function Dashboard({ profile, onUpdateProfile }: DashboardProps) 
   const [water, setWater] = useState<WaterEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [autoAdjust, setAutoAdjust] = useState<AutoAdjustResult | null>(null);
+  const [autoAdjustDismissed, setAutoAdjustDismissed] = useState(() => localStorage.getItem('fitos-dismiss-auto-adjust') === today());
 
   const dashConfig = getDashboardConfig();
 
@@ -294,20 +295,46 @@ export default function Dashboard({ profile, onUpdateProfile }: DashboardProps) 
       })()}
 
       {/* Auto-adjust banner */}
-      {autoAdjust?.shouldAdjust && (
-        <button
-          onClick={() => navigate('/settings')}
-          className="bg-surface rounded-2xl p-4 flex items-center gap-3 w-full text-left active:scale-[0.98] transition-transform"
-        >
-          <Zap size={16} className="text-text-primary" />
-          <div className="flex-1 min-w-0">
-            <div className="text-sm font-medium">Calorie adjustment ready</div>
-            <div className="text-[11px] text-text-muted truncate">
-              {autoAdjust.reason.split('.')[0]}
+      {autoAdjust?.shouldAdjust && !autoAdjustDismissed && (
+        <div className="bg-surface rounded-2xl p-4 space-y-3">
+          <div className="flex items-start gap-3">
+            <Zap size={16} className="text-accent shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-medium">Calorie adjustment suggestion</div>
+              <div className="text-[11px] text-text-muted mt-0.5">
+                {autoAdjust.reason}
+              </div>
+              <div className="text-xs font-semibold mt-1">
+                {profile.macroTargets.calories} → {autoAdjust.newCalories} cal/day
+              </div>
             </div>
           </div>
-          <ChevronRight size={14} className="text-text-muted" />
-        </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => {
+                onUpdateProfile(profile.id, {
+                  macroTargets: { ...profile.macroTargets, calories: autoAdjust.newCalories },
+                  lastAutoAdjustDate: new Date().toISOString().split('T')[0],
+                  calorieAdjustments: [
+                    ...(profile.calorieAdjustments || []),
+                    { date: new Date().toISOString().split('T')[0], previousCalories: profile.macroTargets.calories, newCalories: autoAdjust.newCalories, reason: autoAdjust.reason, avgWeeklyChange: autoAdjust.avgWeeklyChange },
+                  ],
+                });
+                localStorage.setItem('fitos-dismiss-auto-adjust', today());
+                setAutoAdjustDismissed(true);
+              }}
+              className="flex-1 py-2 rounded-xl bg-accent text-white text-xs font-semibold active:scale-[0.98] transition-transform"
+            >
+              Apply ({autoAdjust.newCalories} cal)
+            </button>
+            <button
+              onClick={() => { localStorage.setItem('fitos-dismiss-auto-adjust', today()); setAutoAdjustDismissed(true); }}
+              className="py-2 px-4 rounded-xl bg-surface-raised text-xs text-text-muted font-medium"
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
       )}
 
       {/* Coach changes review */}
@@ -326,7 +353,7 @@ export default function Dashboard({ profile, onUpdateProfile }: DashboardProps) 
       {/* Backup reminder — only for local-only profiles */}
       {!googleSignedIn && (
         <button
-          onClick={() => navigate('/settings')}
+          onClick={() => navigate('/settings', { state: { section: 'data' } })}
           className="bg-surface rounded-2xl p-4 flex items-center gap-3 w-full text-left active:scale-[0.98] transition-transform"
         >
           <HardDrive size={16} className="text-accent-blue" />
