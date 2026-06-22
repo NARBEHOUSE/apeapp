@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
 import {
   Key,
@@ -30,6 +30,8 @@ import {
   UserX,
   Copy as CopyIcon,
   Send,
+  RotateCcw,
+  History,
 } from 'lucide-react';
 import type { Profile, BodyStats, FitnessGoal, ActivityLevel, Gender } from '../types';
 import { useGoogleAuth } from '../contexts/GoogleAuthContext';
@@ -45,6 +47,7 @@ import {
   exportCustomFoods, importCustomFoods, exportCoachUpdate, importCoachUpdate, exportCoachPackage,
 } from '../utils/exportImport';
 import { importCSV, importMacroFactorXLSX, getSourceLabel, type ImportResult } from '../utils/csvImport';
+import { getDB } from '../db';
 import { getDashboardConfig, saveDashboardConfig, type DashboardCardConfig } from '../utils/dashboardConfig';
 import { getActiveThemeId, setActiveTheme, type ThemeId } from '../utils/themes';
 import { markBackupDone, getLastBackupDate } from '../utils/backupReminder';
@@ -238,6 +241,58 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
   const [csvImportResult, setCsvImportResult] = useState<ImportResult | null>(null);
   const [xlsxImportResults, setXlsxImportResults] = useState<ImportResult[] | null>(null);
   const [csvImporting, setCsvImporting] = useState(false);
+
+  interface ImportHistoryEntry {
+    id: string;
+    timestamp: string;
+    source: string;
+    type: string;
+    count: number;
+    dateRange: { from: string; to: string } | null;
+    importedIds: string[];
+  }
+  const importHistoryKey = profile ? `fitos-import-history-${profile.id}` : '';
+  const loadImportHistory = useCallback((): ImportHistoryEntry[] => {
+    if (!importHistoryKey) return [];
+    try { return JSON.parse(localStorage.getItem(importHistoryKey) || '[]'); } catch { return []; }
+  }, [importHistoryKey]);
+  const [importHistory, setImportHistory] = useState<ImportHistoryEntry[]>(loadImportHistory);
+  const [revertingId, setRevertingId] = useState<string | null>(null);
+
+  const saveImportToHistory = useCallback((result: ImportResult) => {
+    if (!importHistoryKey || !result.importedIds?.length) return;
+    const entry: ImportHistoryEntry = {
+      id: crypto.randomUUID(),
+      timestamp: new Date().toISOString(),
+      source: result.source,
+      type: result.type,
+      count: result.count,
+      dateRange: result.dateRange,
+      importedIds: result.importedIds,
+    };
+    const updated = [entry, ...loadImportHistory()].slice(0, 10);
+    setImportHistory(updated);
+    localStorage.setItem(importHistoryKey, JSON.stringify(updated));
+  }, [importHistoryKey, loadImportHistory]);
+
+  const revertImport = useCallback(async (entry: ImportHistoryEntry) => {
+    const storeMap: Record<string, string> = {
+      workouts: 'workoutSessions', nutrition: 'foodEntries',
+      measurements: 'measurements', steps: 'steps',
+    };
+    const storeName = storeMap[entry.type];
+    if (storeName && entry.importedIds.length > 0) {
+      const db = await getDB();
+      for (const id of entry.importedIds) {
+        try { await (db as any).delete(storeName, id); } catch { /* already gone */ }
+      }
+    }
+    const updated = importHistory.filter((e) => e.id !== entry.id);
+    setImportHistory(updated);
+    localStorage.setItem(importHistoryKey, JSON.stringify(updated));
+    setRevertingId(null);
+    toast(`Removed ${entry.count} ${entry.type} — import undone`, 'success');
+  }, [importHistory, importHistoryKey]);
 
   // Dashboard card config
   const [dashCards, setDashCards] = useState<DashboardCardConfig>(() => getDashboardConfig());
@@ -2031,6 +2086,7 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
                         if (result.count > 0) {
                           const typeLabel = { workouts: 'workout sessions', nutrition: 'nutrition entries', measurements: 'measurements', steps: 'step entries', recipes: 'recipes', foods: 'foods', skipped: 'items' }[result.type] || 'items';
                           toast(`Imported ${result.count} ${typeLabel} from ${getSourceLabel(result.source)}`, 'success');
+                          saveImportToHistory(result);
                         } else if (result.errors.length > 0) {
                           toast(result.errors[0], 'error');
                         } else if (result.skipped > 0) {
@@ -2100,6 +2156,58 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
                 <p><span className="font-semibold">MacroFactor XLSX:</span> Import all data at once — weight, body metrics, steps, recipes, foods, micronutrients</p>
                 <p>Existing data on matching dates will not be overwritten.</p>
               </div>
+
+              {/* Import History + Revert */}
+              {importHistory.length > 0 && (
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-1.5 text-[10px] font-semibold text-text-secondary uppercase tracking-wider">
+                    <History size={11} />
+                    Import History
+                  </div>
+                  <div className="space-y-1">
+                    {importHistory.map((entry) => (
+                      <div key={entry.id} className="rounded-xl bg-surface-raised border border-border-light px-3 py-2 text-[11px]">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="min-w-0">
+                            <div className="font-medium truncate capitalize">
+                              {getSourceLabel(entry.source as any)} — {entry.type}
+                            </div>
+                            <div className="text-text-muted">
+                              {entry.count} {entry.type === 'workouts' ? 'sessions' : entry.type === 'measurements' ? 'measurements' : entry.type === 'steps' ? 'step entries' : 'entries'}
+                              {entry.dateRange && ` · ${entry.dateRange.from} → ${entry.dateRange.to}`}
+                            </div>
+                            <div className="text-text-muted/70">{new Date(entry.timestamp).toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
+                          </div>
+                          {revertingId === entry.id ? (
+                            <div className="flex gap-1 shrink-0">
+                              <button
+                                onClick={() => revertImport(entry)}
+                                className="px-2 py-1 rounded-lg bg-danger text-white text-[10px] font-semibold"
+                              >
+                                Confirm
+                              </button>
+                              <button
+                                onClick={() => setRevertingId(null)}
+                                className="px-2 py-1 rounded-lg bg-surface border border-border text-[10px]"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => setRevertingId(entry.id)}
+                              className="flex items-center gap-1 px-2 py-1 rounded-lg bg-surface border border-border text-[10px] text-text-secondary hover:text-danger hover:border-danger transition-colors shrink-0"
+                            >
+                              <RotateCcw size={10} />
+                              Revert
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Coach Exchange */}

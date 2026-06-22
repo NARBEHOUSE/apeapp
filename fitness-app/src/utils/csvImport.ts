@@ -14,6 +14,7 @@ export interface ImportResult {
   skipped: number;
   errors: string[];
   details?: string;
+  importedIds?: string[];
 }
 
 // ── CSV Parser ──
@@ -593,7 +594,7 @@ function normalizeDate(raw: string): string | null {
   const dmyMatch = raw.match(/^(\d{1,2})\s+(\w{3})\s+(\d{4})/);
   if (dmyMatch && months[dmyMatch[2].toLowerCase()]) return `${dmyMatch[3]}-${months[dmyMatch[2].toLowerCase()]}-${dmyMatch[1].padStart(2, '0')}`;
   const d = new Date(raw);
-  if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
+  if (!isNaN(d.getTime())) return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   return null;
 }
 
@@ -665,9 +666,9 @@ export async function importCSV(text: string, profileId: string): Promise<Import
     const existing = await db.getAllFromIndex('measurements', 'by-profile', profileId);
     const existingDates = new Set(existing.map((m) => m.date));
     let imported = 0, skipped = 0;
+    const importedIds: string[] = [];
     for (const m of result.measurements) {
       if (existingDates.has(m.date)) {
-        // Merge into existing measurement
         const ex = existing.find((e) => e.date === m.date)!;
         const merged = { ...ex, weight: m.weight ?? ex.weight, weightUnit: m.weightUnit };
         if (m.bodyFatPercent != null) { merged.bodyFatPercent = m.bodyFatPercent; merged.bodyFatSource = m.bodyFatSource; }
@@ -675,10 +676,11 @@ export async function importCSV(text: string, profileId: string): Promise<Import
         imported++;
       } else {
         await db.put('measurements', m);
+        importedIds.push(m.id);
         imported++;
       }
     }
-    return { source, type: 'measurements', count: imported, dateRange: dateRange(result.measurements.map((m) => m.date)), skipped, errors: result.errors.slice(0, 5), details: 'Scale weight & body fat %' };
+    return { source, type: 'measurements', count: imported, dateRange: dateRange(result.measurements.map((m) => m.date)), skipped, errors: result.errors.slice(0, 5), details: 'Scale weight & body fat %', importedIds };
   }
 
   // ── MF: Body Metrics ──
@@ -687,6 +689,7 @@ export async function importCSV(text: string, profileId: string): Promise<Import
     const existing = await db.getAllFromIndex('measurements', 'by-profile', profileId);
     const existingByDate = new Map(existing.map((m) => [m.date, m]));
     let imported = 0;
+    const importedIds: string[] = [];
     for (const m of result.measurements) {
       const ex = existingByDate.get(m.date);
       if (ex) {
@@ -695,10 +698,11 @@ export async function importCSV(text: string, profileId: string): Promise<Import
         await db.put('measurements', merged);
       } else {
         await db.put('measurements', m);
+        importedIds.push(m.id);
       }
       imported++;
     }
-    return { source, type: 'measurements', count: imported, dateRange: dateRange(result.measurements.map((m) => m.date)), skipped: 0, errors: result.errors.slice(0, 5), details: 'Body measurements' };
+    return { source, type: 'measurements', count: imported, dateRange: dateRange(result.measurements.map((m) => m.date)), skipped: 0, errors: result.errors.slice(0, 5), details: 'Body measurements', importedIds };
   }
 
   // ── MF: Steps ──
@@ -709,7 +713,7 @@ export async function importCSV(text: string, profileId: string): Promise<Import
     const newSteps = result.steps.filter((s) => !existingDates.has(s.date));
     const skipped = result.steps.length - newSteps.length;
     for (const step of newSteps) await db.put('steps', step);
-    return { source, type: 'steps', count: newSteps.length, dateRange: dateRange(newSteps.map((s) => s.date)), skipped, errors: result.errors.slice(0, 5) };
+    return { source, type: 'steps', count: newSteps.length, dateRange: dateRange(newSteps.map((s) => s.date)), skipped, errors: result.errors.slice(0, 5), importedIds: newSteps.map((s) => s.id) };
   }
 
   // ── MF: Micronutrients ──
@@ -751,7 +755,7 @@ export async function importCSV(text: string, profileId: string): Promise<Import
     const newSessions = result.sessions.filter((s) => !existingDates.has(s.date));
     const skipped = result.sessions.length - newSessions.length;
     for (const session of newSessions) await db.put('workoutSessions', session);
-    return { source, type: 'workouts', count: newSessions.length, dateRange: dateRange(newSessions.map((s) => s.date)), skipped, errors: result.errors.slice(0, 5) };
+    return { source, type: 'workouts', count: newSessions.length, dateRange: dateRange(newSessions.map((s) => s.date)), skipped, errors: result.errors.slice(0, 5), importedIds: newSessions.map((s) => s.id) };
   }
 
   // ── MF: Main (daily macros) — also handles generic nutrition ──
@@ -762,7 +766,7 @@ export async function importCSV(text: string, profileId: string): Promise<Import
     const newEntries = result.entries.filter((e) => !existingKeys.has(`${e.date}_${e.mealType}_${e.name}`));
     const skipped = result.entries.length - newEntries.length;
     for (const entry of newEntries) await db.put('foodEntries', entry);
-    return { source, type: 'nutrition', count: newEntries.length, dateRange: dateRange(newEntries.map((e) => e.date)), skipped, errors: result.errors.slice(0, 5) };
+    return { source, type: 'nutrition', count: newEntries.length, dateRange: dateRange(newEntries.map((e) => e.date)), skipped, errors: result.errors.slice(0, 5), importedIds: newEntries.map((e) => e.id) };
   }
 
   // ── Non-MF: Workouts ──
@@ -777,7 +781,7 @@ export async function importCSV(text: string, profileId: string): Promise<Import
     const newSessions = result.sessions.filter((s) => !existingDates.has(s.date));
     const skipped = result.sessions.length - newSessions.length;
     for (const session of newSessions) await db.put('workoutSessions', session);
-    return { source, type, count: newSessions.length, dateRange: dateRange(newSessions.map((s) => s.date)), skipped, errors: result.errors.slice(0, 5) };
+    return { source, type, count: newSessions.length, dateRange: dateRange(newSessions.map((s) => s.date)), skipped, errors: result.errors.slice(0, 5), importedIds: newSessions.map((s) => s.id) };
   }
 
   // ── Non-MF: Nutrition ──
@@ -788,7 +792,7 @@ export async function importCSV(text: string, profileId: string): Promise<Import
     const newEntries = result.entries.filter((e) => !existingKeys.has(`${e.date}_${e.mealType}_${e.name}`));
     const skipped = result.entries.length - newEntries.length;
     for (const entry of newEntries) await db.put('foodEntries', entry);
-    return { source, type, count: newEntries.length, dateRange: dateRange(newEntries.map((e) => e.date)), skipped, errors: result.errors.slice(0, 5) };
+    return { source, type, count: newEntries.length, dateRange: dateRange(newEntries.map((e) => e.date)), skipped, errors: result.errors.slice(0, 5), importedIds: newEntries.map((e) => e.id) };
   }
 
   return { source, type, count: 0, dateRange: null, skipped: 0, errors: ['Unhandled import type'] };

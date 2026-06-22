@@ -449,7 +449,7 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
     for (let d = 1; d <= 3; d++) {
       const date = new Date();
       date.setDate(date.getDate() - d);
-      const dateStr = date.toISOString().split('T')[0];
+      const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
       const dayEntries = await getFoodEntriesByDate(profile.id, dateStr);
       // Group by hour
       const byHour: Record<string, FoodEntry[]> = {};

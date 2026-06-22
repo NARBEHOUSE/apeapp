@@ -1,5 +1,9 @@
+export function localDateStr(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 export function today(): string {
-  return new Date().toISOString().split('T')[0];
+  return localDateStr(new Date());
 }
 
 export function formatDate(dateStr: string): string {
@@ -29,7 +33,7 @@ export function formatDuration(ms: number): string {
 export function daysAgo(n: number): string {
   const d = new Date();
   d.setDate(d.getDate() - n);
-  return d.toISOString().split('T')[0];
+  return localDateStr(d);
 }
 
 export function daysBetween(a: string, b: string): number {
@@ -46,7 +50,7 @@ export function getWeekDates(date: string): string[] {
   return Array.from({ length: 7 }, (_, i) => {
     const dd = new Date(start);
     dd.setDate(start.getDate() + i);
-    return dd.toISOString().split('T')[0];
+    return localDateStr(dd);
   });
 }
 

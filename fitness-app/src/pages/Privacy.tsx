@@ -2,7 +2,7 @@ export function Privacy() {
   return (
     <div className="min-h-screen bg-bg text-text-primary px-6 py-8 max-w-2xl mx-auto space-y-6">
       <h1 className="text-2xl font-bold">Privacy Policy</h1>
-      <p className="text-xs text-text-muted">Last updated: June 20, 2026</p>
+      <p className="text-xs text-text-muted">Last updated: June 22, 2026</p>
 
       <section className="space-y-2">
         <h2 className="text-lg font-semibold">Overview</h2>
@@ -12,9 +12,16 @@ export function Privacy() {
       </section>
 
       <section className="space-y-2">
+        <h2 className="text-lg font-semibold">Health &amp; Fitness Disclaimer</h2>
+        <p className="text-sm text-text-secondary leading-relaxed">
+          APE is a personal fitness and nutrition tracking tool only. The information recorded in this app — including macros, workout logs, measurements, and coach recommendations — does not constitute medical advice, diagnosis, or treatment. Always consult a qualified healthcare or medical professional before starting any diet, exercise, or supplementation program. NARBE LLC is not responsible for any health outcomes resulting from use of the app.
+        </p>
+      </section>
+
+      <section className="space-y-2">
         <h2 className="text-lg font-semibold">Data Storage</h2>
         <p className="text-sm text-text-secondary leading-relaxed">
-          <strong>Local storage:</strong> Workout logs, nutrition entries, measurements, progress photos, profile information, and application settings are stored in your browser's local storage (IndexedDB and localStorage). This data never leaves your device unless you choose to sign in with Google.
+          <strong>Local storage:</strong> Workout logs, nutrition entries, measurements, progress photos, profile information, saved meals, food history, and application settings are stored in your browser's local storage (IndexedDB and localStorage). This data never leaves your device unless you choose to sign in with Google.
         </p>
         <p className="text-sm text-text-secondary leading-relaxed">
           <strong>Google Drive storage:</strong> If you sign in with Google, the app stores a backup of your data in your personal Google Drive account — specifically in a hidden app-specific data folder and an "APE App" folder visible in your Drive. This data is stored in your Drive, not on any NARBE LLC server. Only you (and anyone you explicitly share access with, such as a coach) can access this data.
@@ -22,17 +29,30 @@ export function Privacy() {
       </section>
 
       <section className="space-y-2">
-        <h2 className="text-lg font-semibold">Google API Usage & Scopes</h2>
+        <h2 className="text-lg font-semibold">Google API Usage &amp; Scopes</h2>
         <p className="text-sm text-text-secondary leading-relaxed">
-          APE uses Google Sign-In for authentication and the Google Drive API for data synchronization. The app requests the following permissions:
+          APE uses Google Sign-In for authentication and the Google Drive API for data synchronization. The app may request the following permissions depending on how you use it:
         </p>
-        <ul className="text-sm text-text-secondary space-y-1 list-disc pl-5">
-          <li><strong>openid, email, profile</strong> — To identify your Google account and display your name and profile picture within the app.</li>
-          <li><strong>drive.appdata</strong> — To read and write app-specific sync data in a hidden folder in your Google Drive that is not visible to you or other apps.</li>
-          <li><strong>drive.file</strong> — To create and manage files the app creates in your Google Drive, such as the "APE App" folder, progress photos, and coach sharing files. The app can only access files it has created — it cannot read, modify, or delete any other files in your Drive.</li>
+        <ul className="text-sm text-text-secondary space-y-2 list-disc pl-5">
+          <li>
+            <strong>openid, email, profile</strong> — To identify your Google account and display your name and profile picture within the app. Your profile picture may be included in coach-to-client push notifications so clients can see which coach sent changes.
+          </li>
+          <li>
+            <strong>drive.appdata</strong> — To read and write app-specific sync data in a hidden folder in your Google Drive that is not visible to you or other apps.
+          </li>
+          <li>
+            <strong>drive.file</strong> — To create and manage files the app creates in your Google Drive, such as the "APE App" folder, progress photos, and coach sharing files. Under this scope, the app can only access files it has created.
+          </li>
+          <li>
+            <strong>drive (full Google Drive access)</strong> — Requested only when you use the app in coach mode to view or push changes to a client's shared file. This broader scope is required because the client's shared file was created under their own Google account. This permission is used solely to read and write the specific client-shared files you have been granted access to. APE does not scan, read, index, or access any other files in your Google Drive under this scope.
+          </li>
         </ul>
         <p className="text-sm text-text-secondary leading-relaxed">
-          APE's use of Google API data adheres to the <a href="https://developers.google.com/terms/api-services-user-data-policy" className="text-accent-blue underline" target="_blank" rel="noopener noreferrer">Google API Services User Data Policy</a>, including the Limited Use requirements. The app does not transfer Google user data to third parties, does not use Google user data for advertising, and does not use Google user data to train machine learning or AI models.
+          APE's use of Google API data adheres to the{' '}
+          <a href="https://developers.google.com/terms/api-services-user-data-policy" className="text-accent-blue underline" target="_blank" rel="noopener noreferrer">
+            Google API Services User Data Policy
+          </a>
+          , including the Limited Use requirements. The app does not transfer Google user data to third parties, does not use Google user data for advertising, and does not use Google user data to train machine learning or AI models.
         </p>
       </section>
 
@@ -42,6 +62,9 @@ export function Privacy() {
           If you choose to share your data with a coach, the app creates a file in your Google Drive containing your profile, workout, nutrition, measurement, and check-in data. This file is shared with your coach's specific Google account using Google Drive's built-in sharing permissions. You control this sharing and can revoke access at any time from within the app, which deletes the shared file from your Drive.
         </p>
         <p className="text-sm text-text-secondary leading-relaxed">
+          When a coach pushes changes or notifications to you, the coach's Google profile name and profile picture URL may be included in those changes and stored temporarily in your browser's local storage. This is used only to display the coach's identity in the notification card within the app and is not transmitted anywhere else.
+        </p>
+        <p className="text-sm text-text-secondary leading-relaxed">
           Progress photos shared with a coach are stored as individual files in your Google Drive's "APE App/Progress Photos" folder. The coach can only access these photos through authenticated Google Drive API calls using their own Google account.
         </p>
       </section>
@@ -49,7 +72,7 @@ export function Privacy() {
       <section className="space-y-2">
         <h2 className="text-lg font-semibold">Third-Party API Keys</h2>
         <p className="text-sm text-text-secondary leading-relaxed">
-          The app optionally supports USDA FoodData Central and Anthropic Claude API integrations. If you choose to enter API keys for these services, those keys are stored only in your browser's local storage on your device. They are never synced to Google Drive, transmitted to NARBE LLC, or shared with any third party. API calls using these keys are made directly from your browser to the respective service providers.
+          The app optionally supports USDA FoodData Central and Anthropic Claude API integrations. If you choose to enter API keys for these services, those keys are stored only in your browser's local storage on your device. They are never synced to Google Drive, transmitted to NARBE LLC, or shared with any third party. API calls using these keys are made directly from your browser to the respective service providers (USDA and Anthropic). Your use of those services is subject to their respective terms and privacy policies.
         </p>
       </section>
 
@@ -75,6 +98,13 @@ export function Privacy() {
       </section>
 
       <section className="space-y-2">
+        <h2 className="text-lg font-semibold">Limitation of Liability</h2>
+        <p className="text-sm text-text-secondary leading-relaxed">
+          To the maximum extent permitted by applicable law, NARBE LLC shall not be liable for any indirect, incidental, special, consequential, or punitive damages, including but not limited to loss of data, loss of fitness progress, personal injury, or any health outcome arising from the use or inability to use APE. Your use of this application is at your own risk.
+        </p>
+      </section>
+
+      <section className="space-y-2">
         <h2 className="text-lg font-semibold">Changes to This Policy</h2>
         <p className="text-sm text-text-secondary leading-relaxed">
           We may update this Privacy Policy from time to time. Changes will be reflected in the "Last updated" date at the top of this page. Continued use of the app after changes constitutes acceptance of the updated policy.
@@ -84,13 +114,14 @@ export function Privacy() {
       <section className="space-y-2">
         <h2 className="text-lg font-semibold">Contact</h2>
         <p className="text-sm text-text-secondary leading-relaxed">
-          If you have questions about this Privacy Policy, contact NARBE LLC at <a href="mailto:narbehousellc@gmail.com" className="text-accent-blue underline">narbehousellc@gmail.com</a>.
+          If you have questions about this Privacy Policy, contact NARBE LLC at{' '}
+          <a href="mailto:narbehousellc@gmail.com" className="text-accent-blue underline">narbehousellc@gmail.com</a>.
         </p>
       </section>
 
       <div className="pt-4 border-t border-border">
         <p className="text-[10px] text-text-muted text-center">
-          APE — Aesthetic Physique Enthusiast · NARBE LLC
+          APE — Aesthetic Physique Enthusiast · NARBE LLC · &copy; 2024–2026
         </p>
       </div>
     </div>

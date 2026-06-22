@@ -56,7 +56,7 @@ function SessionCard({
   const durationMs = (session.endTime || Date.now()) - session.startTime;
   const durationMin = Math.round(durationMs / 60000);
 
-  const dateStr = new Date(session.date).toLocaleDateString('en-US', {
+  const dateStr = new Date(session.date + 'T00:00:00').toLocaleDateString('en-US', {
     weekday: 'short',
     month: 'short',
     day: 'numeric',
@@ -331,10 +331,11 @@ export function WorkoutHistory({ sessions, programs, onDeleteSession, onUpdateSe
   const weeklyVolume = useMemo(() => {
     const weeks: Record<string, number> = {};
     for (const session of sessions) {
-      const date = new Date(session.date);
+      const date = new Date(session.date + 'T00:00:00');
       const weekStart = new Date(date);
       weekStart.setDate(date.getDate() - date.getDay());
-      const key = weekStart.toISOString().split('T')[0];
+      const y = weekStart.getFullYear(), mo = weekStart.getMonth() + 1, dy = weekStart.getDate();
+      const key = `${y}-${String(mo).padStart(2, '0')}-${String(dy).padStart(2, '0')}`;
       const sets = Object.values(session.sets).reduce(
         (sum, s) => sum + s.filter((x) => x.completed).length,
         0
@@ -346,7 +347,7 @@ export function WorkoutHistory({ sessions, programs, onDeleteSession, onUpdateSe
       .sort(([a], [b]) => a.localeCompare(b))
       .slice(-12)
       .map(([week, sets]) => ({
-        week: new Date(week).toLocaleDateString('en-US', {
+        week: new Date(week + 'T00:00:00').toLocaleDateString('en-US', {
           month: 'short',
           day: 'numeric',
         }),
@@ -370,7 +371,7 @@ export function WorkoutHistory({ sessions, programs, onDeleteSession, onUpdateSe
           0
         );
         return {
-          date: new Date(session.date).toLocaleDateString('en-US', {
+          date: new Date(session.date + 'T00:00:00').toLocaleDateString('en-US', {
             month: 'short',
             day: 'numeric',
           }),
