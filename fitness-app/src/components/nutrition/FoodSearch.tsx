@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { Search, Loader2, ChevronRight, Barcode, Globe, Database, Clock, Camera } from 'lucide-react';
 import { searchFoods, lookupBarcode } from '../../utils/usda';
 import { FOOD_DATABASE, type BuiltInFood } from '../../data/foods';
-import { searchSavedFoods } from '../../db/foodHistory';
+import { searchSavedFoods, saveFoodToHistory } from '../../db/foodHistory';
 import { getFoodEmoji } from '../../utils/foodEmoji';
 import type { FoodEntry } from '../../types';
 
@@ -17,6 +17,7 @@ interface ParsedFood {
   proteinPer100g: number;
   carbsPer100g: number;
   fatPer100g: number;
+  fiberPer100g: number;
 }
 
 interface LocalResult {
@@ -166,16 +167,28 @@ export function FoodSearch({ onAdd, onClose, profileId }: FoodSearchProps) {
       servingSize: item.servingSize, servingUnit: item.servingUnit, source: item.source,
     });
     setServingSize(String(item.servingSize));
+    setServingsConsumed('1');
+    setMealType('snack');
   }
 
   function selectUsda(food: ParsedFood) {
     setSelected({
       name: food.name, brand: food.brand,
       calories: food.caloriesPer100g, protein: food.proteinPer100g,
-      carbs: food.carbsPer100g, fat: food.fatPer100g,
+      carbs: food.carbsPer100g, fat: food.fatPer100g, fiber: food.fiberPer100g,
       servingSize: 100, servingUnit: 'g', source: 'usda', fdcId: food.fdcId,
     });
     setServingSize('100');
+    setServingsConsumed('1');
+    setMealType('snack');
+    // Save to food history for future use
+    if (profileId) {
+      saveFoodToHistory(profileId, {
+        name: food.name, brand: food.brand, calories: food.caloriesPer100g,
+        protein: food.proteinPer100g, carbs: food.carbsPer100g, fat: food.fatPer100g,
+        fiber: food.fiberPer100g, servingSize: 100, servingUnit: 'g', source: 'usda', fdcId: food.fdcId,
+      });
+    }
   }
 
   function handleAdd() {
