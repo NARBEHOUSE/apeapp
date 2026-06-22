@@ -4,10 +4,24 @@ import { saveWorkoutSession, getSessionsByProfile, deleteWorkoutSession } from '
 import { getAllPrograms, initializePrograms } from '../db/programs';
 import type { Program } from '../types';
 
+const ACTIVE_SESSION_KEY = 'fitos-active-workout';
+
+function loadPersistedSession(): WorkoutSession | null {
+  try {
+    const raw = localStorage.getItem(ACTIVE_SESSION_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+
+function persistSession(session: WorkoutSession | null) {
+  if (session) localStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(session));
+  else localStorage.removeItem(ACTIVE_SESSION_KEY);
+}
+
 export function useWorkout(profileId: string | null) {
   const [programs, setPrograms] = useState<Program[]>([]);
   const [sessions, setSessions] = useState<WorkoutSession[]>([]);
-  const [activeSession, setActiveSession] = useState<WorkoutSession | null>(null);
+  const [activeSession, setActiveSession] = useState<WorkoutSession | null>(() => loadPersistedSession());
   const [loading, setLoading] = useState(true);
 
   const loadData = useCallback(async () => {
@@ -26,6 +40,11 @@ export function useWorkout(profileId: string | null) {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // Persist active session to survive tab switches and refreshes
+  useEffect(() => {
+    persistSession(activeSession);
+  }, [activeSession]);
 
   const startWorkout = useCallback(
     (programId: string, dayId: string): WorkoutSession => {

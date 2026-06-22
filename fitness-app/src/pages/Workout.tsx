@@ -117,9 +117,9 @@ export function Workout({ profile, onUpdateProfile }: Props) {
     refreshPrograms,
   } = useWorkout(profile.id);
 
-  const [view, setView] = useState<View>('home');
-  const [selectedProgramId, setSelectedProgramId] = useState<string | null>(null);
-  const [selectedDayId, setSelectedDayId] = useState<string | null>(null);
+  const [view, setView] = useState<View>(() => activeSession ? 'active' : 'home');
+  const [selectedProgramId, setSelectedProgramId] = useState<string | null>(activeSession?.programId || null);
+  const [selectedDayId, setSelectedDayId] = useState<string | null>(activeSession?.dayId || null);
   const [editingProgram, setEditingProgram] = useState<Program | null>(null);
   const [enrollProgramId, setEnrollProgramId] = useState<string | null>(null);
   const [enrollWeeks, setEnrollWeeks] = useState('8');
