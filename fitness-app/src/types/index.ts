@@ -99,6 +99,7 @@ export interface Program {
   daysPerWeek?: number;
   split?: string;
   defaultRestTimer?: number;
+  effortMetric?: EffortMetric;
 }
 
 export interface WorkoutDay {
@@ -271,7 +272,11 @@ export interface SetLog {
   reps: number;
   completed: boolean;
   timestamp: number;
+  rir?: number;
+  rpe?: number;
 }
+
+export type EffortMetric = 'none' | 'rir' | 'rpe';
 
 export interface FoodEntry {
   id: string;

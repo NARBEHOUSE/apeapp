@@ -352,6 +352,7 @@ export function Workout({ profile, onUpdateProfile }: Props) {
         }}
         onUpdateCardio={updateCardio}
         allSessions={sessions}
+        effortMetric={program?.effortMetric || 'none'}
         programs={programs}
       />
     );

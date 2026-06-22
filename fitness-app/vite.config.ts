@@ -10,7 +10,20 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg', 'icons/*.png', 'logo-head-white.png'],
+      includeAssets: ['favicon.svg', 'icons/*.png'],
+      workbox: {
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
+        globPatterns: ['**/*.{js,css,html,png,svg,ico}'],
+        globIgnores: ['**/logo*.png'],
+        navigateFallback: 'index.html',
+        runtimeCaching: [
+          {
+            urlPattern: /^https:\/\/falling-cloud-a632\.narbehousellc\.workers\.dev\/.*/i,
+            handler: 'CacheFirst',
+            options: { cacheName: 'usda-api-cache', expiration: { maxEntries: 200, maxAgeSeconds: 86400 } },
+          },
+        ],
+      },
       manifest: {
         name: 'APE - Aesthetic Physique Enthusiast',
         short_name: 'APE',

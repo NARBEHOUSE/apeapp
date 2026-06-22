@@ -47,11 +47,13 @@ interface Props {
   onUpdateCardio?: (cardio: CardioEntry[]) => void;
   allSessions?: WorkoutSession[];
   programs?: Program[];
+  effortMetric?: 'none' | 'rir' | 'rpe';
 }
 
 interface SetInput {
   weight: string;
   reps: string;
+  effort: string;
 }
 
 function SetRestTimer({ since }: { since: number }) {
@@ -90,6 +92,7 @@ function ExerciseCard({
   onComplete,
   onUpdate,
   progression,
+  effortMetric,
 }: {
   exercise: Exercise;
   exerciseIndex: number;
@@ -98,9 +101,10 @@ function ExerciseCard({
   lastPerformance: ExerciseLastPerformance | undefined;
   weeklyTarget: WeeklyTarget | null;
   prs: Record<string, { weight: number; reps: number; date: string }>;
-  onComplete: (exerciseId: string, weight: number, reps: number) => void;
+  onComplete: (exerciseId: string, weight: number, reps: number, rir?: number, rpe?: number) => void;
   onUpdate: (exerciseId: string, setIndex: number, updates: Partial<SetLog>) => void;
   progression: ProgressionSuggestion | null;
+  effortMetric: 'none' | 'rir' | 'rpe';
 }) {
   const [setCount, setSetCount] = useState(exercise.sets);
   const [collapsed, setCollapsed] = useState(false);
@@ -122,6 +126,7 @@ function ExerciseCard({
       return {
         weight: weight != null ? String(weight) : '',
         reps: reps != null ? String(reps) : String(exercise.reps.split('-')[0]?.replace(/[^0-9]/g, '') || ''),
+        effort: '',
       };
     })
   );
@@ -136,7 +141,7 @@ function ExerciseCard({
 
   const handleInputChange = (
     setIndex: number,
-    field: 'weight' | 'reps',
+    field: 'weight' | 'reps' | 'effort',
     value: string
   ) => {
     const cleaned = value.replace(/[^0-9.]/g, '');
@@ -157,14 +162,17 @@ function ExerciseCard({
       return;
     }
 
-    onComplete(exercise.id, weight, reps);
+    const effortVal = parseFloat(input.effort) || undefined;
+    const rir = effortMetric === 'rir' ? effortVal : undefined;
+    const rpe = effortMetric === 'rpe' ? effortVal : undefined;
+    onComplete(exercise.id, weight, reps, rir, rpe);
     navigator.vibrate?.([50]);
   };
 
   const addSet = () => {
     setSetCount((c) => c + 1);
     const lastInput = inputs[inputs.length - 1];
-    setInputs((prev) => [...prev, { weight: lastInput?.weight || '', reps: lastInput?.reps || '' }]);
+    setInputs((prev) => [...prev, { weight: lastInput?.weight || '', reps: lastInput?.reps || '', effort: '' }]);
     if (!showNote) setShowNote(true);
   };
 
@@ -234,10 +242,11 @@ function ExerciseCard({
           )}
 
           {/* Header */}
-          <div className="grid grid-cols-[1.5rem_1fr_1fr_2.25rem] gap-2 px-0.5">
+          <div className={`grid ${effortMetric !== 'none' ? 'grid-cols-[1.5rem_1fr_1fr_2.5rem_2.25rem]' : 'grid-cols-[1.5rem_1fr_1fr_2.25rem]'} gap-1.5 px-0.5`}>
             <span className="text-[9px] text-text-muted text-center">#</span>
             <span className="text-[9px] text-text-muted">Weight</span>
             <span className="text-[9px] text-text-muted">Reps</span>
+            {effortMetric !== 'none' && <span className="text-[9px] text-accent-blue text-center">{effortMetric === 'rir' ? 'RIR' : 'RPE'}</span>}
             <span />
           </div>
 
@@ -251,7 +260,7 @@ function ExerciseCard({
             return (
               <div
                 key={setIndex}
-                className={`grid grid-cols-[1.5rem_1fr_1fr_2.25rem] gap-2 items-center px-0.5 py-0.5 rounded-lg transition-colors ${
+                className={`grid ${effortMetric !== 'none' ? 'grid-cols-[1.5rem_1fr_1fr_2.5rem_2.25rem]' : 'grid-cols-[1.5rem_1fr_1fr_2.25rem]'} gap-1.5 items-center px-0.5 py-0.5 rounded-lg transition-colors ${
                   isComplete ? 'bg-success/5' : ''
                 }`}
               >
@@ -266,7 +275,7 @@ function ExerciseCard({
                   onChange={(e) => handleInputChange(setIndex, 'weight', e.target.value)}
                   placeholder={prev ? String(prev.weight) : '0'}
                   disabled={isComplete}
-                  className={`w-full bg-surface-raised rounded-lg px-2.5 py-2 text-sm text-center outline-none ${
+                  className={`w-full bg-surface-raised rounded-lg px-2 py-2 text-sm text-center outline-none ${
                     isComplete ? 'text-success' : 'text-text-primary'
                   }`}
                 />
@@ -277,10 +286,23 @@ function ExerciseCard({
                   onChange={(e) => handleInputChange(setIndex, 'reps', e.target.value)}
                   placeholder={prev ? String(prev.reps) : '0'}
                   disabled={isComplete}
-                  className={`w-full bg-surface-raised rounded-lg px-2.5 py-2 text-sm text-center outline-none ${
+                  className={`w-full bg-surface-raised rounded-lg px-2 py-2 text-sm text-center outline-none ${
                     isComplete ? 'text-success' : 'text-text-primary'
                   }`}
                 />
+                {effortMetric !== 'none' && (
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    value={inputs[setIndex]?.effort ?? ''}
+                    onChange={(e) => handleInputChange(setIndex, 'effort', e.target.value)}
+                    placeholder={effortMetric === 'rir' ? 'RIR' : 'RPE'}
+                    disabled={isComplete}
+                    className={`w-full bg-surface-raised rounded-lg px-1 py-2 text-[10px] text-center outline-none ${
+                      isComplete ? 'text-success' : 'text-accent-blue'
+                    }`}
+                  />
+                )}
                 <button
                   onClick={() => handleComplete(setIndex)}
                   className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all active:scale-90 ${
@@ -436,6 +458,7 @@ export function ActiveWorkout({
   onUpdateCardio,
   allSessions,
   programs,
+  effortMetric = 'none',
 }: Props) {
   const [elapsed, setElapsed] = useState(0);
   const [showRestTimer, setShowRestTimer] = useState(false);
@@ -582,12 +605,14 @@ export function ActiveWorkout({
   }, []);
 
   const handleComplete = useCallback(
-    (exerciseId: string, weight: number, reps: number) => {
+    (exerciseId: string, weight: number, reps: number, rir?: number, rpe?: number) => {
       const setLog: SetLog = {
         weight,
         reps,
         completed: true,
         timestamp: Date.now(),
+        rir,
+        rpe,
       };
       onLogSet(exerciseId, setLog);
 
@@ -742,6 +767,7 @@ export function ActiveWorkout({
               onComplete={handleComplete}
               onUpdate={onUpdateSet}
               progression={progressionSuggestions[exercise.id] || null}
+              effortMetric={effortMetric}
             />
             {/* Skip button */}
             <button
