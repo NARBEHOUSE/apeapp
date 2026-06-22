@@ -24,6 +24,7 @@ import { AICoachCard } from '../components/dashboard/AICoachCard';
 import { StepsCard } from '../components/dashboard/StepsCard';
 import { WaterCard } from '../components/dashboard/WaterCard';
 import { CalendarHeatmap } from '../components/dashboard/CalendarHeatmap';
+import { MuscleVolumeCard } from '../components/dashboard/MuscleVolumeCard';
 import { ZeroMacroWarning } from '../components/dashboard/ZeroMacroWarning';
 
 interface DashboardProps {
@@ -473,6 +474,9 @@ export default function Dashboard({ profile, onUpdateProfile }: DashboardProps) 
         macroTargets={profile.macroTargets}
         units={profile.units}
       />
+
+      {/* Muscle Volume */}
+      <MuscleVolumeCard sessions={sessions} programs={programs} />
 
       {/* AI Coach */}
       {dashConfig.aiCoach && localStorage.getItem('fitos-claude-key') && (

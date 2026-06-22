@@ -42,14 +42,14 @@ function SessionCard({
 
   const day = program?.days.find((d) => d.id === session.dayId);
   const totalSets = Object.values(session.sets).reduce(
-    (sum, sets) => sum + sets.filter((s) => s.completed).length,
+    (sum, sets) => sum + sets.filter((s) => s.completed && !s.isWarmup).length,
     0
   );
   const totalVolume = Object.values(session.sets).reduce(
     (sum, sets) =>
       sum +
       sets
-        .filter((s) => s.completed)
+        .filter((s) => s.completed && !s.isWarmup)
         .reduce((acc, s) => acc + s.weight * s.reps, 0),
     0
   );

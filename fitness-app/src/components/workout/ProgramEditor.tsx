@@ -249,12 +249,21 @@ function SortableExercise({
             </div>
           </div>
           <div>
-            <label className="label mb-1 block">Muscle Group</label>
+            <label className="label mb-1 block">Primary Muscle</label>
             <input
               className="input-field text-sm"
               value={exercise.muscle}
               onChange={(e) => onUpdate(exercise.id, { muscle: e.target.value })}
-              placeholder="e.g. Chest, Back, Legs"
+              placeholder="e.g. Chest"
+            />
+          </div>
+          <div>
+            <label className="label mb-1 block">Secondary Muscles</label>
+            <input
+              className="input-field text-sm"
+              value={(exercise.secondaryMuscles || []).join(', ')}
+              onChange={(e) => onUpdate(exercise.id, { secondaryMuscles: e.target.value.split(',').map((m) => m.trim()).filter(Boolean) })}
+              placeholder="e.g. Triceps, Shoulders"
             />
           </div>
           <div>

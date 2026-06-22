@@ -59,6 +59,7 @@ interface SetInput {
   weight: string;
   reps: string;
   effort: string;
+  isWarmup: boolean;
 }
 
 function SetRestTimer({ since }: { since: number }) {
@@ -106,7 +107,7 @@ function ExerciseCard({
   lastPerformance: ExerciseLastPerformance | undefined;
   weeklyTarget: WeeklyTarget | null;
   prs: Record<string, { weight: number; reps: number; date: string }>;
-  onComplete: (exerciseId: string, weight: number, reps: number, rir?: number, rpe?: number) => void;
+  onComplete: (exerciseId: string, weight: number, reps: number, rir?: number, rpe?: number, isWarmup?: boolean) => void;
   onUpdate: (exerciseId: string, setIndex: number, updates: Partial<SetLog>) => void;
   progression: ProgressionSuggestion | null;
   effortMetric: 'none' | 'rir' | 'rpe';
@@ -131,7 +132,7 @@ function ExerciseCard({
   const [inputs, setInputs] = useState<SetInput[]>(() => {
     // Try to restore persisted inputs first
     const persisted = loadWorkoutInputs();
-    if (persisted?.[exercise.id]) return persisted[exercise.id];
+    if (persisted?.[exercise.id]) return persisted[exercise.id].map((p: any) => ({ weight: p.weight || '', reps: p.reps || '', effort: p.effort || '', isWarmup: !!p.isWarmup }));
     const totalSets = scheme?.type === 'top_set_backoff' ? 1 + (scheme.backoffSets || 2)
       : scheme?.type === 'pyramid' || scheme?.type === 'reverse_pyramid' ? scheme.pyramidReps?.length || exercise.sets
       : scheme?.type === 'to_failure' ? scheme.failureSets || exercise.sets
@@ -170,6 +171,7 @@ function ExerciseCard({
         weight: weight != null ? String(weight) : '',
         reps: repStr,
         effort: '',
+        isWarmup: false,
       };
     });
   });
@@ -215,14 +217,14 @@ function ExerciseCard({
     const effortVal = parseFloat(input.effort) || undefined;
     const rir = effortMetric === 'rir' ? effortVal : undefined;
     const rpe = effortMetric === 'rpe' ? effortVal : undefined;
-    onComplete(exercise.id, weight, reps, rir, rpe);
+    onComplete(exercise.id, weight, reps, rir, rpe, input.isWarmup);
     navigator.vibrate?.([50]);
   };
 
   const addSet = () => {
     setSetCount((c) => c + 1);
     const lastInput = inputs[inputs.length - 1];
-    setInputs((prev) => [...prev, { weight: lastInput?.weight || '', reps: lastInput?.reps || '', effort: '' }]);
+    setInputs((prev) => [...prev, { weight: lastInput?.weight || '', reps: lastInput?.reps || '', effort: '', isWarmup: false }]);
   };
 
   const removeSet = () => {
@@ -312,12 +314,27 @@ function ExerciseCard({
                   isComplete ? 'bg-success/5' : ''
                 }`}
               >
-                <span className="text-[11px] text-text-muted text-center">
-                  {scheme?.type === 'top_set_backoff' && setIndex === 0 ? <span className="text-[8px] text-accent font-bold">TOP</span>
-                    : scheme?.type === 'to_failure' ? <span className="text-[8px] text-danger font-bold">F{setIndex + 1}</span>
-                    : setIndex + 1}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const updated = [...inputs];
+                    updated[setIndex] = { ...updated[setIndex], isWarmup: !updated[setIndex].isWarmup };
+                    setInputs(updated);
+                  }}
+                  className="text-[11px] text-center"
+                  title={inputs[setIndex]?.isWarmup ? 'Warmup set (tap to make working)' : 'Working set (tap to make warmup)'}
+                >
+                  {inputs[setIndex]?.isWarmup ? (
+                    <span className="text-[8px] text-warning font-bold">W</span>
+                  ) : scheme?.type === 'top_set_backoff' && setIndex === 0 ? (
+                    <span className="text-[8px] text-accent font-bold">TOP</span>
+                  ) : scheme?.type === 'to_failure' ? (
+                    <span className="text-[8px] text-danger font-bold">F{setIndex + 1}</span>
+                  ) : (
+                    <span className="text-text-muted">{setIndex + 1}</span>
+                  )}
                   {showRestElapsed && <SetRestTimer since={setTimestamp} />}
-                </span>
+                </button>
                 <input
                   type="number"
                   inputMode="decimal"
@@ -686,12 +703,12 @@ export function ActiveWorkout({
   }, []);
 
   const handleComplete = useCallback(
-    (exerciseId: string, weight: number, reps: number, rir?: number, rpe?: number) => {
+    (exerciseId: string, weight: number, reps: number, rir?: number, rpe?: number, isWarmup?: boolean) => {
       // Check if this set already exists (was unchecked then re-checked)
       const existingSets = session.sets[exerciseId] || [];
       const uncheckedIdx = existingSets.findIndex((s, i) => !s.completed && i < (existingSets.length));
       if (uncheckedIdx >= 0) {
-        onUpdateSet(exerciseId, uncheckedIdx, { weight, reps, completed: true, timestamp: Date.now(), rir, rpe });
+        onUpdateSet(exerciseId, uncheckedIdx, { weight, reps, completed: true, timestamp: Date.now(), rir, rpe, isWarmup });
         return;
       }
 
@@ -701,6 +718,7 @@ export function ActiveWorkout({
         completed: true,
         timestamp: Date.now(),
         rir,
+        isWarmup,
         rpe,
       };
       onLogSet(exerciseId, setLog);

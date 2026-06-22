@@ -45,10 +45,10 @@ export function WeeklyInsights({ sessions, allFoodEntries, measurements, checkIn
 
     const weekVolume = weekSessions.reduce((sum, s) =>
       sum + Object.values(s.sets).reduce((vs, sets) =>
-        vs + sets.filter((st) => st.completed).reduce((a, st) => a + st.weight * st.reps, 0), 0), 0);
+        vs + sets.filter((st) => st.completed && !st.isWarmup).reduce((a, st) => a + st.weight * st.reps, 0), 0), 0);
     const prevVolume = prevWeekSessions.reduce((sum, s) =>
       sum + Object.values(s.sets).reduce((vs, sets) =>
-        vs + sets.filter((st) => st.completed).reduce((a, st) => a + st.weight * st.reps, 0), 0), 0);
+        vs + sets.filter((st) => st.completed && !st.isWarmup).reduce((a, st) => a + st.weight * st.reps, 0), 0), 0);
 
     const weekSets = weekSessions.reduce((sum, s) =>
       sum + Object.values(s.sets).reduce((vs, sets) =>

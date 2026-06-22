@@ -80,8 +80,9 @@ export function buildWorkoutCardData(
     .filter((ex) => session.sets[ex.id]?.some((s) => s.completed))
     .map((ex) => {
       const sets = session.sets[ex.id]?.filter((s) => s.completed) || [];
-      const best = sets.reduce<SetLog | null>((top, s) => (!top || s.weight > top.weight) ? s : top, null);
-      const vol = sets.reduce((sum, s) => sum + s.weight * s.reps, 0);
+      const workingSets = sets.filter((s) => !s.isWarmup);
+      const best = workingSets.reduce<SetLog | null>((top, s) => (!top || s.weight > top.weight) ? s : top, null);
+      const vol = workingSets.reduce((sum, s) => sum + s.weight * s.reps, 0);
       totalVolume += vol;
       totalSets += sets.length;
 

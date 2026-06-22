@@ -148,6 +148,7 @@ export interface Exercise {
   sets: number;
   reps: string;
   muscle: string;
+  secondaryMuscles?: string[];
   note: string;
   flag?: string;
   startingWeight?: number;
@@ -287,6 +288,7 @@ export interface SetLog {
   timestamp: number;
   rir?: number;
   rpe?: number;
+  isWarmup?: boolean;
 }
 
 export type EffortMetric = 'none' | 'rir' | 'rpe';
