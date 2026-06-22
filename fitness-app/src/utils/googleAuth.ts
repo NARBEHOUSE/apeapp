@@ -38,7 +38,10 @@ export interface GoogleUser {
 
 const GOOGLE_CLIENT_ID = '898508792096-1inh978c606pb6gfgallaabcaoad12rf.apps.googleusercontent.com';
 const SCOPES = 'openid email profile https://www.googleapis.com/auth/drive.appdata https://www.googleapis.com/auth/drive.file';
+// Coaches need drive.readonly to access shared client files created by another user
+const COACH_SCOPES = `${SCOPES} https://www.googleapis.com/auth/drive.readonly`;
 const GOOGLE_USER_KEY = 'fitos-google-user';
+const COACH_SCOPE_KEY = 'fitos-coach-scope';
 
 let tokenClient: TokenClient | null = null;
 let currentAccessToken: string | null = null;
@@ -47,15 +50,14 @@ let tokenExpiresAt = 0;
 let pendingResolve: ((token: string) => void) | null = null;
 let pendingReject: ((error: Error) => void) | null = null;
 
-function ensureClient() {
-  if (!window.google?.accounts?.oauth2) {
-    throw new Error('Google Identity Services not loaded');
-  }
-  if (tokenClient) return;
+export function hasCoachScope(): boolean {
+  return localStorage.getItem(COACH_SCOPE_KEY) === '1';
+}
 
-  tokenClient = window.google.accounts.oauth2.initTokenClient({
+function buildClientConfig(scope: string): TokenClientConfig {
+  return {
     client_id: GOOGLE_CLIENT_ID,
-    scope: SCOPES,
+    scope,
     callback: (response) => {
       if (response.error) {
         pendingReject?.(new Error(response.error));
@@ -72,6 +74,33 @@ function ensureClient() {
       pendingResolve = null;
       pendingReject = null;
     },
+  };
+}
+
+function ensureClient() {
+  if (!window.google?.accounts?.oauth2) {
+    throw new Error('Google Identity Services not loaded');
+  }
+  if (tokenClient) return;
+  const scope = hasCoachScope() ? COACH_SCOPES : SCOPES;
+  tokenClient = window.google.accounts.oauth2.initTokenClient(buildClientConfig(scope));
+}
+
+// Call this directly from a click handler to avoid popup blockers.
+// Requests drive.readonly in addition to base scopes (one-time grant for coaches).
+export async function requestCoachAccess(): Promise<string> {
+  await loadGoogleScript();
+  tokenClient = null;
+  currentAccessToken = null;
+  tokenExpiresAt = 0;
+  tokenClient = window.google!.accounts.oauth2.initTokenClient(buildClientConfig(COACH_SCOPES));
+  return new Promise((resolve, reject) => {
+    pendingResolve = (token: string) => {
+      localStorage.setItem(COACH_SCOPE_KEY, '1');
+      resolve(token);
+    };
+    pendingReject = reject;
+    tokenClient!.requestAccessToken();
   });
 }
 
@@ -157,6 +186,7 @@ export function clearStoredUser() {
   }
   localStorage.removeItem(GOOGLE_USER_KEY);
   localStorage.removeItem('fitos-last-synced');
+  localStorage.removeItem(COACH_SCOPE_KEY);
   currentAccessToken = null;
   tokenExpiresAt = 0;
   tokenClient = null;

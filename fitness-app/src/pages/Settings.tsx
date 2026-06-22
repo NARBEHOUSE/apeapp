@@ -33,6 +33,7 @@ import {
 } from 'lucide-react';
 import type { Profile, BodyStats, FitnessGoal, ActivityLevel, Gender } from '../types';
 import { useGoogleAuth } from '../contexts/GoogleAuthContext';
+import { hasCoachScope, requestCoachAccess } from '../utils/googleAuth';
 import { useCoach } from '../hooks/useCoach';
 import { ClientView } from '../components/coach/ClientView';
 import { CoachHistory as CoachHistoryComponent } from '../components/coach/CoachHistory';
@@ -92,7 +93,7 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
   const [coachEmail, setCoachEmail] = useState('');
   const [coachPermission, setCoachPermission] = useState<'full' | 'readonly'>('full');
   const [clientCode, setClientCode] = useState('');
-  const [clientName, setClientName] = useState('');
+  const [addingClient, setAddingClient] = useState(false);
   const [viewingClient, setViewingClient] = useState<{ fileId: string; data: Record<string, unknown> } | null>(null);
   const [coachNote, setCoachNote] = useState('');
 
@@ -754,32 +755,48 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
                 <p className="text-[11px] text-text-muted">
                   Enter the share code your client sent you, or tap "Find Clients" to auto-discover.
                 </p>
-                <div className="flex gap-2">
-                  <input
-                    className="input-field text-sm flex-1 font-mono"
-                    placeholder="Client's share code"
-                    value={clientCode}
-                    onChange={(e) => setClientCode(e.target.value)}
-                  />
-                  <input
-                    className="input-field text-sm w-24"
-                    placeholder="Name"
-                    value={clientName}
-                    onChange={(e) => setClientName(e.target.value)}
-                  />
-                </div>
+                <input
+                  className="input-field text-sm w-full font-mono"
+                  placeholder="Client's share code"
+                  value={clientCode}
+                  onChange={(e) => setClientCode(e.target.value)}
+                />
                 <button
-                  onClick={() => {
-                    if (!clientCode.trim()) return;
-                    addClient(clientCode.trim(), clientName.trim() || undefined);
-                    toast('Client added', 'success');
-                    setClientCode('');
-                    setClientName('');
+                  onClick={async () => {
+                    const code = clientCode.trim();
+                    if (!code) return;
+                    setAddingClient(true);
+                    try {
+                      // Coaches need drive.readonly to read files created by another user.
+                      // Request it once — directly from the click handler to avoid popup blockers.
+                      if (!hasCoachScope()) {
+                        await requestCoachAccess();
+                      }
+                      const data = await getClientData(code);
+                      if (data?.error) {
+                        toast(data.error, 'error');
+                        return;
+                      }
+                      const name: string = data?.profile?.name || 'Client';
+                      const email: string | undefined = data?.profile?.googleEmail;
+                      addClient(code, name, email);
+                      toast(`Added ${name}`, 'success');
+                      setClientCode('');
+                    } catch (err) {
+                      const msg = err instanceof Error ? err.message : String(err);
+                      if (msg.includes('access_denied') || msg.includes('cancelled')) {
+                        toast('Permission not granted — client not added.', 'error');
+                      } else {
+                        toast('Could not read client data. Check the share code.', 'error');
+                      }
+                    } finally {
+                      setAddingClient(false);
+                    }
                   }}
-                  disabled={!clientCode.trim()}
+                  disabled={!clientCode.trim() || addingClient}
                   className="btn-primary w-full text-sm disabled:opacity-30"
                 >
-                  Add Client
+                  {addingClient ? 'Adding…' : 'Add Client'}
                 </button>
               </div>
 
