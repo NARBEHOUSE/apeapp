@@ -92,11 +92,19 @@ export function PhotoGallery({ photos, onDelete, onUpdate, measurements = [], we
     }
   };
 
-  const getStatForDate = (date: string): string | undefined => {
+  const getStatForPhoto = (photo: ProgressPhoto): string | undefined => {
     if (compareStat === 'none') return undefined;
-    const m = findClosestMeasurement(date, measurements);
+
+    // For weight, use the photo's own weight data first
+    if (compareStat === 'weight') {
+      if (photo.weight != null) return `${photo.weight} ${weightUnit}`;
+      const m = findClosestMeasurement(photo.date, measurements);
+      return m?.weight != null ? `${m.weight} ${weightUnit}` : undefined;
+    }
+
+    // For other stats, fall back to measurements
+    const m = findClosestMeasurement(photo.date, measurements);
     if (!m) return undefined;
-    if (compareStat === 'weight') return m.weight != null ? `${m.weight} ${weightUnit}` : undefined;
     if (compareStat === 'bodyFat') return m.bodyFatPercent != null ? `${m.bodyFatPercent}% BF` : undefined;
     const bodyVal = m.measurements?.[compareStat as keyof NonNullable<typeof m.measurements>];
     if (bodyVal != null) {
@@ -116,8 +124,8 @@ export function PhotoGallery({ photos, onDelete, onUpdate, measurements = [], we
         afterImage: getImageSrc(after.imageData),
         beforeDate: before.date,
         afterDate: after.date,
-        beforeStat: getStatForDate(before.date),
-        afterStat: getStatForDate(after.date),
+        beforeStat: getStatForPhoto(before),
+        afterStat: getStatForPhoto(after),
         pose: POSE_LABELS[before.pose] || before.pose,
         format: shareFormat,
       });
