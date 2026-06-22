@@ -79,16 +79,45 @@ export function ZeroMacroWarning({ profileId }: Props) {
     loadFood(zeroFoods[0]);
   };
 
+  const searchUSDAForFood = async (query: string): Promise<MatchResult[]> => {
+    const apiKey = localStorage.getItem('fitos-usda-key');
+    if (!apiKey) return [];
+    try {
+      const results = await searchUSDA(query, apiKey);
+      return results.slice(0, 5).map((r) => ({
+        name: r.name, brand: r.brand, cal: r.caloriesPer100g, p: r.proteinPer100g,
+        c: r.carbsPer100g, f: r.fatPer100g, fiber: r.fiberPer100g,
+        serving: 100, unit: 'g', source: 'usda' as const,
+      }));
+    } catch { return []; }
+  };
+
   const loadFood = async (food: SavedFood) => {
     setEditCal(''); setEditP(''); setEditC(''); setEditF(''); setEditFiber('');
     setEditServing(String(food.servingSize || 1)); setEditUnit('g');
     setAutoMatched(false);
     setCustomSearch('');
 
-    // Search built-in DB with ALL significant words required
     const builtinMatches = searchBuiltIn(food.name);
 
-    // Check for strong match (all words match)
+    // USDA first — prioritize for wider coverage
+    const apiKey = localStorage.getItem('fitos-usda-key');
+    if (apiKey) {
+      setUsdaSearching(true);
+      const usdaMatches = await searchUSDAForFood(food.name);
+      setUsdaSearching(false);
+
+      if (usdaMatches.length > 0) {
+        const top = usdaMatches[0];
+        setEditCal(String(top.cal)); setEditP(String(top.p)); setEditC(String(top.c)); setEditF(String(top.f));
+        setEditFiber(String(top.fiber)); setEditServing('100'); setEditUnit('g');
+        setAutoMatched(true);
+        setMatches([...usdaMatches, ...builtinMatches]);
+        return;
+      }
+    }
+
+    // Fall back to built-in DB
     const q = food.name.toLowerCase();
     const qWords = q.split(/\s+/).filter((w) => w.length > 2);
     const strongMatch = builtinMatches.length > 0 && qWords.length > 0 &&
@@ -99,33 +128,8 @@ export function ZeroMacroWarning({ profileId }: Props) {
       setEditCal(String(m.cal)); setEditP(String(m.p)); setEditC(String(m.c)); setEditF(String(m.f));
       setEditFiber(String(m.fiber)); setEditServing(String(m.serving)); setEditUnit('g');
       setAutoMatched(true);
-      setMatches(builtinMatches);
-      return;
     }
-
-    setMatches(builtinMatches);
-
-    // No strong built-in match — try USDA
-    const apiKey = localStorage.getItem('fitos-usda-key');
-    if (apiKey) {
-      setUsdaSearching(true);
-      try {
-        const results = await searchUSDA(food.name, apiKey);
-        const usdaMatches: MatchResult[] = results.slice(0, 5).map((r) => ({
-          name: r.name, brand: r.brand, cal: r.caloriesPer100g, p: r.proteinPer100g,
-          c: r.carbsPer100g, f: r.fatPer100g, fiber: r.fiberPer100g,
-          serving: 100, unit: 'g', source: 'usda' as const,
-        }));
-        setMatches([...builtinMatches, ...usdaMatches]);
-        if (usdaMatches.length > 0 && builtinMatches.length === 0) {
-          const top = usdaMatches[0];
-          setEditCal(String(top.cal)); setEditP(String(top.p)); setEditC(String(top.c)); setEditF(String(top.f));
-          setEditFiber(String(top.fiber)); setEditServing('100'); setEditUnit('g');
-          setAutoMatched(true);
-        }
-      } catch { /* ignore */ }
-      setUsdaSearching(false);
-    }
+    setMatches([...builtinMatches]);
   };
 
   const handleCustomSearch = async () => {
@@ -244,7 +248,7 @@ export function ZeroMacroWarning({ profileId }: Props) {
         </div>
       )}
 
-      {/* Custom search */}
+      {/* Custom search + re-search USDA */}
       <div className="flex gap-1 mb-2">
         <input
           type="text" className="input-field text-xs flex-1 py-1.5" placeholder="Search foods & USDA..."
@@ -255,6 +259,26 @@ export function ZeroMacroWarning({ profileId }: Props) {
           {usdaSearching ? <Loader2 size={12} className="animate-spin" /> : <Search size={12} />}
         </button>
       </div>
+      {!autoMatched && localStorage.getItem('fitos-usda-key') && currentFood && (
+        <button
+          onClick={async () => {
+            setUsdaSearching(true);
+            const results = await searchUSDAForFood(currentFood.name);
+            setUsdaSearching(false);
+            if (results.length > 0) {
+              const top = results[0];
+              setEditCal(String(top.cal)); setEditP(String(top.p)); setEditC(String(top.c)); setEditF(String(top.f));
+              setEditFiber(String(top.fiber)); setEditServing('100'); setEditUnit('g');
+              setAutoMatched(true);
+              setMatches((prev) => [...results, ...prev.filter((m) => m.source !== 'usda')]);
+            }
+          }}
+          disabled={usdaSearching}
+          className="text-[10px] text-accent-blue font-semibold mb-2 flex items-center gap-1 disabled:opacity-50"
+        >
+          {usdaSearching ? <><Loader2 size={10} className="animate-spin" /> Searching...</> : <><Search size={10} /> Re-search USDA for this food</>}
+        </button>
+      )}
 
       {/* Matches */}
       {matches.length > 0 && (
