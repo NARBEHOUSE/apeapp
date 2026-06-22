@@ -466,7 +466,7 @@ export function generateHTMLReport(data: ReportData): string {
   @media print { body { padding:16px; } .page-break { page-break-before:always; } }
 </style></head><body>
 <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px;">
-  <img src="${typeof window !== 'undefined' ? window.location.origin + (typeof __webpack_public_path__ !== 'undefined' ? __webpack_public_path__ : '/') : ''}logo-head-black.png" alt="APE" style="height:36px;" onerror="this.style.display='none'" />
+  <img src="./logo-head-black.png" alt="APE" style="height:36px;" onerror="this.style.display='none'" />
   <h1>APE Client Report</h1>
 </div>
 <div class="subtitle"><strong>${config.profile.name}</strong> · ${fmt(config.startDate)} — ${fmt(config.endDate)}</div>
@@ -783,7 +783,7 @@ export async function generatePDFReport(data: ReportData): Promise<void> {
     columnStyles: { 0: { fontStyle: 'normal', textColor: '#666666' }, 2: { fontStyle: 'normal', textColor: '#666666' } },
     margin: { left: 14, right: 14 },
   });
-  cy = (doc as any).lastAutoTable?.finalY + 6 ?? cy + 50;
+  cy = ((doc as any).lastAutoTable?.finalY ?? cy) + 6;
 
   // ── NUTRITION ──
   cy = ensureY(cy, 40);
@@ -819,7 +819,7 @@ export async function generatePDFReport(data: ReportData): Promise<void> {
     alternateRowStyles: { fillColor: '#f7f7f7' },
     margin: { left: 14, right: 14 },
   });
-  cy = (doc as any).lastAutoTable?.finalY + 6 ?? cy + 30;
+  cy = ((doc as any).lastAutoTable?.finalY ?? cy) + 6;
 
   // Weekly averages
   const weeklyMap: Record<string, DailyNutrition[]> = {};
@@ -850,7 +850,7 @@ export async function generatePDFReport(data: ReportData): Promise<void> {
       alternateRowStyles: { fillColor: '#f7f7f7' },
       margin: { left: 14, right: 14 },
     });
-    cy = (doc as any).lastAutoTable?.finalY + 6 ?? cy + 30;
+    cy = ((doc as any).lastAutoTable?.finalY ?? cy) + 6;
   }
 
   // Daily nutrition table
@@ -876,7 +876,7 @@ export async function generatePDFReport(data: ReportData): Promise<void> {
     },
     margin: { left: 14, right: 14 },
   });
-  cy = (doc as any).lastAutoTable?.finalY + 6 ?? cy + 30;
+  cy = ((doc as any).lastAutoTable?.finalY ?? cy) + 6;
 
   // ── TRAINING ──
   doc.addPage(); cy = 14;
@@ -892,7 +892,7 @@ export async function generatePDFReport(data: ReportData): Promise<void> {
     alternateRowStyles: { fillColor: '#f7f7f7' },
     margin: { left: 14, right: 14 },
   });
-  cy = (doc as any).lastAutoTable?.finalY + 8 ?? cy + 30;
+  cy = ((doc as any).lastAutoTable?.finalY ?? cy) + 8;
 
   // Workout details (exercise breakdown per session)
   sectionHead('WORKOUT DETAILS', cy); cy += 8;
@@ -982,7 +982,7 @@ export async function generatePDFReport(data: ReportData): Promise<void> {
       const last = measurements.entries[measurements.entries.length - 1];
       const allKeys = Array.from(new Set([...Object.keys(first.measurements), ...Object.keys(last.measurements)]));
       const fmtKey = (k: string) => k.replace(/([A-Z])/g, ' $1').replace(/\b\w/g, (c) => c.toUpperCase());
-      cy = (doc as any).lastAutoTable?.finalY + 8 ?? cy + 40;
+      cy = ((doc as any).lastAutoTable?.finalY ?? cy) + 8;
       cy = ensureY(cy, 20);
       doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5); doc.setTextColor('#666666');
       doc.text(`Measurements: ${fmtDate(first.date)} → ${fmtDate(last.date)}`, 14, cy); cy += 4;
@@ -1008,7 +1008,7 @@ export async function generatePDFReport(data: ReportData): Promise<void> {
         },
         margin: { left: 14, right: 14 },
       });
-      cy = (doc as any).lastAutoTable?.finalY + 6 ?? cy + 30;
+      cy = ((doc as any).lastAutoTable?.finalY ?? cy) + 6;
     }
 
     // Full measurements history
@@ -1043,7 +1043,7 @@ export async function generatePDFReport(data: ReportData): Promise<void> {
         alternateRowStyles: { fillColor: '#f7f7f7' },
         margin: { left: 14, right: 14 },
       });
-      cy = (doc as any).lastAutoTable?.finalY + 6 ?? cy + 30;
+      cy = ((doc as any).lastAutoTable?.finalY ?? cy) + 6;
     }
   }
 
@@ -1072,7 +1072,7 @@ export async function generatePDFReport(data: ReportData): Promise<void> {
       alternateRowStyles: { fillColor: '#f7f7f7' },
       margin: { left: 14, right: pw / 2 + 2 },
     });
-    cy = (doc as any).lastAutoTable?.finalY + 6 ?? cy + 30;
+    cy = ((doc as any).lastAutoTable?.finalY ?? cy) + 6;
   }
 
   // ── CHECK-INS ──
@@ -1104,7 +1104,7 @@ export async function generatePDFReport(data: ReportData): Promise<void> {
       },
       margin: { left: 14, right: 14 },
     });
-    cy = (doc as any).lastAutoTable?.finalY + 6 ?? cy + 30;
+    cy = ((doc as any).lastAutoTable?.finalY ?? cy) + 6;
 
     // Trend chart for key metrics
     if (checkIns.entries.length > 2) {
@@ -1152,7 +1152,7 @@ export async function generatePDFReport(data: ReportData): Promise<void> {
       alternateRowStyles: { fillColor: '#f7f7f7' },
       margin: { left: 14, right: 14 },
     });
-    cy = (doc as any).lastAutoTable?.finalY + 6 ?? cy + 30;
+    cy = ((doc as any).lastAutoTable?.finalY ?? cy) + 6;
   }
 
   // ── PROGRESS PHOTOS ──
