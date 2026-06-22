@@ -113,6 +113,18 @@ export interface WorkoutDay {
   exercises: Exercise[];
 }
 
+export type SetSchemeType = 'standard' | 'top_set_backoff' | 'pyramid' | 'reverse_pyramid' | 'to_failure';
+
+export interface SetScheme {
+  type: SetSchemeType;
+  topSetReps?: string;
+  backoffSets?: number;
+  backoffReps?: string;
+  backoffPercent?: number;
+  pyramidReps?: number[];
+  failureSets?: number;
+}
+
 export interface ExerciseProgressionConfig {
   type: 'linear' | 'double_progression' | 'custom';
   weeklyWeightIncrement: number;
@@ -140,6 +152,7 @@ export interface Exercise {
   flag?: string;
   startingWeight?: number;
   progression?: ExerciseProgressionConfig;
+  setScheme?: SetScheme;
   weeklyTargets?: WeeklyTarget[];
   restTimerOverride?: number;
   exerciseType?: 'strength' | 'cardio';

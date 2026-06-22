@@ -29,6 +29,7 @@ import type { Program, WorkoutDay, Exercise, ExerciseProgressionConfig, ProgramG
 import { ConfirmDialog } from '../shared/ConfirmDialog';
 import { ColorPicker, getRandomColor } from '../shared/ColorPicker';
 import { ProgressionEditor } from './ProgressionEditor';
+import { SetSchemeEditor } from './SetSchemeEditor';
 import {
   getGoalDefaults,
   isCompoundExercise,
@@ -276,6 +277,12 @@ function SortableExercise({
               placeholder="Use program default"
             />
           </div>
+          <SetSchemeEditor
+            scheme={exercise.setScheme}
+            sets={exercise.sets}
+            reps={exercise.reps}
+            onChange={(scheme) => onUpdate(exercise.id, { setScheme: scheme })}
+          />
           <ProgressionEditor
             exercise={exercise}
             goalType={goalType}

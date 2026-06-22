@@ -106,7 +106,13 @@ function ExerciseCard({
   progression: ProgressionSuggestion | null;
   effortMetric: 'none' | 'rir' | 'rpe';
 }) {
-  const [setCount, setSetCount] = useState(exercise.sets);
+  const [setCount, setSetCount] = useState(() => {
+    const s = exercise.setScheme;
+    if (s?.type === 'top_set_backoff') return 1 + (s.backoffSets || 2);
+    if ((s?.type === 'pyramid' || s?.type === 'reverse_pyramid') && s.pyramidReps) return s.pyramidReps.length;
+    if (s?.type === 'to_failure') return s.failureSets || exercise.sets;
+    return exercise.sets;
+  });
   const [collapsed, setCollapsed] = useState(false);
   const [deviationNote, setDeviationNote] = useState('');
   const [showNote, setShowNote] = useState(false);
@@ -115,21 +121,50 @@ function ExerciseCard({
   const [videoUrl, setVideoUrl] = useState(() => getExerciseVideo(exercise.name) || '');
   const swapSuggestions = useMemo(() => showSwaps ? getSimilarExercises(exercise.name, 5) : [], [showSwaps, exercise.name]);
   const lastSets = lastPerformance?.sets.filter((s) => s.completed);
-  const [inputs, setInputs] = useState<SetInput[]>(() =>
-    Array.from({ length: exercise.sets }, (_, i) => {
+  const scheme = exercise.setScheme;
+
+  const [inputs, setInputs] = useState<SetInput[]>(() => {
+    const totalSets = scheme?.type === 'top_set_backoff' ? 1 + (scheme.backoffSets || 2)
+      : scheme?.type === 'pyramid' || scheme?.type === 'reverse_pyramid' ? scheme.pyramidReps?.length || exercise.sets
+      : scheme?.type === 'to_failure' ? scheme.failureSets || exercise.sets
+      : exercise.sets;
+
+    return Array.from({ length: totalSets }, (_, i) => {
       const targetWeight = weeklyTarget?.weight;
       const targetReps = weeklyTarget?.reps;
       const last = lastSets?.[i];
       const prev = previousSets?.[i];
-      const weight = targetWeight ?? last?.weight ?? prev?.weight ?? exercise.startingWeight;
-      const reps = targetReps ?? last?.reps ?? prev?.reps;
+      const baseWeight = targetWeight ?? last?.weight ?? prev?.weight ?? exercise.startingWeight;
+
+      let weight = baseWeight;
+      let repStr: string;
+
+      if (scheme?.type === 'top_set_backoff') {
+        if (i === 0) {
+          repStr = scheme.topSetReps || exercise.reps;
+        } else {
+          weight = baseWeight != null ? Math.round(baseWeight * (1 - (scheme.backoffPercent || 20) / 100)) : undefined;
+          repStr = scheme.backoffReps || exercise.reps;
+        }
+      } else if ((scheme?.type === 'pyramid' || scheme?.type === 'reverse_pyramid') && scheme.pyramidReps?.[i] != null) {
+        repStr = String(scheme.pyramidReps[i]);
+      } else if (scheme?.type === 'to_failure') {
+        repStr = '';
+      } else {
+        repStr = targetReps != null ? String(targetReps) : (last?.reps != null ? String(last.reps) : (prev?.reps != null ? String(prev.reps) : ''));
+      }
+
+      if (!repStr && exercise.reps) {
+        repStr = exercise.reps.split('-')[0]?.replace(/[^0-9]/g, '') || '';
+      }
+
       return {
         weight: weight != null ? String(weight) : '',
-        reps: reps != null ? String(reps) : String(exercise.reps.split('-')[0]?.replace(/[^0-9]/g, '') || ''),
+        reps: repStr,
         effort: '',
       };
-    })
-  );
+    });
+  });
 
   const allDone =
     sessionSets.length >= setCount &&
@@ -263,7 +298,9 @@ function ExerciseCard({
                 }`}
               >
                 <span className="text-[11px] text-text-muted text-center">
-                  {setIndex + 1}
+                  {scheme?.type === 'top_set_backoff' && setIndex === 0 ? <span className="text-[8px] text-accent font-bold">TOP</span>
+                    : scheme?.type === 'to_failure' ? <span className="text-[8px] text-danger font-bold">F{setIndex + 1}</span>
+                    : setIndex + 1}
                   {showRestElapsed && <SetRestTimer since={setTimestamp} />}
                 </span>
                 <input
@@ -282,7 +319,7 @@ function ExerciseCard({
                   inputMode="numeric"
                   value={inputs[setIndex]?.reps ?? ''}
                   onChange={(e) => handleInputChange(setIndex, 'reps', e.target.value)}
-                  placeholder={prev ? String(prev.reps) : '0'}
+                  placeholder={scheme?.type === 'to_failure' ? 'AMRAP' : (prev ? String(prev.reps) : '0')}
                   disabled={isComplete}
                   className={`w-full bg-surface-raised rounded-lg px-2 py-2 text-sm text-center outline-none ${
                     isComplete ? 'text-success' : 'text-text-primary'
