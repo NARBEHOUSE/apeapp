@@ -95,6 +95,8 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
     shareWithCoach, revokeCoachAccess, syncCoachFiles,
     addClient, removeClient, discoverClients, getClientData, pushChangesToClient,
     checkForClientResponse, acknowledgeClientResponse, backupClientData, getLog,
+    pendingInvites, blockList,
+    checkPendingInvites, inviteClient, acceptInvite, declineInvite, blockAndDeclineInvite, unblockCoach,
   } = useCoach();
 
   const [coachEmail, setCoachEmail] = useState('');
@@ -104,6 +106,9 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
   const [viewingClient, setViewingClient] = useState<{ fileId: string; data: Record<string, unknown> } | null>(null);
   const [coachNote, setCoachNote] = useState('');
   const [showCoachHistory, setShowCoachHistory] = useState(false);
+  const [inviteClientEmail, setInviteClientEmail] = useState('');
+  const [invitePermissions, setInvitePermissions] = useState<Record<string, 'full' | 'readonly'>>({});
+  const [sendingInvite, setSendingInvite] = useState(false);
 
   // Expanded sections — auto-expand if navigated with state
   const location = useLocation();
@@ -111,6 +116,13 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
     const navSection = (location.state as { section?: Section })?.section;
     return new Set(navSection ? [navSection] : ['api']);
   });
+
+  // Check for pending coach invites when coach section opens
+  useEffect(() => {
+    if (expanded.has('coach') && googleUser?.email) {
+      checkPendingInvites(googleUser.email);
+    }
+  }, [expanded, googleUser?.email]);
 
   // API Keys
   const [usdaKey, setUsdaKey] = useState(() => localStorage.getItem('fitos-usda-key') || '');
@@ -771,15 +783,78 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
               </div>
             )}
 
-            {/* Client side — share with coaches */}
+            {/* Client side — incoming coach invites + active coaches */}
             <div className="space-y-2">
               <div className="text-xs font-semibold text-text-secondary uppercase tracking-wider">My Coaches</div>
+
+              {/* Pending invites */}
+              {pendingInvites.length > 0 && (
+                <div className="space-y-2">
+                  {pendingInvites.map((invite) => (
+                    <div key={invite.id} className="p-3 rounded-xl bg-surface-raised border border-accent-orange/40 space-y-3">
+                      <div>
+                        <div className="text-sm font-medium">{invite.coachName}</div>
+                        <div className="text-[10px] text-text-muted">{invite.coachEmail} wants to coach you</div>
+                      </div>
+                      <div className="flex gap-2">
+                        {(['full', 'readonly'] as const).map((p) => (
+                          <button
+                            key={p}
+                            onClick={() => setInvitePermissions((prev) => ({ ...prev, [invite.id]: p }))}
+                            className={`flex-1 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                              (invitePermissions[invite.id] ?? 'full') === p
+                                ? p === 'full' ? 'bg-accent-blue/20 text-accent-blue' : 'bg-surface text-text-primary'
+                                : 'bg-surface text-text-muted'
+                            }`}
+                          >
+                            {p === 'full' ? 'Full Access' : 'Read Only'}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={async () => {
+                            try {
+                              await acceptInvite(invite, invitePermissions[invite.id] ?? 'full');
+                              toast(`${invite.coachName} added as coach`, 'success');
+                            } catch (err) {
+                              const msg = err instanceof Error ? err.message : 'Failed to accept';
+                              if (msg.includes('403') || msg.includes('TOKEN_EXPIRED')) {
+                                toast('Sign out of Google and sign back in to grant permissions', 'error');
+                              } else {
+                                toast(msg, 'error');
+                              }
+                            }
+                          }}
+                          disabled={coachLoading}
+                          className="btn-primary flex-1 text-xs disabled:opacity-30"
+                        >
+                          Accept
+                        </button>
+                        <button
+                          onClick={async () => { await declineInvite(invite); toast('Invite declined', 'success'); }}
+                          className="btn-secondary flex-1 text-xs"
+                        >
+                          Decline
+                        </button>
+                        <button
+                          onClick={async () => { await blockAndDeclineInvite(invite); toast(`${invite.coachEmail} blocked`, 'success'); }}
+                          className="p-2 rounded-lg text-text-muted hover:text-danger hover:bg-danger/10 transition-colors"
+                          title="Block this coach"
+                        >
+                          <UserX size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               {/* Existing coaches */}
               {myCoachRels.length > 0 && (
                 <div className="space-y-2">
                   {myCoachRels.map((rel) => (
-                    <div key={rel.fileId} className="p-3 rounded-xl bg-surface-raised border border-border space-y-2">
+                    <div key={rel.fileId} className="p-3 rounded-xl bg-surface-raised border border-border space-y-1">
                       <div className="flex items-center justify-between">
                         <div>
                           <div className="text-sm font-medium">{rel.coachEmail}</div>
@@ -796,72 +871,20 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
                           <UserX size={14} />
                         </button>
                       </div>
-                      <div className="text-[9px] text-text-muted">
-                        Your coach got a Google Drive notification.{' '}
-                        <button onClick={() => { navigator.clipboard.writeText(rel.fileId); toast('Share code copied — send to your coach', 'success'); }} className="text-accent-blue underline">Copy share code</button>
-                      </div>
                     </div>
                   ))}
                 </div>
               )}
 
-              {/* Add new coach */}
-              <div className="space-y-2 pt-1">
-                <p className="text-[11px] text-text-muted">
-                  Share your data with coaches or friends. Full access lets them push changes. Read only is view-only.
-                </p>
-                <input
-                  type="email"
-                  className="input-field text-sm"
-                  placeholder="Coach's Gmail address"
-                  value={coachEmail}
-                  onChange={(e) => setCoachEmail(e.target.value)}
-                />
-                <div className="flex gap-2">
-                  {(['full', 'readonly'] as const).map((p) => (
-                    <button
-                      key={p}
-                      onClick={() => setCoachPermission(p)}
-                      className={`flex-1 py-2 text-xs font-medium rounded-lg transition-colors ${
-                        coachPermission === p
-                          ? p === 'full' ? 'bg-accent-blue/20 text-accent-blue' : 'bg-surface-raised text-text-primary'
-                          : 'bg-surface text-text-muted'
-                      }`}
-                    >
-                      {p === 'full' ? 'Full Access' : 'Read Only'}
-                    </button>
-                  ))}
-                </div>
-                <button
-                  onClick={async () => {
-                    if (!coachEmail.trim()) return;
-                    try {
-                      const fileId = await shareWithCoach(coachEmail.trim(), coachPermission);
-                      if (fileId) {
-                        navigator.clipboard.writeText(fileId).catch(() => {});
-                        toast('Shared! Coach notified via email. Share code copied.', 'success');
-                        setCoachEmail('');
-                      }
-                    } catch (err) {
-                      const msg = err instanceof Error ? err.message : 'Failed to share';
-                      if (msg.includes('403') || msg.includes('TOKEN_EXPIRED') || msg.includes('Not signed in')) {
-                        toast('Sign out of Google and sign back in to grant file permissions', 'error');
-                      } else {
-                        toast(msg, 'error');
-                      }
-                    }
-                  }}
-                  disabled={!coachEmail.trim() || coachLoading}
-                  className="btn-primary w-full text-sm disabled:opacity-30"
-                >
-                  Add Coach
-                </button>
-              </div>
+              {pendingInvites.length === 0 && myCoachRels.length === 0 && (
+                <p className="text-[11px] text-text-muted">No coaches yet. Ask your coach to send you an invite from their app.</p>
+              )}
             </div>
 
-            {/* Coach side — manage clients */}
+            {/* Coach side — invite clients + manage existing */}
             <div className="border-t border-border pt-3 space-y-2">
               <div className="text-xs font-semibold text-text-secondary uppercase tracking-wider">My Clients</div>
+
               {myClients.length > 0 && (
                 <div className="space-y-2">
                   {myClients.map((client) => (
@@ -874,7 +897,6 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
                         <div className="flex gap-1">
                           <button
                             onClick={async () => {
-                              // Ensure coach scope — needed to read files created by another user
                               if (!hasCoachScope()) {
                                 try { await requestCoachAccess(); } catch {
                                   toast('Drive access required to view client data.', 'error');
@@ -914,63 +936,47 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
                   ))}
                 </div>
               )}
-              {/* Add client by share code */}
-              <div className="space-y-2">
+
+              {/* Invite client */}
+              <div className="space-y-2 pt-1">
                 <p className="text-[11px] text-text-muted">
-                  Enter the share code your client sent you, or tap "Find Clients" to auto-discover.
+                  Send a coaching request to a client. They'll see it in their app and choose their access level.
                 </p>
                 <input
-                  className="input-field text-sm w-full font-mono"
-                  placeholder="Client's share code"
-                  value={clientCode}
-                  onChange={(e) => setClientCode(e.target.value)}
+                  type="email"
+                  className="input-field text-sm"
+                  placeholder="Client's Gmail address"
+                  value={inviteClientEmail}
+                  onChange={(e) => setInviteClientEmail(e.target.value)}
                 />
                 <button
                   onClick={async () => {
-                    const code = clientCode.trim();
-                    if (!code) return;
-                    setAddingClient(true);
+                    if (!inviteClientEmail.trim() || !googleUser?.email) return;
+                    setSendingInvite(true);
                     try {
-                      // Coaches need drive.readonly to read files created by another user.
-                      // Request it once — directly from the click handler to avoid popup blockers.
-                      if (!hasCoachScope()) {
-                        await requestCoachAccess();
-                      }
-                      const data = await getClientData(code);
-                      if (data?.error) {
-                        toast(data.error, 'error');
-                        return;
-                      }
-                      const name: string = data?.profile?.name || 'Client';
-                      const email: string | undefined = data?.profile?.googleEmail;
-                      addClient(code, name, email);
-                      toast(`Added ${name}`, 'success');
-                      setClientCode('');
+                      await inviteClient(inviteClientEmail.trim(), googleUser.email, googleUser.name || googleUser.email);
+                      toast('Invite sent — waiting for client to accept', 'success');
+                      setInviteClientEmail('');
                     } catch (err) {
-                      const msg = err instanceof Error ? err.message : String(err);
-                      if (msg.includes('access_denied') || msg.includes('cancelled')) {
-                        toast('Permission not granted — client not added.', 'error');
-                      } else {
-                        toast('Could not read client data. Check the share code.', 'error');
-                      }
+                      toast(err instanceof Error ? err.message : 'Failed to send invite', 'error');
                     } finally {
-                      setAddingClient(false);
+                      setSendingInvite(false);
                     }
                   }}
-                  disabled={!clientCode.trim() || addingClient}
+                  disabled={!inviteClientEmail.trim() || sendingInvite}
                   className="btn-primary w-full text-sm disabled:opacity-30"
                 >
-                  {addingClient ? 'Adding…' : 'Add Client'}
+                  {sendingInvite ? 'Sending…' : 'Send Invite'}
                 </button>
               </div>
 
-              {/* Auto-discover clients (may require broader scope) */}
+              {/* Find clients (fallback for existing share-code relationships) */}
               <button
                 onClick={async () => {
                   toast('Searching for clients...', 'info');
                   const found = await discoverClients();
                   if (found.length === 0) {
-                    toast('No new clients found. Ask your client for their share code.', 'info');
+                    toast('No new clients found.', 'info');
                   } else {
                     for (const client of found) {
                       addClient(client.fileId, client.name || client.email, client.email, client.folderId);
@@ -983,6 +989,24 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
                 Find Clients
               </button>
             </div>
+
+            {/* Blocked coaches */}
+            {blockList.length > 0 && (
+              <div className="border-t border-border pt-3 space-y-2">
+                <div className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Blocked</div>
+                {blockList.map((email) => (
+                  <div key={email} className="flex items-center justify-between p-2.5 rounded-xl bg-surface-raised border border-border">
+                    <span className="text-xs text-text-muted">{email}</span>
+                    <button
+                      onClick={() => { unblockCoach(email); toast(`${email} unblocked`, 'success'); }}
+                      className="text-[10px] font-medium text-accent-blue"
+                    >
+                      Unblock
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* Coach/Client History — collapsible */}
             {getLog().length > 0 && (

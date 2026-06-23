@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { getAccessToken, requireAccessToken, ensureCoachToken, hasCoachScope } from '../utils/googleAuth';
+import { sendCoachInvite, getPendingInvites, removeInvite, type CoachInvite } from '../utils/coachInvites';
 import {
   createCoachShareFile,
   readSharedFile,
@@ -32,6 +33,7 @@ import type {
 const COACH_KEY = 'fitos-coach-relationships';
 const LOG_KEY = 'fitos-coach-log';
 const UPLOADED_PHOTOS_KEY = 'fitos-coach-uploaded-photos';
+const BLOCK_KEY = 'fitos-coach-blocklist';
 export const PENDING_COACH_CHANGES_FLAG = 'fitos-pending-coach-changes';
 
 function loadRelationships(): CoachRelationship[] {
@@ -50,6 +52,12 @@ function loadLog(): CoachLogEntry[] {
 }
 function saveLog(log: CoachLogEntry[]) {
   localStorage.setItem(LOG_KEY, JSON.stringify(log));
+}
+function loadBlockList(): string[] {
+  try { return JSON.parse(localStorage.getItem(BLOCK_KEY) || '[]'); } catch { return []; }
+}
+function saveBlockList(list: string[]) {
+  localStorage.setItem(BLOCK_KEY, JSON.stringify(list));
 }
 
 function migrateFlatChanges(raw: Record<string, unknown>): PendingCoachChanges {
@@ -72,6 +80,8 @@ export function useCoach() {
   const [pendingChanges, setPendingChanges] = useState<PendingCoachChanges | null>(null);
   const [pendingCoachFileId, setPendingCoachFileId] = useState<string | null>(null);
   const [clientResponse, setClientResponse] = useState<PendingClientResponse | null>(null);
+  const [pendingInvites, setPendingInvites] = useState<CoachInvite[]>([]);
+  const [blockList, setBlockList] = useState<string[]>(loadBlockList);
 
   const myCoachRels = relationships.filter((r) => r.role === 'client');
   const myClients = relationships.filter((r) => r.role === 'coach');
@@ -533,6 +543,49 @@ export function useCoach() {
     }
   }, []);
 
+  // --- Invite / block system ---
+
+  const checkPendingInvites = useCallback(async (myEmail: string) => {
+    try {
+      const blocked = loadBlockList();
+      const invites = await getPendingInvites(myEmail);
+      setPendingInvites(invites.filter((i) => !blocked.includes(i.coachEmail.toLowerCase())));
+    } catch { /* non-fatal */ }
+  }, []);
+
+  const inviteClient = useCallback(async (clientEmail: string, coachEmail: string, coachName: string) => {
+    await sendCoachInvite(coachEmail, coachName, clientEmail);
+  }, []);
+
+  const acceptInvite = useCallback(async (invite: CoachInvite, permission: 'full' | 'readonly') => {
+    await shareWithCoach(invite.coachEmail, permission);
+    await removeInvite(invite.id, invite.clientEmail).catch(() => {});
+    setPendingInvites((prev) => prev.filter((i) => i.id !== invite.id));
+  }, [shareWithCoach]);
+
+  const declineInvite = useCallback(async (invite: CoachInvite) => {
+    await removeInvite(invite.id, invite.clientEmail).catch(() => {});
+    setPendingInvites((prev) => prev.filter((i) => i.id !== invite.id));
+  }, []);
+
+  const blockAndDeclineInvite = useCallback(async (invite: CoachInvite) => {
+    const list = loadBlockList();
+    const email = invite.coachEmail.toLowerCase();
+    if (!list.includes(email)) {
+      const updated = [...list, email];
+      saveBlockList(updated);
+      setBlockList(updated);
+    }
+    await removeInvite(invite.id, invite.clientEmail).catch(() => {});
+    setPendingInvites((prev) => prev.filter((i) => i.id !== invite.id));
+  }, []);
+
+  const unblockCoach = useCallback((email: string) => {
+    const updated = loadBlockList().filter((e) => e !== email.toLowerCase());
+    saveBlockList(updated);
+    setBlockList(updated);
+  }, []);
+
   return {
     relationships, myCoachRels, myClients, loading,
     pendingChanges, clientResponse,
@@ -541,6 +594,9 @@ export function useCoach() {
     // Coach
     addClient, removeClient, discoverClients, getClientData, pushChangesToClient,
     checkForClientResponse, acknowledgeClientResponse, backupClientData,
+    // Invite / block
+    pendingInvites, blockList,
+    checkPendingInvites, inviteClient, acceptInvite, declineInvite, blockAndDeclineInvite, unblockCoach,
     // Log
     addLogEntry, getLog,
   };
