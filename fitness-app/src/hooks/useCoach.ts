@@ -356,14 +356,34 @@ export function useCoach() {
     } catch {
       return { error: 'Not signed in to Google. Sign in first.' };
     }
+
+    // If we have the folder ID stored, do a fresh file search so we always read
+    // the most recently modified file — this auto-heals stale cached fileIds
+    // caused by the client having duplicate share files in Drive.
+    let actualFileId = fileId;
+    const rel = relationships.find((r) => r.role === 'coach' && r.fileId === fileId);
+    if (rel?.shareFolderId) {
+      try {
+        const freshId = await findDataFileInFolder(token, rel.shareFolderId);
+        if (freshId && freshId !== fileId) {
+          actualFileId = freshId;
+          const updatedRels = relationships.map((r) =>
+            r.role === 'coach' && r.fileId === fileId ? { ...r, fileId: freshId } : r
+          );
+          saveRelationships(updatedRels);
+          setRelationships(updatedRels);
+        }
+      } catch { /* non-fatal — fall back to cached fileId */ }
+    }
+
     try {
-      const raw = await readSharedFile(token, fileId);
+      const raw = await readSharedFile(token, actualFileId);
       return JSON.parse(raw);
     } catch (err: unknown) {
       if (err instanceof Error && err.message.includes('TOKEN_EXPIRED')) {
         try {
           token = hasCoachScope() ? await ensureCoachToken() : await requireAccessToken();
-          const raw = await readSharedFile(token, fileId);
+          const raw = await readSharedFile(token, actualFileId);
           return JSON.parse(raw);
         } catch (retryErr) {
           console.error('Retry failed:', retryErr);
@@ -376,7 +396,7 @@ export function useCoach() {
       if (msg.includes('403')) return { error: 'Permission denied. The client needs to share their data with you.' };
       return { error: `Failed to load: ${msg}` };
     }
-  }, []);
+  }, [relationships]);
 
   const pushChangesToClient = useCallback(async (fileId: string, changes: PendingCoachChanges): Promise<{ ok: boolean; error?: string }> => {
     const token = await ensureCoachToken();
