@@ -37,6 +37,12 @@ jobs:
         env:
           GITHUB_PAGES: "true"
 
+      - name: Inject landing page
+        working-directory: ${{ github.workspace }}
+        run: |
+          cp fitness-app/dist/index.html fitness-app/dist/app.html
+          cp landing.html fitness-app/dist/index.html
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:

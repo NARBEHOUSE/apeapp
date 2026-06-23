@@ -249,20 +249,19 @@ export function FoodSearch({ onAdd, onClose, profileId, defaultTab, saveOnly = f
   const [showManualForBarcode, setShowManualForBarcode] = useState(false);
 
   // Scanner state — must be before any early returns to satisfy rules of hooks
-  const [showScanner, setShowScanner] = useState(defaultTab === 'barcode');
+  const [showScanner, setShowScanner] = useState(defaultTab === 'barcode' || startWithScan);
   const scannerRef = useRef<HTMLDivElement>(null);
   const html5QrRef = useRef<unknown>(null);
 
   const startScanner = async () => {
     setShowScanner(true);
-    await new Promise((r) => setTimeout(r, 150));
+    await new Promise((r) => setTimeout(r, 200));
+    if (!scannerRef.current) return;
     try {
       const { Html5Qrcode } = await import('html5-qrcode');
       const scannerId = 'barcode-scanner-region';
-      if (scannerRef.current) {
-        scannerRef.current.id = scannerId;
-        scannerRef.current.innerHTML = '';
-      }
+      scannerRef.current.id = scannerId;
+      scannerRef.current.innerHTML = '';
       const scanner = new Html5Qrcode(scannerId);
       html5QrRef.current = scanner;
       await scanner.start(
@@ -289,8 +288,12 @@ export function FoodSearch({ onAdd, onClose, profileId, defaultTab, saveOnly = f
 
   useEffect(() => { return () => { stopScanner(); }; }, [stopScanner]);
 
-  // Auto-start scanner when opened via scan shortcut
-  useEffect(() => { if (startWithScan) startScanner(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // Auto-start scanner when opened via scan shortcut — delay lets modal animation finish
+  useEffect(() => {
+    if (!startWithScan) return;
+    const t = setTimeout(() => startScanner(), 400);
+    return () => clearTimeout(t);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleAdd() {
     if (!selected) return;

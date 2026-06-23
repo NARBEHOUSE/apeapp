@@ -15,7 +15,7 @@ export default defineConfig({
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
         globPatterns: ['**/*.{js,css,html,png,svg,ico}'],
         globIgnores: ['**/logo*.png'],
-        navigateFallback: 'index.html',
+        navigateFallback: 'app.html',
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/falling-cloud-a632\.narbehousellc\.workers\.dev\/.*/i,
@@ -32,7 +32,7 @@ export default defineConfig({
         background_color: '#111114',
         display: 'standalone',
         orientation: 'portrait',
-        start_url: base,
+        start_url: base + 'app.html',
         scope: base,
         categories: ['health', 'fitness', 'lifestyle'],
         icons: [

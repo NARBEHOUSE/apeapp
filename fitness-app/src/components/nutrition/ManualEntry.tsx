@@ -1,4 +1,5 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
+import { Barcode } from 'lucide-react';
 import type { FoodEntry } from '../../types';
 import { FoodAutocomplete, type SelectedFood } from './FoodAutocomplete';
 import { saveFoodToHistory } from '../../db/foodHistory';
@@ -56,6 +57,45 @@ export function ManualEntry({ onAdd, onClose, profileId, dailyTotals, macroTarge
   const [selectedSource, setSelectedSource] = useState<FoodEntry['source']>('manual');
   const [selectedBrand, setSelectedBrand] = useState<string | undefined>();
   const [barcode, setBarcode] = useState(initialBarcode ?? '');
+  const [showBarcodeScanner, setShowBarcodeScanner] = useState(false);
+  const barcodeScannerRef = useRef<HTMLDivElement>(null);
+  const barcodeScannerInstanceRef = useRef<unknown>(null);
+
+  const stopBarcodeScanner = useCallback(() => {
+    const s = barcodeScannerInstanceRef.current as { stop: () => Promise<void> } | null;
+    if (s) s.stop().catch(() => {});
+    barcodeScannerInstanceRef.current = null;
+    setShowBarcodeScanner(false);
+  }, []);
+
+  const startBarcodeScanner = async () => {
+    setShowBarcodeScanner(true);
+    await new Promise((r) => setTimeout(r, 200));
+    if (!barcodeScannerRef.current) return;
+    try {
+      const { Html5Qrcode } = await import('html5-qrcode');
+      const id = 'manual-barcode-scanner';
+      barcodeScannerRef.current.id = id;
+      barcodeScannerRef.current.innerHTML = '';
+      const scanner = new Html5Qrcode(id);
+      barcodeScannerInstanceRef.current = scanner;
+      await scanner.start(
+        { facingMode: 'environment' },
+        { fps: 10, qrbox: { width: 260, height: 100 }, aspectRatio: 1.0 },
+        (code: string) => {
+          scanner.stop().catch(() => {});
+          barcodeScannerInstanceRef.current = null;
+          setShowBarcodeScanner(false);
+          setBarcode(code);
+        },
+        () => {},
+      );
+    } catch {
+      setShowBarcodeScanner(false);
+    }
+  };
+
+  useEffect(() => { return () => { stopBarcodeScanner(); }; }, [stopBarcodeScanner]);
 
   // Base rates from selected food (per gram) — used to recalculate when serving size changes
   const [basePer100g, setBasePer100g] = useState<BasePer100g | null>(null);
@@ -383,14 +423,29 @@ export function ManualEntry({ onAdd, onClose, profileId, dailyTotals, macroTarge
       {/* Optional barcode */}
       <div>
         <label className="label mb-1 block">Barcode (optional)</label>
-        <input
-          type="text"
-          inputMode="numeric"
-          className="input-field text-sm"
-          placeholder="UPC barcode for future scanning"
-          value={barcode}
-          onChange={(e) => setBarcode(e.target.value)}
-        />
+        <div className="flex gap-2">
+          <input
+            type="text"
+            inputMode="numeric"
+            className="input-field text-sm flex-1"
+            placeholder="UPC barcode for future scanning"
+            value={barcode}
+            onChange={(e) => setBarcode(e.target.value)}
+          />
+          <button
+            type="button"
+            onClick={showBarcodeScanner ? stopBarcodeScanner : startBarcodeScanner}
+            className={`px-3 rounded-xl flex items-center justify-center transition-colors shrink-0 ${showBarcodeScanner ? 'bg-accent text-white' : 'bg-surface'}`}
+          >
+            <Barcode size={18} />
+          </button>
+        </div>
+        {showBarcodeScanner && (
+          <div className="mt-2 space-y-1">
+            <div ref={barcodeScannerRef} className="rounded-xl overflow-hidden bg-black" style={{ minHeight: 160 }} />
+            <p className="text-[10px] text-text-muted text-center">Point camera at barcode — fills the field automatically</p>
+          </div>
+        )}
       </div>
 
       <div className="flex gap-2 pt-1">

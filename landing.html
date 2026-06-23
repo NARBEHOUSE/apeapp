@@ -1,0 +1,1040 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>APE — Aesthetic Physique Enthusiast</title>
+  <meta name="description" content="The only fitness app that lets you bring your own AI. Free, ad-free, and built for serious physique athletes." />
+  <meta name="theme-color" content="#111114" />
+  <meta property="og:title" content="APE — Aesthetic Physique Enthusiast" />
+  <meta property="og:description" content="Track macros, log workouts, and get AI coaching with your own API key. No subscription. No ads. Your gains." />
+  <meta property="og:url" content="https://narbehouse.github.io/apeapp/" />
+  <meta property="og:image" content="https://narbehouse.github.io/apeapp/icons/icon-512.png" />
+
+  <!-- Favicon: APE PWA icon -->
+  <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png" />
+  <link rel="apple-touch-icon" href="./icons/icon-192.png" />
+
+  <!-- Redirect existing PWA installs and hash-based app routes straight to the app -->
+  <script>
+    (function () {
+      var isStandalone = window.matchMedia('(display-mode: standalone)').matches
+        || ('standalone' in window.navigator && window.navigator.standalone);
+      var hash = window.location.hash;
+      var isAppRoute = hash && hash.length > 2 && hash.startsWith('#/');
+      if (isStandalone || isAppRoute) {
+        window.location.replace('./app.html' + hash);
+      }
+    })();
+  </script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #111114;
+      --surface:   #1a1a20;
+      --raised:    #222229;
+      --border:    #2c2c35;
+      --text:      #f0f0f5;
+      --muted:     #aaaab5;
+      --subtle:    #6a6a78;
+      --green:     #00ff09;
+      --green-dim: #00cc07;
+      --green-glow:rgba(0,255,9,0.18);
+      --orange:    #e8572a;
+      --orange-dim:#b8431f;
+      --amber:     #f5a623;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', -apple-system, sans-serif;
+      font-size: 16px;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── HEADER ── */
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 clamp(1.25rem, 5vw, 3rem);
+      height: 60px;
+      background: rgba(17,17,20,0.88);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 800;
+      font-size: 1.6rem;
+      letter-spacing: 0.04em;
+      color: var(--text);
+      text-decoration: none;
+    }
+
+    .logo img { height: 30px; width: auto; display: block; }
+    .logo span { color: var(--green); }
+
+    nav { display: flex; align-items: center; gap: 0.5rem; }
+
+    .nav-link {
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: var(--muted);
+      text-decoration: none;
+      padding: 0.35rem 0.75rem;
+      border-radius: 6px;
+      transition: color 0.15s, background 0.15s;
+    }
+
+    .nav-link:hover { color: var(--text); background: var(--surface); }
+
+    .btn-launch {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-family: 'Inter', sans-serif;
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: #0a0a0a;
+      background: var(--green);
+      border: none;
+      border-radius: 8px;
+      padding: 0.45rem 1.1rem;
+      text-decoration: none;
+      cursor: pointer;
+      transition: background 0.15s, transform 0.1s;
+      white-space: nowrap;
+    }
+
+    .btn-launch:hover { background: var(--green-dim); transform: translateY(-1px); }
+    .btn-launch:active { transform: translateY(0); }
+
+    /* ── HERO ── */
+    .hero {
+      min-height: calc(100svh - 60px);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: clamp(3rem, 8vw, 6rem) clamp(1.25rem, 5vw, 3rem);
+      max-width: 1100px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    .hero-logo {
+      margin-bottom: 2rem;
+    }
+
+    .hero-logo img {
+      height: 56px;
+      width: auto;
+      opacity: 0.92;
+    }
+
+    .hero-eyebrow {
+      font-family: 'Inter', sans-serif;
+      font-size: 0.8rem;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--green);
+      margin-bottom: 1.25rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .hero-eyebrow::before {
+      content: '';
+      display: block;
+      width: 28px;
+      height: 2px;
+      background: var(--green);
+      border-radius: 2px;
+    }
+
+    .hero-headline {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 800;
+      font-size: clamp(3.5rem, 10vw, 7.5rem);
+      line-height: 0.92;
+      letter-spacing: -0.01em;
+      text-transform: uppercase;
+      margin-bottom: 1.75rem;
+    }
+
+    .hero-headline .line-accent { color: var(--green); }
+    .hero-headline .line-dim    { color: var(--muted); }
+
+    .hero-sub {
+      font-size: clamp(1rem, 2.5vw, 1.2rem);
+      color: var(--muted);
+      max-width: 520px;
+      line-height: 1.65;
+      margin-bottom: 2.5rem;
+    }
+
+    .hero-sub strong { color: var(--text); font-weight: 600; }
+
+    .hero-cta {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-family: 'Inter', sans-serif;
+      font-size: 1rem;
+      font-weight: 600;
+      color: #0a0a0a;
+      background: var(--green);
+      border: none;
+      border-radius: 10px;
+      padding: 0.8rem 1.75rem;
+      text-decoration: none;
+      cursor: pointer;
+      transition: background 0.15s, transform 0.1s, box-shadow 0.15s;
+      box-shadow: 0 4px 20px var(--green-glow);
+    }
+
+    .btn-primary:hover {
+      background: var(--green-dim);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 28px var(--green-glow);
+    }
+
+    .btn-secondary {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-family: 'Inter', sans-serif;
+      font-size: 1rem;
+      font-weight: 500;
+      color: var(--muted);
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.8rem 1.5rem;
+      text-decoration: none;
+      transition: border-color 0.15s, color 0.15s, background 0.15s;
+    }
+
+    .btn-secondary:hover { border-color: var(--muted); color: var(--text); background: var(--surface); }
+
+    .hero-badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.6rem;
+      margin-top: 3rem;
+    }
+
+    .badge {
+      font-size: 0.75rem;
+      font-weight: 500;
+      color: var(--subtle);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 0.3rem 0.8rem;
+      letter-spacing: 0.02em;
+    }
+
+    /* ── SECTION WRAPPER ── */
+    .section {
+      padding: clamp(4rem, 8vw, 7rem) clamp(1.25rem, 5vw, 3rem);
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    .section-label {
+      font-family: 'Inter', sans-serif;
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--green);
+      margin-bottom: 1rem;
+    }
+
+    .section-title {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 800;
+      font-size: clamp(2.2rem, 5vw, 3.5rem);
+      text-transform: uppercase;
+      line-height: 1;
+      margin-bottom: 1.25rem;
+      letter-spacing: -0.01em;
+    }
+
+    .section-body {
+      font-size: 1.05rem;
+      color: var(--muted);
+      max-width: 560px;
+      line-height: 1.7;
+    }
+
+    /* ── BYOK CALLOUT ── */
+    .byok-strip {
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .byok-inner {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: clamp(2.5rem, 5vw, 4rem) clamp(1.25rem, 5vw, 3rem);
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 3rem;
+      align-items: center;
+    }
+
+    .byok-headline {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 800;
+      font-size: clamp(2rem, 4vw, 3rem);
+      text-transform: uppercase;
+      line-height: 1;
+      margin-bottom: 1rem;
+    }
+
+    .byok-headline em {
+      font-style: normal;
+      color: var(--green);
+    }
+
+    .byok-body {
+      font-size: 1rem;
+      color: var(--muted);
+      line-height: 1.7;
+      margin-bottom: 1.5rem;
+    }
+
+    .provider-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.875rem;
+    }
+
+    .provider-table th {
+      text-align: left;
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--subtle);
+      padding: 0.5rem 0.75rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .provider-table td {
+      padding: 0.65rem 0.75rem;
+      color: var(--muted);
+      border-bottom: 1px solid rgba(44,44,53,0.5);
+      vertical-align: middle;
+    }
+
+    .provider-table tr:last-child td { border-bottom: none; }
+    .provider-table td:first-child { color: var(--text); font-weight: 500; }
+
+    .provider-table .key-prefix {
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 0.8rem;
+      color: var(--green-dim);
+      background: rgba(46,158,107,0.1);
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+    }
+
+    .vision-yes { color: var(--green-dim); }
+    .vision-no  { color: var(--subtle); }
+
+    /* ── FEATURES GRID ── */
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 1px;
+      background: var(--border);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+      margin-top: 3rem;
+    }
+
+    .feature-card {
+      background: var(--bg);
+      padding: 2rem 1.75rem;
+      transition: background 0.2s;
+    }
+
+    .feature-card:hover { background: var(--surface); }
+
+    .feature-icon {
+      font-size: 1.5rem;
+      margin-bottom: 1rem;
+      display: block;
+    }
+
+    .feature-title {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 700;
+      font-size: 1.2rem;
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+      color: var(--text);
+      margin-bottom: 0.5rem;
+    }
+
+    .feature-desc {
+      font-size: 0.9rem;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    /* ── PHILOSOPHY ── */
+    .philosophy-strip {
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .philosophy-inner {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: clamp(3rem, 6vw, 5rem) clamp(1.25rem, 5vw, 3rem);
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 0;
+    }
+
+    .philosophy-item {
+      padding: 2rem;
+      border-right: 1px solid var(--border);
+    }
+
+    .philosophy-item:last-child { border-right: none; }
+
+    .philosophy-number {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 800;
+      font-size: 3.5rem;
+      line-height: 1;
+      color: var(--border);
+      margin-bottom: 0.75rem;
+    }
+
+    .philosophy-title {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 700;
+      font-size: 1.1rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text);
+      margin-bottom: 0.5rem;
+    }
+
+    .philosophy-desc {
+      font-size: 0.875rem;
+      color: var(--muted);
+      line-height: 1.65;
+    }
+
+    /* ── SUPPORT SECTION ── */
+    .support-strip {
+      background: linear-gradient(135deg, rgba(0,255,9,0.04) 0%, rgba(0,200,7,0.07) 100%);
+      border-top: 1px solid rgba(0,255,9,0.1);
+      border-bottom: 1px solid rgba(0,255,9,0.1);
+    }
+
+    .support-inner {
+      max-width: 700px;
+      margin: 0 auto;
+      padding: clamp(3.5rem, 7vw, 6rem) clamp(1.25rem, 5vw, 3rem);
+      text-align: center;
+    }
+
+    .support-icon {
+      font-size: 2.5rem;
+      margin-bottom: 1.25rem;
+      display: block;
+    }
+
+    .support-title {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 800;
+      font-size: clamp(2rem, 5vw, 3rem);
+      text-transform: uppercase;
+      line-height: 1;
+      margin-bottom: 1rem;
+      color: var(--text);
+    }
+
+    .support-body {
+      font-size: 1.05rem;
+      color: var(--muted);
+      line-height: 1.7;
+      margin-bottom: 2rem;
+      max-width: 520px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .support-body strong { color: var(--amber); font-weight: 600; }
+
+    .btn-support {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-family: 'Inter', sans-serif;
+      font-size: 1rem;
+      font-weight: 600;
+      color: #111;
+      background: var(--amber);
+      border: none;
+      border-radius: 10px;
+      padding: 0.85rem 2rem;
+      text-decoration: none;
+      cursor: pointer;
+      transition: background 0.15s, transform 0.1s, box-shadow 0.15s;
+      box-shadow: 0 4px 20px rgba(245,166,35,0.3);
+    }
+
+    .btn-support:hover {
+      background: #e09a1a;
+      transform: translateY(-2px);
+      box-shadow: 0 6px 28px rgba(245,166,35,0.4);
+    }
+
+    .support-note {
+      margin-top: 1rem;
+      font-size: 0.825rem;
+      color: var(--subtle);
+    }
+
+    /* ── FINAL CTA ── */
+    .final-cta {
+      padding: clamp(4rem, 8vw, 7rem) clamp(1.25rem, 5vw, 3rem);
+      max-width: 1100px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 1.5rem;
+    }
+
+    .final-headline {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 800;
+      font-size: clamp(2.5rem, 6vw, 5rem);
+      text-transform: uppercase;
+      line-height: 0.95;
+      letter-spacing: -0.01em;
+    }
+
+    .final-headline .accent { color: var(--green); }
+
+    /* ── LEGAL SECTION ── */
+    .legal-strip {
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .legal-inner {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: clamp(3rem, 6vw, 5rem) clamp(1.25rem, 5vw, 3rem);
+    }
+
+    .legal-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 3rem;
+      margin-top: 2.5rem;
+    }
+
+    .legal-block h3 {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 700;
+      font-size: 1.1rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text);
+      margin-bottom: 0.75rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .legal-block p, .legal-block li {
+      font-size: 0.875rem;
+      color: var(--muted);
+      line-height: 1.7;
+      margin-bottom: 0.5rem;
+    }
+
+    .legal-block ul {
+      list-style: none;
+      padding: 0;
+    }
+
+    .legal-block ul li::before {
+      content: '— ';
+      color: var(--subtle);
+    }
+
+    .legal-block a {
+      color: var(--green-dim);
+      text-decoration: none;
+    }
+
+    .legal-block a:hover { text-decoration: underline; }
+
+    .legal-disclaimer {
+      margin-top: 2.5rem;
+      padding: 1.25rem 1.5rem;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      font-size: 0.8rem;
+      color: var(--subtle);
+      line-height: 1.7;
+    }
+
+    .legal-disclaimer strong { color: var(--muted); }
+
+    /* ── FOOTER ── */
+    .footer-outer {
+      border-top: 1px solid var(--border);
+    }
+
+    footer {
+      padding: 2rem clamp(1.25rem, 5vw, 3rem);
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 1rem;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    .footer-copy {
+      font-size: 0.8rem;
+      color: var(--subtle);
+    }
+
+    .footer-links {
+      display: flex;
+      gap: 1.5rem;
+      flex-wrap: wrap;
+    }
+
+    .footer-links a {
+      font-size: 0.8rem;
+      color: var(--subtle);
+      text-decoration: none;
+      transition: color 0.15s;
+    }
+
+    .footer-links a:hover { color: var(--muted); }
+
+    /* ── DIVIDER ── */
+    .full-divider {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 0;
+    }
+
+    /* ── SCROLL ANIMATIONS ── */
+    .reveal {
+      opacity: 0;
+      transform: translateY(24px);
+      transition: opacity 0.55s ease, transform 0.55s ease;
+    }
+
+    .reveal.visible {
+      opacity: 1;
+      transform: none;
+    }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 768px) {
+      .byok-inner {
+        grid-template-columns: 1fr;
+        gap: 2rem;
+      }
+
+      .philosophy-inner {
+        grid-template-columns: 1fr;
+      }
+
+      .philosophy-item {
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+        padding: 1.5rem 1rem;
+      }
+
+      .philosophy-item:last-child { border-bottom: none; }
+
+      .legal-grid {
+        grid-template-columns: 1fr;
+        gap: 2rem;
+      }
+
+      nav .nav-link { display: none; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .reveal { opacity: 1; transform: none; transition: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header>
+    <a class="logo" href="#">
+      <img src="./logo-head-white.png" alt="APE logo" onerror="this.style.display='none'" />
+      <span>APE</span>
+    </a>
+    <nav>
+      <a class="nav-link" href="#features">Features</a>
+      <a class="nav-link" href="#ai">Bring Your AI</a>
+      <a class="nav-link" href="#support">Support</a>
+      <a class="btn-launch" href="./app.html">
+        Launch App
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+      </a>
+    </nav>
+  </header>
+
+  <!-- HERO -->
+  <main>
+    <div class="hero">
+      <div class="hero-logo reveal">
+        <img src="./logo-white.png" alt="Aesthetic Physique Enthusiast" onerror="this.style.display='none'" />
+      </div>
+      <p class="hero-eyebrow reveal">Free. Ad-Free. Built for physique athletes</p>
+      <h1 class="hero-headline reveal">
+        <span class="line-accent">Your key.</span><br>
+        <span>Your data.</span><br>
+        <span class="line-dim">Your gains.</span>
+      </h1>
+      <p class="hero-sub reveal">
+        APE is a <strong>free, ad-free fitness PWA</strong> for bodybuilders and physique athletes.
+        Track macros, log workouts, and get AI coaching — using whichever AI provider you already have.
+        No subscription. No lock-in. No middleman.
+      </p>
+      <div class="hero-cta reveal">
+        <a class="btn-primary" href="./app.html">
+          Open APE App
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+        </a>
+        <a class="btn-secondary" href="#features">See what's inside</a>
+      </div>
+      <div class="hero-badges reveal">
+        <span class="badge">Free forever</span>
+        <span class="badge">No ads</span>
+        <span class="badge">No data sold</span>
+        <span class="badge">PWA — install on any device</span>
+        <span class="badge">Works offline</span>
+        <span class="badge">NARBE LLC</span>
+      </div>
+    </div>
+
+    <!-- PHILOSOPHY STRIP -->
+    <div class="philosophy-strip">
+      <div class="philosophy-inner">
+        <div class="philosophy-item reveal">
+          <div class="philosophy-number">01</div>
+          <div class="philosophy-title">Your data stays yours</div>
+          <p class="philosophy-desc">Everything lives in your browser's local storage or your own Google Drive. APE has no backend servers. NARBE LLC never touches your data.</p>
+        </div>
+        <div class="philosophy-item reveal">
+          <div class="philosophy-number">02</div>
+          <div class="philosophy-title">Your AI, your choice</div>
+          <p class="philosophy-desc">APE is the only fitness app that lets you supply your own AI API key. Use Claude, GPT-4o, Gemini, or any OpenRouter model — auto-detected from the key prefix.</p>
+        </div>
+        <div class="philosophy-item reveal">
+          <div class="philosophy-number">03</div>
+          <div class="philosophy-title">Free means free</div>
+          <p class="philosophy-desc">No freemium gates. No ad network. No upsell paywalls. APE is and always will be free. If it earns a tip, great. If not, it's still yours.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- FEATURES -->
+    <div class="section" id="features">
+      <p class="section-label reveal">What's inside</p>
+      <h2 class="section-title reveal">Everything a serious<br>athlete needs</h2>
+      <p class="section-body reveal">Built feature-by-feature for physique athletes — not casual step counters. Every tool is designed around the way bodybuilders actually train and eat.</p>
+
+      <div class="features-grid">
+        <div class="feature-card reveal">
+          <span class="feature-icon">🥩</span>
+          <div class="feature-title">Macro Tracking</div>
+          <p class="feature-desc">Log food with USDA FoodData Central search, Open Food Facts fallback, barcode scanning, AI food photo recognition, voice entry, and a full recipe builder.</p>
+        </div>
+        <div class="feature-card reveal">
+          <span class="feature-icon">🏋️</span>
+          <div class="feature-title">Workout Logging</div>
+          <p class="feature-desc">Built-in program library, fully custom program creator, auto-progression tracking, rest timers, and complete workout history.</p>
+        </div>
+        <div class="feature-card reveal">
+          <span class="feature-icon">📸</span>
+          <div class="feature-title">AI Food Scanner</div>
+          <p class="feature-desc">Point your camera at any meal and get instant macro estimates. Powered by your own API key — no subscription required.</p>
+        </div>
+        <div class="feature-card reveal">
+          <span class="feature-icon">🧠</span>
+          <div class="feature-title">AI Coach</div>
+          <p class="feature-desc">Weekly training and nutrition suggestions generated from your actual logged data. Real context, not generic advice.</p>
+        </div>
+        <div class="feature-card reveal">
+          <span class="feature-icon">👤</span>
+          <div class="feature-title">Coach Mode</div>
+          <p class="feature-desc">Share your data with a real coach via Google Drive. Coaches can push macro targets and training programs directly into your app.</p>
+        </div>
+        <div class="feature-card reveal">
+          <span class="feature-icon">📊</span>
+          <div class="feature-title">Progress Tracking</div>
+          <p class="feature-desc">Body measurements, progress photos with pose tagging, time-lapse comparisons, and trend charts across every metric that matters.</p>
+        </div>
+        <div class="feature-card reveal">
+          <span class="feature-icon">☁️</span>
+          <div class="feature-title">Google Drive Sync</div>
+          <p class="feature-desc">All your data syncs to your personal Google Drive. Switch devices seamlessly. NARBE LLC never touches it.</p>
+        </div>
+        <div class="feature-card reveal">
+          <span class="feature-icon">📱</span>
+          <div class="feature-title">Install Anywhere</div>
+          <p class="feature-desc">APE is a PWA — install it from your browser on any phone, tablet, or desktop. No app store. Works fully offline.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- BYOK SECTION -->
+    <div class="byok-strip" id="ai">
+      <div class="byok-inner">
+        <div>
+          <p class="section-label reveal">Bring your own AI</p>
+          <h2 class="byok-headline reveal">
+            The only fitness app<br>
+            that puts <em>your</em> AI<br>
+            in your hands
+          </h2>
+          <p class="byok-body reveal">
+            Paste any API key from a supported provider. APE auto-detects who it's from — no dropdown, no config.
+            Your key is stored only on your device and never included in sync data.
+            AI calls go directly from your browser to the provider. We never see them.
+          </p>
+          <a class="btn-primary reveal" href="./app.html" style="display:inline-flex">
+            Try it now
+          </a>
+        </div>
+        <div class="reveal">
+          <table class="provider-table">
+            <thead>
+              <tr>
+                <th>Provider</th>
+                <th>Key prefix</th>
+                <th>Vision</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Anthropic (Claude)</td>
+                <td><span class="key-prefix">sk-ant-</span></td>
+                <td class="vision-yes">✓</td>
+              </tr>
+              <tr>
+                <td>OpenAI</td>
+                <td><span class="key-prefix">sk-</span></td>
+                <td class="vision-yes">✓</td>
+              </tr>
+              <tr>
+                <td>OpenRouter</td>
+                <td><span class="key-prefix">sk-or-</span></td>
+                <td class="vision-yes">✓</td>
+              </tr>
+              <tr>
+                <td>Google Gemini</td>
+                <td><span class="key-prefix">AIza</span></td>
+                <td class="vision-yes">✓</td>
+              </tr>
+            </tbody>
+          </table>
+          <p style="font-size:0.8rem;color:var(--subtle);margin-top:1rem;">
+            Auto-detected from key prefix. No dropdown needed.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- SUPPORT SECTION -->
+    <div class="support-strip" id="support">
+      <div class="support-inner">
+        <span class="support-icon reveal">☕</span>
+        <h2 class="support-title reveal">Help keep APE free</h2>
+        <p class="support-body reveal">
+          APE is <strong>free and ad-free</strong> — and we want to keep it that way.
+          There's no subscription, no investor, no data being sold.
+          It's just one builder making a tool he actually uses.
+          If APE is helping your physique goals, consider throwing a tip to keep the lights on and the features coming.
+        </p>
+        <a class="btn-support reveal" href="https://streamelements.com/bigbroacro/tip" target="_blank" rel="noopener">
+          ☕ Support the creator
+        </a>
+        <p class="support-note reveal">No account needed. Any amount appreciated. Completely optional.</p>
+      </div>
+    </div>
+
+    <!-- FINAL CTA -->
+    <div class="final-cta">
+      <h2 class="final-headline reveal">
+        Ready to<br>
+        <span class="accent">train smarter?</span>
+      </h2>
+      <p class="section-body reveal" style="margin-bottom:0;">
+        Free to use. Free forever. Install it on your phone in under 30 seconds.
+      </p>
+      <a class="btn-primary reveal" href="./app.html">
+        Open APE App
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+      </a>
+    </div>
+
+    <!-- LEGAL SECTION -->
+    <div class="legal-strip" id="legal">
+      <div class="legal-inner">
+        <p class="section-label">Legal</p>
+        <h2 class="section-title" style="margin-bottom:0.5rem;">License &amp; Terms</h2>
+        <p style="font-size:0.95rem;color:var(--muted);max-width:600px;line-height:1.7;">
+          APE is source-available software published by NARBE LLC under a custom license. The source code is publicly visible on GitHub for transparency and personal modification — this is not an open-source license. Please read the terms below before using or building upon APE.
+        </p>
+
+        <div class="legal-grid">
+
+          <div class="legal-block">
+            <h3>License — Personal Use Only</h3>
+            <p>Copyright &copy; 2024–2026 NARBE LLC. All rights reserved.</p>
+            <p>Permission is granted, free of charge, to use, copy, and modify this software for <strong style="color:var(--text)">personal, non-commercial purposes only</strong>, subject to the conditions below. This software is <strong style="color:var(--text)">not open-source</strong>. Source visibility does not constitute a grant of rights beyond those explicitly stated here.</p>
+            <ul>
+              <li>Personal use is permitted at no cost.</li>
+              <li>Redistribution — modified or unmodified — is <strong style="color:var(--text)">not permitted</strong> without prior written permission.</li>
+              <li>Commercial use, SaaS offerings, hosted services, or commercial derivative works require a separate commercial license. Contact NARBE LLC.</li>
+              <li>All permitted copies must retain this copyright notice and license.</li>
+              <li>Contributions (pull requests, patches) grant NARBE LLC a perpetual, royalty-free license to use and incorporate them into the Software.</li>
+            </ul>
+            <p style="margin-top:0.75rem;">
+              <a href="https://github.com/NARBEHOUSE/apeapp/blob/main/LICENSE" target="_blank" rel="noopener">View full license on GitHub →</a>
+            </p>
+          </div>
+
+          <div class="legal-block">
+            <h3>Terms of Use</h3>
+            <p>By using this application you agree to the following:</p>
+            <ul>
+              <li>You will not use APE or any derivative work for commercial purposes without a commercial license from NARBE LLC.</li>
+              <li>You will not redistribute, resell, sublicense, or transfer the software or any modified version to any third party.</li>
+              <li>You acknowledge that APE is provided on an as-is basis with no guarantee of accuracy, completeness, or fitness for any particular purpose — including fitness, health, or medical advice.</li>
+              <li>APE does not constitute medical, nutritional, or professional health advice. Always consult a qualified professional before making health decisions.</li>
+              <li>You are solely responsible for the accuracy of data you enter and for decisions you make based on the app's output.</li>
+              <li>You are solely responsible for any third-party API keys you enter. NARBE LLC has no access to them and accepts no liability for charges incurred.</li>
+              <li>NARBE LLC reserves the right to modify these terms at any time. Continued use constitutes acceptance.</li>
+            </ul>
+          </div>
+
+          <div class="legal-block">
+            <h3>Privacy</h3>
+            <p>NARBE LLC does not collect, store, or process any personal data. APE runs entirely in your browser. All fitness data is stored on your device or in your personal Google Drive — never on NARBE LLC servers.</p>
+            <ul>
+              <li>No analytics, tracking pixels, or telemetry.</li>
+              <li>No advertising networks or third-party data sharing.</li>
+              <li>AI API calls go directly from your browser to your chosen provider — NARBE LLC never sees them.</li>
+              <li>Google Drive access is scoped to files the app creates. We cannot read other Drive files.</li>
+            </ul>
+            <p style="margin-top:0.75rem;">
+              <a href="./app.html#/privacy">Read full Privacy Policy →</a>
+            </p>
+          </div>
+
+          <div class="legal-block">
+            <h3>Intellectual Property &amp; Trademark</h3>
+            <p>The APE name, logo, and associated brand assets are trademarks of NARBE LLC and may not be used without prior written permission.</p>
+            <p>The application source code is copyright &copy; 2024–2026 NARBE LLC. All third-party libraries, fonts, and dependencies remain the property of their respective owners and are governed by their own licenses.</p>
+            <p>The USDA FoodData Central database, Open Food Facts database, and Google services are third-party services subject to their own terms. NARBE LLC makes no warranty regarding their accuracy or availability.</p>
+            <p style="margin-top:0.75rem;">
+              <a href="https://github.com/NARBEHOUSE/apeapp" target="_blank" rel="noopener">Source code on GitHub →</a>
+            </p>
+          </div>
+
+        </div>
+
+        <div class="legal-disclaimer">
+          <strong>Disclaimer of Warranties.</strong> THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL NARBE LLC OR ITS CONTRIBUTORS BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF, OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. Use of this application for health or fitness decisions is at your own risk.
+          <br><br>
+          For commercial licensing inquiries, DMCA notices, or legal correspondence: <a href="mailto:narbehousellc@gmail.com" style="color:var(--green-dim)">narbehousellc@gmail.com</a>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <hr class="full-divider" />
+
+  <!-- FOOTER -->
+  <div class="footer-outer">
+    <footer>
+      <p class="footer-copy">&copy; 2024–2026 NARBE LLC. All rights reserved. APE is source-available software — not open source.</p>
+      <div class="footer-links">
+        <a href="./app.html#/privacy">Privacy Policy</a>
+        <a href="#legal">License &amp; Terms</a>
+        <a href="https://github.com/NARBEHOUSE/apeapp" target="_blank" rel="noopener">GitHub</a>
+        <a href="mailto:narbehousellc@gmail.com">Contact</a>
+        <a href="https://streamelements.com/bigbroacro/tip" target="_blank" rel="noopener">Support ☕</a>
+      </div>
+    </footer>
+  </div>
+
+  <script>
+    // Scroll reveal
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(e => {
+        if (e.isIntersecting) {
+          e.target.classList.add('visible');
+          observer.unobserve(e.target);
+        }
+      });
+    }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+
+    document.querySelectorAll('.reveal').forEach((el, i) => {
+      if (el.closest('.hero')) {
+        el.style.transitionDelay = `${i * 0.08}s`;
+      }
+      observer.observe(el);
+    });
+  </script>
+</body>
+</html>
