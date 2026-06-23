@@ -49,7 +49,6 @@ interface Props {
   profileId: string;
   durationWeeks: number;
   programDefaultRestTimer?: number;
-  onSaveFeedback?: (feedback: Record<string, unknown>) => void;
   onUpdateCardio?: (cardio: CardioEntry[]) => void;
   allSessions?: WorkoutSession[];
   programs?: Program[];
@@ -501,7 +500,7 @@ function ExerciseCard({
                   <span className="text-[10px] font-medium text-text-secondary">{altName}</span>
                   {onSwap && (
                     <button
-                      onClick={() => { onSwap({ name: altName, muscles: [], equipment: '' }); setShowSwaps(false); }}
+                      onClick={() => { onSwap({ name: altName, muscles: [], equipment: '', type: 'compound' }); setShowSwaps(false); }}
                       className="shrink-0 text-[10px] font-semibold text-accent-blue bg-accent-blue/10 hover:bg-accent-blue/20 px-2 py-0.5 rounded-md transition-colors"
                     >
                       Swap
@@ -536,7 +535,6 @@ export function ActiveWorkout({
   profileId,
   durationWeeks,
   programDefaultRestTimer,
-  onSaveFeedback,
   onUpdateCardio,
   allSessions,
   programs,
@@ -608,7 +606,7 @@ export function ActiveWorkout({
   function confirmSwap(permanent: boolean) {
     if (!pendingSwap) return;
     setSessionSwaps((prev) => ({ ...prev, [pendingSwap.exerciseId]: pendingSwap.newName }));
-    onSwapExercise?.(pendingSwap.exerciseId, { name: pendingSwap.newName, muscles: [], equipment: '' }, permanent);
+    onSwapExercise?.(pendingSwap.exerciseId, { name: pendingSwap.newName, muscles: [], equipment: '', type: 'compound' }, permanent);
     toast(`Swapped to ${pendingSwap.newName}${permanent ? ' — program updated' : ' (this session)'}`, 'success');
     setPendingSwap(null);
   }

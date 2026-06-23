@@ -345,12 +345,6 @@ export function Workout({ profile, onUpdateProfile }: Props) {
         restTimerDuration={profile.restTimerDuration || 90}
         programDefaultRestTimer={program?.defaultRestTimer}
         profileId={profile.id}
-        onSaveFeedback={(feedback) => {
-          if (activeSession) {
-            const updated = { ...activeSession, exerciseFeedback: feedback };
-            import('../db/workouts').then(({ saveWorkoutSession }) => saveWorkoutSession(updated));
-          }
-        }}
         onUpdateCardio={updateCardio}
         allSessions={sessions}
         effortMetric={program?.effortMetric || 'none'}
