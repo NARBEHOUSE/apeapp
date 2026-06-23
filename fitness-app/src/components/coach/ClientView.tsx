@@ -70,6 +70,8 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
   const importRef = useRef<HTMLInputElement>(null);
   const [myPrograms, setMyPrograms] = useState<Program[]>([]);
   const [chartRange, setChartRange] = useState<7 | 30 | 60 | 90>(30);
+  const [weighInsOpen, setWeighInsOpen] = useState(false);
+  const [photosOpen, setPhotosOpen] = useState(false);
 
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -890,8 +892,14 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
                   </div>
                 )}
               <div className="space-y-2">
-                <div className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Recent Weigh-ins</div>
-                {recentMeasurements.filter((m) => m.weight).map((m, i, arr) => {
+                <button
+                  onClick={() => setWeighInsOpen((o) => !o)}
+                  className="w-full flex items-center justify-between text-xs font-semibold text-text-secondary uppercase tracking-wider py-1"
+                >
+                  <span>Recent Weigh-ins ({recentMeasurements.filter((m) => m.weight).length})</span>
+                  <span className="text-text-muted">{weighInsOpen ? '▴' : '▾'}</span>
+                </button>
+                {weighInsOpen && recentMeasurements.filter((m) => m.weight).map((m, i, arr) => {
                   const prev = arr[i + 1];
                   const delta = prev?.weight != null && m.weight != null ? m.weight - prev.weight : null;
                   return (
@@ -962,12 +970,25 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
             )}
 
             {data.photoMeta && data.photoMeta.length > 0 && (
-              <CoachPhotoSection
-                photoMeta={data.photoMeta}
-                photoUrls={photoUrls}
-                photosLoading={photosLoading}
-                onView={(url, date, pose, weight, list) => { setViewingPhoto({ url, date, pose, weight }); setViewingPhotoList(list || []); }}
-              />
+              <div className="card p-3">
+                <button
+                  onClick={() => setPhotosOpen((o) => !o)}
+                  className="w-full flex items-center justify-between text-xs font-semibold text-text-secondary uppercase tracking-wider py-1"
+                >
+                  <span>Progress Photos ({data.photoMeta.length})</span>
+                  <span className="text-text-muted">{photosOpen ? '▴' : '▾'}</span>
+                </button>
+                {photosOpen && (
+                  <div className="mt-3">
+                    <CoachPhotoSection
+                      photoMeta={data.photoMeta}
+                      photoUrls={photoUrls}
+                      photosLoading={photosLoading}
+                      onView={(url, date, pose, weight, list) => { setViewingPhoto({ url, date, pose, weight }); setViewingPhotoList(list || []); }}
+                    />
+                  </div>
+                )}
+              </div>
             )}
           </>
         )}
