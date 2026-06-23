@@ -282,9 +282,19 @@ export function FoodSearch({ onAdd, onClose, profileId, defaultTab, saveOnly = f
 
   const stopScanner = useCallback(() => {
     const scanner = html5QrRef.current as { stop: () => Promise<void> } | null;
-    if (scanner) scanner.stop().catch(() => {});
+    if (scanner) {
+      html5QrRef.current = null; // clear ref first so cleanup doesn't double-stop
+      scanner.stop().catch(() => {});
+    }
     setShowScanner(false);
   }, []);
+
+  // Safe close: always stop the scanner before letting the parent unmount us
+  const handleClose = useCallback(() => {
+    stopScanner();
+    // Yield one tick so scanner.stop() starts before the component unmounts
+    setTimeout(() => onClose(), 0);
+  }, [stopScanner, onClose]);
 
   useEffect(() => { return () => { stopScanner(); }; }, [stopScanner]);
 
@@ -333,7 +343,7 @@ export function FoodSearch({ onAdd, onClose, profileId, defaultTab, saveOnly = f
       setQuery('');
       setUsdaResults([]);
     } else {
-      onClose();
+      handleClose();
     }
   }
 
@@ -449,7 +459,7 @@ export function FoodSearch({ onAdd, onClose, profileId, defaultTab, saveOnly = f
         </div>
 
         <div className="flex gap-2">
-          <button type="button" onClick={onClose} className="btn-secondary flex-1 text-sm">Cancel</button>
+          <button type="button" onClick={handleClose} className="btn-secondary flex-1 text-sm">Cancel</button>
           {saveOnly ? (
             <button type="button" onClick={() => {
               if (selected && profileId) {
@@ -460,7 +470,7 @@ export function FoodSearch({ onAdd, onClose, profileId, defaultTab, saveOnly = f
                   fdcId: selected.fdcId,
                 });
               }
-              onClose();
+              handleClose();
             }} className="btn-primary flex-1 text-sm">Save to Library</button>
           ) : (
             <>
@@ -473,7 +483,7 @@ export function FoodSearch({ onAdd, onClose, profileId, defaultTab, saveOnly = f
                     fdcId: selected.fdcId,
                   });
                 }
-                onClose();
+                handleClose();
               }} className="btn-secondary flex-1 text-sm">Save to Library</button>
               <button type="button" onClick={handleAdd} className="btn-primary flex-1 text-sm">{multiMode ? 'Add to Plate' : 'Add to Log'}</button>
             </>
@@ -511,7 +521,7 @@ export function FoodSearch({ onAdd, onClose, profileId, defaultTab, saveOnly = f
               </div>
             ))}
           </div>
-          <button type="button" onClick={onClose} className="btn-primary w-full text-sm">
+          <button type="button" onClick={handleClose} className="btn-primary w-full text-sm">
             Done — add {plate.length} item{plate.length > 1 ? 's' : ''} to log
           </button>
         </div>
