@@ -34,8 +34,6 @@ jobs:
 
       - name: Build
         run: npm run build
-        env:
-          GITHUB_PAGES: "true"
 
       - name: Inject landing page
         working-directory: ${{ github.workspace }}
@@ -44,6 +42,7 @@ jobs:
           cp landing.html fitness-app/dist/index.html
           mkdir -p fitness-app/dist/images
           cp -r images/. fitness-app/dist/images/
+          echo "apenth.com" > fitness-app/dist/CNAME
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
