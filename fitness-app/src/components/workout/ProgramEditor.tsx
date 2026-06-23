@@ -861,7 +861,7 @@ export function ProgramEditor({ program, fitnessGoal, onSave, onClose }: Props) 
     const set = new Set<string>(COMMON_MUSCLES);
     for (const day of editedProgram.days) {
       for (const ex of day.exercises) {
-        if (ex.muscle) set.add(ex.muscle);
+        if (ex.muscle) ex.muscle.split(',').map((m) => m.trim()).filter(Boolean).forEach((m) => set.add(m));
         for (const m of ex.secondaryMuscles || []) if (m) set.add(m);
       }
     }

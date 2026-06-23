@@ -393,13 +393,13 @@ export function WorkoutHistory({ sessions, programs, onDeleteSession, onUpdateSe
 
   // Exercise → muscle group map (reused from programs)
   const exerciseMuscleMap = useMemo(() => {
-    const map: Record<string, { primary: string; secondary: string[] }> = {};
+    const map: Record<string, { primaries: string[]; secondary: string[] }> = {};
     for (const prog of programs) {
       for (const day of prog.days) {
         for (const ex of day.exercises) {
           if (ex.muscle) {
-            const muscles = ex.muscle.split(',').map((m) => m.trim()).filter(Boolean);
-            map[ex.id] = { primary: muscles[0] || '', secondary: ex.secondaryMuscles || muscles.slice(1) };
+            const primaries = ex.muscle.split(',').map((m) => m.trim()).filter(Boolean);
+            map[ex.id] = { primaries, secondary: ex.secondaryMuscles || [] };
           }
         }
       }
@@ -420,9 +420,11 @@ export function WorkoutHistory({ sessions, programs, onDeleteSession, onUpdateSe
           const workingSets = sets.filter((st) => st.completed && !st.isWarmup);
           if (workingSets.length === 0) continue;
           const info = exerciseMuscleMap[exId];
-          if (!info?.primary) continue;
+          if (!info?.primaries?.length) continue;
           const vol = workingSets.reduce((a, st) => a + st.weight * st.reps, 0);
-          muscleVolumes[info.primary] = (muscleVolumes[info.primary] || 0) + vol;
+          for (const p of info.primaries) {
+            if (p) muscleVolumes[p] = (muscleVolumes[p] || 0) + vol;
+          }
           for (const sec of info.secondary) {
             if (sec) muscleVolumes[sec] = (muscleVolumes[sec] || 0) + Math.round(vol * 0.5);
           }
@@ -444,9 +446,11 @@ export function WorkoutHistory({ sessions, programs, onDeleteSession, onUpdateSe
         const workingSets = sets.filter((st) => st.completed && !st.isWarmup);
         if (workingSets.length === 0) continue;
         const info = exerciseMuscleMap[exId];
-        if (!info?.primary) continue;
+        if (!info?.primaries?.length) continue;
         const vol = workingSets.reduce((a, st) => a + st.weight * st.reps, 0);
-        weeks[key].muscleVolumes[info.primary] = (weeks[key].muscleVolumes[info.primary] || 0) + vol;
+        for (const p of info.primaries) {
+          if (p) weeks[key].muscleVolumes[p] = (weeks[key].muscleVolumes[p] || 0) + vol;
+        }
         for (const sec of info.secondary) {
           if (sec) weeks[key].muscleVolumes[sec] = (weeks[key].muscleVolumes[sec] || 0) + Math.round(vol * 0.5);
         }
