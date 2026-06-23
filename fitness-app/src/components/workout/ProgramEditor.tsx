@@ -38,6 +38,17 @@ import {
 } from '../../utils/progression';
 
 const COMMON_MUSCLES = ['Abs', 'Back', 'Biceps', 'Calves', 'Cardio', 'Chest', 'Core', 'Forearms', 'Glutes', 'Hamstrings', 'Hip Flexors', 'Lats', 'Lower Back', 'Quadriceps', 'Shoulders', 'Traps', 'Triceps'];
+const CUSTOM_MUSCLES_KEY = 'fitos-custom-muscles';
+function getCustomMuscles(): string[] {
+  try { return JSON.parse(localStorage.getItem(CUSTOM_MUSCLES_KEY) || '[]'); } catch { return []; }
+}
+function persistCustomMuscles(found: string[]) {
+  const commonLower = new Set(COMMON_MUSCLES.map((m) => m.toLowerCase()));
+  const existing = getCustomMuscles();
+  const existingLower = new Set(existing.map((m) => m.toLowerCase()));
+  const toAdd = found.filter((m) => !commonLower.has(m.toLowerCase()) && !existingLower.has(m.toLowerCase()));
+  if (toAdd.length > 0) localStorage.setItem(CUSTOM_MUSCLES_KEY, JSON.stringify([...existing, ...toAdd]));
+}
 
 function MuscleAutocomplete({ label, value, onChange, suggestions, placeholder }: {
   label: string;
@@ -811,7 +822,7 @@ export function ProgramEditor({ program, fitnessGoal, onSave, onClose }: Props) 
   );
 
   const allMuscles = useMemo(() => {
-    const set = new Set<string>(COMMON_MUSCLES);
+    const set = new Set<string>([...COMMON_MUSCLES, ...getCustomMuscles()]);
     for (const day of editedProgram.days) {
       for (const ex of day.exercises) {
         if (ex.muscle) ex.muscle.split(',').map((m) => m.trim()).filter(Boolean).forEach((m) => set.add(m));
@@ -824,11 +835,18 @@ export function ProgramEditor({ program, fitnessGoal, onSave, onClose }: Props) 
   }, [editedProgram.days]);
 
   const handleSave = () => {
+    const allFound: string[] = [];
+    for (const day of editedProgram.days) {
+      for (const ex of day.exercises) {
+        if (ex.muscle) ex.muscle.split(',').map((m) => m.trim()).filter(Boolean).forEach((m) => allFound.push(m));
+        const sec = ex.secondaryMuscles;
+        const secArr = Array.isArray(sec) ? sec : (sec || '').split(',').map((m) => m.trim()).filter(Boolean);
+        secArr.forEach((m) => allFound.push(m));
+      }
+    }
+    persistCustomMuscles(allFound);
     const now = new Date().toISOString();
-    onSave({
-      ...editedProgram,
-      updatedAt: now,
-    });
+    onSave({ ...editedProgram, updatedAt: now });
   };
 
   return (
