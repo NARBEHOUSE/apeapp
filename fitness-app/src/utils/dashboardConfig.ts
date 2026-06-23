@@ -14,6 +14,7 @@ export interface DashboardCardConfig {
   water: boolean;
   calendar: boolean;
   aiVoice: boolean;
+  weightUnit: 'lbs' | 'kg';
 }
 
 const STORAGE_KEY = 'fitos-dashboard-cards';
@@ -34,6 +35,7 @@ const DEFAULTS: DashboardCardConfig = {
   water: true,
   calendar: false,
   aiVoice: false,
+  weightUnit: 'lbs',
 };
 
 export function getDashboardConfig(): DashboardCardConfig {

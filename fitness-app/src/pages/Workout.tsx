@@ -355,6 +355,27 @@ export function Workout({ profile, onUpdateProfile }: Props) {
         allSessions={sessions}
         effortMetric={program?.effortMetric || 'none'}
         programs={programs}
+        onSwapExercise={program && !isQuick ? async (exerciseId, swap, permanent) => {
+          if (!permanent) return;
+          const updated = {
+            ...program,
+            days: program.days.map((d) =>
+              d.id === selectedDayId
+                ? {
+                    ...d,
+                    exercises: d.exercises.map((e) =>
+                      e.id === exerciseId
+                        ? { ...e, name: swap.name, muscles: swap.muscles, equipment: swap.equipment }
+                        : e
+                    ),
+                  }
+                : d
+            ),
+            updatedAt: new Date().toISOString(),
+          };
+          await saveProgram(updated);
+          await refreshPrograms();
+        } : undefined}
       />
     );
   }

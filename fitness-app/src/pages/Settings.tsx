@@ -1472,6 +1472,28 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
               </button>
             </div>
 
+            {/* Weight unit toggle */}
+            <div className="flex items-center justify-between py-2">
+              <div>
+                <div className="text-sm font-medium">Weight Unit</div>
+                <div className="text-[11px] text-text-muted">Used for workout weights and body weight</div>
+              </div>
+              <div className="flex gap-1 bg-surface-raised rounded-lg p-0.5">
+                <button
+                  onClick={() => updateDashCards({ weightUnit: 'lbs' })}
+                  className={`px-3 py-1 rounded-md text-xs font-semibold transition-colors ${dashCards.weightUnit !== 'kg' ? 'bg-bg text-text-primary shadow-sm' : 'text-text-muted'}`}
+                >
+                  lbs
+                </button>
+                <button
+                  onClick={() => updateDashCards({ weightUnit: 'kg' })}
+                  className={`px-3 py-1 rounded-md text-xs font-semibold transition-colors ${dashCards.weightUnit === 'kg' ? 'bg-bg text-text-primary shadow-sm' : 'text-text-muted'}`}
+                >
+                  kg
+                </button>
+              </div>
+            </div>
+
             {/* AI Voice toggle */}
             <div className="flex items-center justify-between py-2">
               <div>

@@ -13,7 +13,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import type { WorkoutSession, WorkoutDay, SetLog, Exercise, ExerciseLastPerformance, ExerciseFeedback, CardioEntry, Program } from '../../types';
-import { searchExerciseLibrary, getSimilarExercises } from '../../data/exerciseLibrary';
+import { searchExerciseLibrary, getSimilarExercises, type LibraryExercise } from '../../data/exerciseLibrary';
 import { saveCustomExercise, searchCustomExercises, getExerciseVideo, updateExerciseVideo } from '../../db/customExercises';
 import { RestTimer } from './RestTimer';
 import { VoiceMicButton } from '../shared/VoiceMicButton';
@@ -23,6 +23,7 @@ import { getAllPRs } from '../../db/workouts';
 import { saveWorkoutInputs, loadWorkoutInputs } from '../../hooks/useWorkout';
 import { useVoiceMode } from '../../hooks/useVoiceMode';
 import { getDashboardConfig } from '../../utils/dashboardConfig';
+import { toDisplayWeight, fromDisplayWeight, type WeightUnit } from '../../utils/units';
 import {
   calculateWeeklyTargets,
   getAdaptiveTarget,
@@ -53,6 +54,7 @@ interface Props {
   allSessions?: WorkoutSession[];
   programs?: Program[];
   effortMetric?: 'none' | 'rir' | 'rpe';
+  onSwapExercise?: (exerciseId: string, swap: LibraryExercise, permanent: boolean) => void;
 }
 
 interface SetInput {
@@ -97,6 +99,7 @@ function ExerciseCard({
   prs,
   onComplete,
   onUpdate,
+  onSwap,
   progression,
   effortMetric,
 }: {
@@ -109,6 +112,7 @@ function ExerciseCard({
   prs: Record<string, { weight: number; reps: number; date: string }>;
   onComplete: (exerciseId: string, weight: number, reps: number, rir?: number, rpe?: number, isWarmup?: boolean) => void;
   onUpdate: (exerciseId: string, setIndex: number, updates: Partial<SetLog>) => void;
+  onSwap?: (swap: LibraryExercise) => void;
   progression: ProgressionSuggestion | null;
   effortMetric: 'none' | 'rir' | 'rpe';
 }) {
@@ -126,6 +130,7 @@ function ExerciseCard({
   const [showVideoInput, setShowVideoInput] = useState(false);
   const [videoUrl, setVideoUrl] = useState(() => getExerciseVideo(exercise.name) || '');
   const swapSuggestions = useMemo(() => showSwaps ? getSimilarExercises(exercise.name, 5) : [], [showSwaps, exercise.name]);
+  const weightUnit: WeightUnit = getDashboardConfig().weightUnit ?? 'lbs';
   const lastSets = lastPerformance?.sets.filter((s) => s.completed);
   const scheme = exercise.setScheme;
 
@@ -167,8 +172,9 @@ function ExerciseCard({
         repStr = exercise.reps.split('-')[0]?.replace(/[^0-9]/g, '') || '';
       }
 
+      const displayWeight = weight != null ? toDisplayWeight(weight, getDashboardConfig().weightUnit ?? 'lbs') : null;
       return {
-        weight: weight != null ? String(weight) : '',
+        weight: displayWeight != null ? String(displayWeight) : '',
         reps: repStr,
         effort: '',
         isWarmup: false,
@@ -206,7 +212,8 @@ function ExerciseCard({
 
   const handleComplete = (setIndex: number) => {
     const input = inputs[setIndex];
-    const weight = parseFloat(input.weight) || 0;
+    const displayWeight = parseFloat(input.weight) || 0;
+    const weightInLbs = fromDisplayWeight(displayWeight, weightUnit);
     const reps = parseInt(input.reps, 10) || 0;
 
     if (sessionSets[setIndex]?.completed) {
@@ -217,7 +224,7 @@ function ExerciseCard({
     const effortVal = parseFloat(input.effort) || undefined;
     const rir = effortMetric === 'rir' ? effortVal : undefined;
     const rpe = effortMetric === 'rpe' ? effortVal : undefined;
-    onComplete(exercise.id, weight, reps, rir, rpe, input.isWarmup);
+    onComplete(exercise.id, weightInLbs, reps, rir, rpe, input.isWarmup);
     navigator.vibrate?.([50]);
   };
 
@@ -294,7 +301,7 @@ function ExerciseCard({
           {/* Header */}
           <div className={`grid ${effortMetric !== 'none' ? 'grid-cols-[1.5rem_1fr_1fr_2.5rem_2.25rem]' : 'grid-cols-[1.5rem_1fr_1fr_2.25rem]'} gap-1.5 px-0.5`}>
             <span className="text-[9px] text-text-muted text-center">#</span>
-            <span className="text-[9px] text-text-muted">Weight</span>
+            <span className="text-[9px] text-text-muted">Weight ({weightUnit})</span>
             <span className="text-[9px] text-text-muted">Reps</span>
             {effortMetric !== 'none' && <span className="text-[9px] text-accent-blue text-center">{effortMetric === 'rir' ? 'RIR' : 'RPE'}</span>}
             <span />
@@ -340,7 +347,7 @@ function ExerciseCard({
                   inputMode="decimal"
                   value={inputs[setIndex]?.weight ?? ''}
                   onChange={(e) => handleInputChange(setIndex, 'weight', e.target.value)}
-                  placeholder={prev ? String(prev.weight) : '0'}
+                  placeholder={prev?.weight != null ? String(toDisplayWeight(prev.weight, weightUnit)) : '0'}
                   disabled={isComplete}
                   className={`w-full bg-surface-raised rounded-lg px-2 py-2 text-sm text-center outline-none ${
                     isComplete ? 'text-success' : 'text-text-primary'
@@ -487,9 +494,19 @@ function ExerciseCard({
           {showSwaps && swapSuggestions.length > 0 && (
             <div className="space-y-1 mt-1">
               {swapSuggestions.map((swap) => (
-                <div key={swap.name} className="text-[10px] text-text-muted bg-surface-raised rounded-md px-2 py-1">
-                  <span className="font-medium text-text-secondary">{swap.name}</span>
-                  <span className="ml-1">· {swap.muscles.join(', ')} · {swap.equipment}</span>
+                <div key={swap.name} className="flex items-center justify-between bg-surface-raised rounded-md px-2 py-1.5 gap-2">
+                  <div className="min-w-0">
+                    <span className="text-[10px] font-medium text-text-secondary">{swap.name}</span>
+                    <span className="text-[10px] text-text-muted ml-1">· {swap.muscles.join(', ')} · {swap.equipment}</span>
+                  </div>
+                  {onSwap && (
+                    <button
+                      onClick={() => { onSwap(swap); setShowSwaps(false); }}
+                      className="shrink-0 text-[10px] font-semibold text-accent-blue bg-accent-blue/10 hover:bg-accent-blue/20 px-2 py-0.5 rounded-md transition-colors"
+                    >
+                      Swap
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
@@ -524,6 +541,7 @@ export function ActiveWorkout({
   allSessions,
   programs,
   effortMetric = 'none',
+  onSwapExercise,
 }: Props) {
   const [elapsed, setElapsed] = useState(0);
   const [showRestTimer, setShowRestTimer] = useState(false);
@@ -578,6 +596,22 @@ export function ActiveWorkout({
     const updated = cardioEntries.filter((_, i) => i !== idx);
     setCardioEntries(updated);
     onUpdateCardio?.(updated);
+  }
+
+  // Exercise swap state
+  const [sessionSwaps, setSessionSwaps] = useState<Record<string, LibraryExercise>>({});
+  const [pendingSwap, setPendingSwap] = useState<{ exerciseId: string; oldName: string; swap: LibraryExercise } | null>(null);
+
+  function handleSwapRequest(exerciseId: string, oldName: string, swap: LibraryExercise) {
+    setPendingSwap({ exerciseId, oldName, swap });
+  }
+
+  function confirmSwap(permanent: boolean) {
+    if (!pendingSwap) return;
+    setSessionSwaps((prev) => ({ ...prev, [pendingSwap.exerciseId]: pendingSwap.swap }));
+    onSwapExercise?.(pendingSwap.exerciseId, pendingSwap.swap, permanent);
+    toast(`Swapped to ${pendingSwap.swap.name}${permanent ? ' — program updated' : ' (this session)'}`, 'success');
+    setPendingSwap(null);
   }
 
   // Session-level modifications (don't touch the program)
@@ -727,8 +761,9 @@ export function ActiveWorkout({
       const currentPR = prs[exerciseId];
       if (weight > 0 && (!currentPR || weight > currentPR.weight)) {
         const exercise = day.exercises.find((e) => e.id === exerciseId);
+        const displayUnit = getDashboardConfig().weightUnit ?? 'lbs';
         toast(
-          `New PR! ${exercise?.name || 'Exercise'}: ${weight} lbs`,
+          `New PR! ${exercise?.name || 'Exercise'}: ${toDisplayWeight(weight, displayUnit)} ${displayUnit}`,
           'success'
         );
         setPrs((prev) => ({
@@ -861,18 +896,23 @@ export function ActiveWorkout({
               </div>
             );
           }
+          const swapOverride = sessionSwaps[exercise.id];
+          const effectiveExercise = swapOverride
+            ? { ...exercise, name: swapOverride.name, muscles: swapOverride.muscles, equipment: swapOverride.equipment }
+            : exercise;
           return (
           <div key={exercise.id} className="relative">
             <ExerciseCard
-              exercise={exercise}
+              exercise={effectiveExercise}
               exerciseIndex={index}
               sessionSets={session.sets[exercise.id] || []}
               previousSets={previousSession?.sets[exercise.id]}
-              lastPerformance={lastPerformance[exercise.name.toLowerCase().trim()]}
+              lastPerformance={lastPerformance[effectiveExercise.name.toLowerCase().trim()]}
               weeklyTarget={weeklyTarget}
               prs={prs}
               onComplete={handleComplete}
               onUpdate={onUpdateSet}
+              onSwap={(swap) => handleSwapRequest(exercise.id, exercise.name, swap)}
               progression={progressionSuggestions[exercise.id] || null}
               effortMetric={effortMetric}
             />
@@ -1245,6 +1285,46 @@ export function ActiveWorkout({
           onComplete={() => setShowRestTimer(false)}
           onDismiss={() => setShowRestTimer(false)}
         />
+      )}
+
+      {/* Swap exercise confirm */}
+      {pendingSwap && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="card mx-6 max-w-sm w-full space-y-4">
+            <h3 className="font-bold text-base">Swap Exercise?</h3>
+            <div className="bg-surface-raised rounded-xl p-3 space-y-1">
+              <div className="flex items-center gap-2 text-sm">
+                <span className="text-text-muted line-through">{pendingSwap.oldName}</span>
+              </div>
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <span className="text-accent-blue">→ {pendingSwap.swap.name}</span>
+              </div>
+              <p className="text-[10px] text-text-muted">{pendingSwap.swap.muscles.join(', ')} · {pendingSwap.swap.equipment}</p>
+            </div>
+            <div className="space-y-2">
+              <button
+                onClick={() => confirmSwap(false)}
+                className="btn-secondary w-full text-sm"
+              >
+                This session only
+              </button>
+              {onSwapExercise && (
+                <button
+                  onClick={() => confirmSwap(true)}
+                  className="w-full font-semibold rounded-xl px-4 py-2.5 text-sm bg-accent-blue text-white active:scale-95 transition-transform"
+                >
+                  Update program
+                </button>
+              )}
+              <button
+                onClick={() => setPendingSwap(null)}
+                className="w-full text-sm text-text-muted py-1"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Cancel confirm */}

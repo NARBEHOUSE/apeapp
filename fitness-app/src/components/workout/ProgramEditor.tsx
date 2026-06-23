@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import {
   X,
   Plus,
@@ -37,8 +37,11 @@ import {
   type ExerciseProgression,
 } from '../../utils/progression';
 
-function SecondaryMuscleInput({ value, onChange }: { value: string[]; onChange: (muscles: string[]) => void }) {
+const COMMON_MUSCLES = ['Chest', 'Back', 'Shoulders', 'Biceps', 'Triceps', 'Forearms', 'Quadriceps', 'Hamstrings', 'Glutes', 'Calves', 'Core', 'Abs', 'Traps', 'Lats', 'Hip Flexors', 'Cardio'];
+
+function SecondaryMuscleInput({ value, onChange, suggestions }: { value: string[]; onChange: (muscles: string[]) => void; suggestions: string[] }) {
   const [text, setText] = useState(value.join(', '));
+  const available = suggestions.filter((s) => !value.includes(s));
   return (
     <div>
       <label className="label mb-1 block">Secondary Muscles</label>
@@ -49,6 +52,24 @@ function SecondaryMuscleInput({ value, onChange }: { value: string[]; onChange: 
         onBlur={() => onChange(text.split(',').map((m) => m.trim()).filter(Boolean))}
         placeholder="e.g. Triceps, Shoulders"
       />
+      {available.length > 0 && (
+        <div className="flex flex-wrap gap-1 mt-1.5">
+          {available.slice(0, 8).map((m) => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => {
+                const updated = [...value, m];
+                onChange(updated);
+                setText(updated.join(', '));
+              }}
+              className="text-[10px] px-1.5 py-0.5 rounded-md bg-surface-raised text-text-muted hover:text-text-secondary hover:bg-surface-raised/80 transition-colors"
+            >
+              + {m}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -81,12 +102,14 @@ function SortableExercise({
   exercise,
   goalType,
   durationWeeks,
+  allMuscles,
   onUpdate,
   onRemove,
 }: {
   exercise: Exercise;
   goalType: string;
   durationWeeks: number;
+  allMuscles: string[];
   onUpdate: (id: string, updates: Partial<Exercise>) => void;
   onRemove: (id: string) => void;
 }) {
@@ -268,14 +291,19 @@ function SortableExercise({
             <label className="label mb-1 block">Primary Muscle</label>
             <input
               className="input-field text-sm"
+              list={`muscles-${exercise.id}`}
               value={exercise.muscle}
               onChange={(e) => onUpdate(exercise.id, { muscle: e.target.value })}
               placeholder="e.g. Chest"
             />
+            <datalist id={`muscles-${exercise.id}`}>
+              {allMuscles.map((m) => <option key={m} value={m} />)}
+            </datalist>
           </div>
           <SecondaryMuscleInput
             value={exercise.secondaryMuscles || []}
             onChange={(muscles) => onUpdate(exercise.id, { secondaryMuscles: muscles })}
+            suggestions={allMuscles.filter((m) => m !== exercise.muscle)}
           />
           <div>
             <label className="label mb-1 block">Note (optional)</label>
@@ -335,6 +363,7 @@ function DayEditor({
   dayIndex,
   goalType,
   durationWeeks,
+  allMuscles,
   onUpdateDay,
   onRemoveDay,
   onDuplicateDay,
@@ -348,6 +377,7 @@ function DayEditor({
   dayIndex: number;
   goalType: string;
   durationWeeks: number;
+  allMuscles: string[];
   onUpdateDay: (dayId: string, updates: Partial<WorkoutDay>) => void;
   onRemoveDay: (dayId: string) => void;
   onDuplicateDay: (dayId: string) => void;
@@ -489,6 +519,7 @@ function DayEditor({
                       exercise={exercise}
                       goalType={goalType}
                       durationWeeks={durationWeeks}
+                      allMuscles={allMuscles}
                       onUpdate={(exId, updates) =>
                         onUpdateExercise(day.id, exId, updates)
                       }
@@ -705,6 +736,17 @@ export function ProgramEditor({ program, fitnessGoal, onSave, onClose }: Props) 
     []
   );
 
+  const allMuscles = useMemo(() => {
+    const set = new Set<string>(COMMON_MUSCLES);
+    for (const day of editedProgram.days) {
+      for (const ex of day.exercises) {
+        if (ex.muscle) set.add(ex.muscle);
+        for (const m of ex.secondaryMuscles || []) if (m) set.add(m);
+      }
+    }
+    return Array.from(set).sort();
+  }, [editedProgram.days]);
+
   const handleSave = () => {
     const now = new Date().toISOString();
     onSave({
@@ -873,6 +915,7 @@ export function ProgramEditor({ program, fitnessGoal, onSave, onClose }: Props) 
                       dayIndex={index}
                       goalType={editedProgram.goal?.type || 'custom'}
                       durationWeeks={editedProgram.suggestedDurationWeeks || 8}
+                      allMuscles={allMuscles}
                       onUpdateDay={updateDay}
                       onRemoveDay={removeDay}
                       onDuplicateDay={duplicateDay}

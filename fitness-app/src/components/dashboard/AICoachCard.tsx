@@ -31,17 +31,37 @@ const CATEGORY_COLORS: Record<string, { bg: string; text: string; icon: string }
 };
 
 const DISCLAIMER_KEY = 'fitos-ai-coach-disclaimer-accepted';
+const DISMISSED_KEY = 'fitos-ai-coach-dismissed';
+
+function loadDismissed(): Set<string> {
+  try {
+    const raw = localStorage.getItem(DISMISSED_KEY);
+    return raw ? new Set(JSON.parse(raw)) : new Set();
+  } catch { return new Set(); }
+}
+
+function saveDismissed(ids: Set<string>) {
+  localStorage.setItem(DISMISSED_KEY, JSON.stringify(Array.from(ids)));
+}
 
 export function AICoachCard({ profile, sessions, allFoodEntries, measurements, checkIns, steps, programs, onUpdateProfile }: Props) {
   const [response, setResponse] = useState<CoachResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [expanded, setExpanded] = useState(false);
-  const [dismissed, setDismissed] = useState<Set<string>>(new Set());
+  const [dismissed, setDismissed] = useState<Set<string>>(loadDismissed);
   const [applied, setApplied] = useState<Set<string>>(new Set());
   const [showDisclaimer, setShowDisclaimer] = useState(false);
 
   const apiKey = localStorage.getItem('fitos-claude-key') || '';
   const disclaimerAccepted = localStorage.getItem(DISCLAIMER_KEY) === 'true';
+
+  const dismissSuggestion = useCallback((id: string) => {
+    setDismissed((prev) => {
+      const next = new Set(prev).add(id);
+      saveDismissed(next);
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     const cached = getCachedCoachResponse();
@@ -59,7 +79,9 @@ export function AICoachCard({ profile, sessions, allFoodEntries, measurements, c
       const result = await getCoachSuggestions(snapshot, apiKey);
       setResponse(result);
       cacheCoachResponse(result);
-      setDismissed(new Set());
+      const empty = new Set<string>();
+      setDismissed(empty);
+      saveDismissed(empty);
       setApplied(new Set());
       setExpanded(true);
     } catch (err) {
@@ -161,6 +183,13 @@ export function AICoachCard({ profile, sessions, allFoodEntries, measurements, c
                       <div className="text-sm font-medium mt-0.5">{s.title}</div>
                       <p className="text-[11px] text-text-muted mt-1 leading-relaxed">{s.explanation}</p>
                     </div>
+                    <button
+                      onClick={() => dismissSuggestion(s.id)}
+                      className="p-1 rounded-lg hover:bg-surface text-text-muted/40 hover:text-text-muted transition-colors shrink-0"
+                      title="Dismiss"
+                    >
+                      <X size={13} />
+                    </button>
                   </div>
 
                   {!isApplied && (
@@ -175,7 +204,7 @@ export function AICoachCard({ profile, sessions, allFoodEntries, measurements, c
                         </button>
                       )}
                       <button
-                        onClick={() => setDismissed((prev) => new Set(prev).add(s.id))}
+                        onClick={() => dismissSuggestion(s.id)}
                         className="py-1.5 px-3 rounded-lg bg-surface border border-border-light text-xs text-text-muted flex items-center justify-center gap-1 active:scale-[0.98] transition-transform"
                       >
                         <X size={12} />
