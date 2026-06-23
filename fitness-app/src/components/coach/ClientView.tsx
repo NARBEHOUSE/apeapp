@@ -164,7 +164,17 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
   const dateIdx = foodDates.indexOf(nutritionDate);
   const todayFood = useMemo(() => data.foodEntries.filter((f) => f.date === nutritionDate).sort((a, b) => a.loggedAt.localeCompare(b.loggedAt)), [data.foodEntries, nutritionDate]);
   const todayTotals = useMemo(() => todayFood.reduce((acc, f) => ({ calories: acc.calories + f.calories * f.servingsConsumed, protein: acc.protein + f.protein * f.servingsConsumed, carbs: acc.carbs + f.carbs * f.servingsConsumed, fat: acc.fat + f.fat * f.servingsConsumed }), { calories: 0, protein: 0, carbs: 0, fat: 0 }), [todayFood]);
-  const recentMeasurements = useMemo(() => [...data.measurements].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 10), [data.measurements]);
+  const recentMeasurements = useMemo(() => [...data.measurements].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 30), [data.measurements]);
+  const weightChartData = useMemo(() => {
+    const sorted = [...data.measurements].filter((m) => m.weight).sort((a, b) => a.date.localeCompare(b.date));
+    // Sample down to ~120 points if very dense, keeping even spread
+    const max = 120;
+    const step = sorted.length > max ? Math.ceil(sorted.length / max) : 1;
+    return sorted.filter((_, i) => i % step === 0 || i === sorted.length - 1).map((m) => ({
+      date: m.date.slice(5),
+      w: m.weight,
+    }));
+  }, [data.measurements]);
   const checkInTrend = useMemo(() => {
     if (!data.checkIns || data.checkIns.length < 2) return [];
     return [...data.checkIns].sort((a, b) => a.date.localeCompare(b.date)).slice(-30).map((ci) => {
@@ -602,8 +612,29 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
             {recentMeasurements.length === 0 ? (
               <p className="text-sm text-text-muted text-center py-8">No measurements</p>
             ) : (
+              <>
+                {weightChartData.length >= 2 && (
+                  <div className="card p-4 mb-3">
+                    <div className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3">
+                      Weight Trend ({data.measurements.filter((m) => m.weight).length} entries)
+                    </div>
+                    <div className="h-40">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={weightChartData}>
+                          <XAxis dataKey="date" tick={{ fontSize: 9 }} interval="preserveStartEnd" />
+                          <YAxis tick={{ fontSize: 9 }} width={32} domain={['auto', 'auto']} />
+                          <Tooltip
+                            contentStyle={{ fontSize: 11, background: '#1a1a1f', border: '1px solid #333', borderRadius: 8 }}
+                            formatter={(v) => [`${v} lbs`, 'Weight']}
+                          />
+                          <Line type="monotone" dataKey="w" stroke="#5b6ef5" strokeWidth={1.5} dot={false} connectNulls />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                )}
               <div className="space-y-2">
-                <div className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Weight History</div>
+                <div className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Recent Weigh-ins</div>
                 {recentMeasurements.filter((m) => m.weight).map((m, i, arr) => {
                   const prev = arr[i + 1];
                   const delta = prev?.weight != null && m.weight != null ? m.weight - prev.weight : null;
@@ -624,6 +655,7 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
                   );
                 })}
               </div>
+              </>
             )}
 
             {data.photoMeta && data.photoMeta.length > 0 && (
