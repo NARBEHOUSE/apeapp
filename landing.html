@@ -544,6 +544,44 @@
 
     .final-headline .accent { color: var(--green); }
 
+    /* ── BETA BANNER ── */
+    .beta-banner {
+      background: rgba(253, 186, 116, 0.08);
+      border-bottom: 1px solid rgba(253, 186, 116, 0.2);
+      color: var(--muted);
+      font-size: 0.8rem;
+      text-align: center;
+      padding: 0.6rem 1.5rem;
+      line-height: 1.5;
+    }
+
+    .beta-banner a {
+      color: #fdba74;
+      text-decoration: none;
+    }
+
+    .beta-banner a:hover { text-decoration: underline; }
+
+    .beta-pill {
+      display: inline-block;
+      background: rgba(253, 186, 116, 0.15);
+      border: 1px solid rgba(253, 186, 116, 0.35);
+      color: #fdba74;
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 0.15rem 0.55rem;
+      border-radius: 999px;
+      margin-right: 0.5rem;
+      vertical-align: middle;
+    }
+
+    .badge-beta {
+      border-color: rgba(253, 186, 116, 0.4) !important;
+      color: #fdba74 !important;
+    }
+
     /* ── LEGAL ACCORDION (footer) ── */
     .legal-accordion {
       overflow: hidden;
@@ -735,6 +773,12 @@
     </nav>
   </header>
 
+  <!-- BETA BANNER -->
+  <div class="beta-banner">
+    <span class="beta-pill">Early Access</span>
+    APE is actively in development. Expect new features regularly — and the occasional rough edge. <a href="https://discord.gg/X96trwgeCq" target="_blank" rel="noopener">Join the Discord</a> to report bugs or share feedback.
+  </div>
+
   <!-- HERO -->
   <main>
     <div class="hero">
@@ -763,6 +807,7 @@
         <span class="badge">PWA — install on any device</span>
         <span class="badge">Works offline</span>
         <span class="badge">NARBE LLC</span>
+        <span class="badge badge-beta">Early Access</span>
       </div>
     </div>
 
@@ -1012,7 +1057,6 @@
         <a href="./app.html#/privacy">Privacy Policy</a>
         <button class="footer-legal-toggle" id="legal-toggle" onclick="toggleLegal()">License &amp; Terms ▾</button>
         <a href="https://github.com/NARBEHOUSE/apeapp" target="_blank" rel="noopener">GitHub</a>
-        <a href="mailto:narbehousellc@gmail.com">Contact</a>
         <a href="https://streamelements.com/bigbroacro/tip" target="_blank" rel="noopener">Support ☕</a>
       </div>
     </footer>
