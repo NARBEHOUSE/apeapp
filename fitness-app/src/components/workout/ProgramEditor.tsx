@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useRef } from 'react';
 import {
   X,
   Plus,
@@ -37,11 +37,54 @@ import {
   type ExerciseProgression,
 } from '../../utils/progression';
 
-const COMMON_MUSCLES = ['Chest', 'Back', 'Shoulders', 'Biceps', 'Triceps', 'Forearms', 'Quadriceps', 'Hamstrings', 'Glutes', 'Calves', 'Core', 'Abs', 'Traps', 'Lats', 'Hip Flexors', 'Cardio'];
+const COMMON_MUSCLES = ['Abs', 'Back', 'Biceps', 'Calves', 'Cardio', 'Chest', 'Core', 'Forearms', 'Glutes', 'Hamstrings', 'Hip Flexors', 'Lats', 'Lower Back', 'Quadriceps', 'Shoulders', 'Traps', 'Triceps'];
+
+function MuscleAutocomplete({ label, value, onChange, suggestions, placeholder }: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  suggestions: string[];
+  placeholder?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const filtered = value.trim()
+    ? suggestions.filter((s) => s.toLowerCase().includes(value.toLowerCase()) && s.toLowerCase() !== value.toLowerCase())
+    : suggestions;
+
+  return (
+    <div ref={ref} className="relative">
+      <label className="label mb-1 block">{label}</label>
+      <input
+        className="input-field text-sm"
+        value={value}
+        placeholder={placeholder}
+        onChange={(e) => { onChange(e.target.value); setOpen(true); }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+      />
+      {open && filtered.length > 0 && (
+        <div className="absolute z-50 top-full left-0 right-0 mt-0.5 bg-surface border border-border rounded-xl shadow-lg max-h-40 overflow-y-auto">
+          {filtered.slice(0, 10).map((m) => (
+            <button
+              key={m}
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => { onChange(m); setOpen(false); }}
+              className="w-full text-left px-3 py-2 text-sm hover:bg-surface-raised transition-colors first:rounded-t-xl last:rounded-b-xl"
+            >
+              {m}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function SecondaryMuscleInput({ value, onChange, suggestions }: { value: string[]; onChange: (muscles: string[]) => void; suggestions: string[] }) {
   const [text, setText] = useState(value.join(', '));
-  const available = suggestions.filter((s) => !value.includes(s));
+  const available = suggestions.filter((s) => !value.map((v) => v.toLowerCase()).includes(s.toLowerCase()));
   return (
     <div>
       <label className="label mb-1 block">Secondary Muscles</label>
@@ -54,7 +97,7 @@ function SecondaryMuscleInput({ value, onChange, suggestions }: { value: string[
       />
       {available.length > 0 && (
         <div className="flex flex-wrap gap-1 mt-1.5">
-          {available.slice(0, 8).map((m) => (
+          {available.slice(0, 10).map((m) => (
             <button
               key={m}
               type="button"
@@ -63,7 +106,7 @@ function SecondaryMuscleInput({ value, onChange, suggestions }: { value: string[
                 onChange(updated);
                 setText(updated.join(', '));
               }}
-              className="text-[10px] px-1.5 py-0.5 rounded-md bg-surface-raised text-text-muted hover:text-text-secondary hover:bg-surface-raised/80 transition-colors"
+              className="text-[10px] px-1.5 py-0.5 rounded-md bg-surface-raised text-text-muted hover:text-text-secondary transition-colors"
             >
               + {m}
             </button>
@@ -287,19 +330,13 @@ function SortableExercise({
               />
             </div>
           </div>
-          <div>
-            <label className="label mb-1 block">Primary Muscle</label>
-            <input
-              className="input-field text-sm"
-              list={`muscles-${exercise.id}`}
-              value={exercise.muscle}
-              onChange={(e) => onUpdate(exercise.id, { muscle: e.target.value })}
-              placeholder="e.g. Chest"
-            />
-            <datalist id={`muscles-${exercise.id}`}>
-              {allMuscles.map((m) => <option key={m} value={m} />)}
-            </datalist>
-          </div>
+          <MuscleAutocomplete
+            label="Primary Muscle"
+            value={exercise.muscle}
+            onChange={(v) => onUpdate(exercise.id, { muscle: v })}
+            suggestions={allMuscles}
+            placeholder="e.g. Chest"
+          />
           <SecondaryMuscleInput
             value={exercise.secondaryMuscles || []}
             onChange={(muscles) => onUpdate(exercise.id, { secondaryMuscles: muscles })}

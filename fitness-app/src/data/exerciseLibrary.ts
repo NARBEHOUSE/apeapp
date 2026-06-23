@@ -123,14 +123,34 @@ export function searchExerciseLibrary(query: string, muscleFilter?: string, equi
   return results;
 }
 
-export function getSimilarExercises(exerciseName: string, limit = 5): LibraryExercise[] {
-  const exercise = EXERCISE_LIBRARY.find((e) => e.name.toLowerCase() === exerciseName.toLowerCase());
-  if (!exercise) return [];
+export function getSimilarExercises(exerciseName: string, limit = 5, fallbackMuscles?: string[]): LibraryExercise[] {
+  // Try exact name match first
+  let sourceMuscles: string[] | null = null;
+  const exact = EXERCISE_LIBRARY.find((e) => e.name.toLowerCase() === exerciseName.toLowerCase());
+  if (exact) {
+    sourceMuscles = exact.muscles;
+  } else {
+    // Try partial word match (e.g. "BB Bench Press" matches "Bench Press")
+    const words = exerciseName.toLowerCase().split(/\s+/).filter((w) => w.length > 3);
+    const partial = EXERCISE_LIBRARY.find((e) =>
+      words.some((w) => e.name.toLowerCase().includes(w))
+    );
+    if (partial) sourceMuscles = partial.muscles;
+  }
+
+  // Fall back to the exercise's own muscle fields from the program
+  if (!sourceMuscles && fallbackMuscles && fallbackMuscles.length > 0) {
+    sourceMuscles = fallbackMuscles;
+  }
+
+  if (!sourceMuscles) return [];
+
+  const muscles = sourceMuscles;
   return EXERCISE_LIBRARY
-    .filter((e) => e.name !== exercise.name && e.muscles.some((m) => exercise.muscles.includes(m)))
+    .filter((e) => e.name.toLowerCase() !== exerciseName.toLowerCase() && e.muscles.some((m) => muscles.includes(m)))
     .sort((a, b) => {
-      const aOverlap = a.muscles.filter((m) => exercise.muscles.includes(m)).length;
-      const bOverlap = b.muscles.filter((m) => exercise.muscles.includes(m)).length;
+      const aOverlap = a.muscles.filter((m) => muscles.includes(m)).length;
+      const bOverlap = b.muscles.filter((m) => muscles.includes(m)).length;
       return bOverlap - aOverlap;
     })
     .slice(0, limit);

@@ -12,7 +12,7 @@ import {
   Heart,
   Trash2,
 } from 'lucide-react';
-import type { WorkoutSession, WorkoutDay, SetLog, Exercise, ExerciseLastPerformance, ExerciseFeedback, CardioEntry, Program } from '../../types';
+import type { WorkoutSession, WorkoutDay, SetLog, Exercise, ExerciseLastPerformance, CardioEntry, Program } from '../../types';
 import { searchExerciseLibrary, getSimilarExercises, type LibraryExercise } from '../../data/exerciseLibrary';
 import { saveCustomExercise, searchCustomExercises, getExerciseVideo, updateExerciseVideo } from '../../db/customExercises';
 import { RestTimer } from './RestTimer';
@@ -49,7 +49,7 @@ interface Props {
   profileId: string;
   durationWeeks: number;
   programDefaultRestTimer?: number;
-  onSaveFeedback?: (feedback: Record<string, ExerciseFeedback>) => void;
+  onSaveFeedback?: (feedback: Record<string, unknown>) => void;
   onUpdateCardio?: (cardio: CardioEntry[]) => void;
   allSessions?: WorkoutSession[];
   programs?: Program[];
@@ -129,7 +129,11 @@ function ExerciseCard({
   const [showSwaps, setShowSwaps] = useState(false);
   const [showVideoInput, setShowVideoInput] = useState(false);
   const [videoUrl, setVideoUrl] = useState(() => getExerciseVideo(exercise.name) || '');
-  const swapSuggestions = useMemo(() => showSwaps ? getSimilarExercises(exercise.name, 5) : [], [showSwaps, exercise.name]);
+  const swapSuggestions = useMemo(() => {
+    if (!showSwaps) return [];
+    const fallback = [exercise.muscle, ...(exercise.secondaryMuscles || [])].filter(Boolean) as string[];
+    return getSimilarExercises(exercise.name, 5, fallback.length > 0 ? fallback : undefined);
+  }, [showSwaps, exercise.name, exercise.muscle, exercise.secondaryMuscles]);
   const weightUnit: WeightUnit = getDashboardConfig().weightUnit ?? 'lbs';
   const lastSets = lastPerformance?.sets.filter((s) => s.completed);
   const scheme = exercise.setScheme;
@@ -491,6 +495,9 @@ function ExerciseCard({
               <button onClick={() => { updateExerciseVideo(exercise.name, videoUrl); setShowVideoInput(false); toast('Video saved', 'success'); }} className="bg-accent-blue text-white px-2 rounded-lg text-[10px] font-semibold">Save</button>
             </div>
           )}
+          {showSwaps && swapSuggestions.length === 0 && (
+            <p className="text-[10px] text-text-muted mt-1">No alternatives found for this exercise.</p>
+          )}
           {showSwaps && swapSuggestions.length > 0 && (
             <div className="space-y-1 mt-1">
               {swapSuggestions.map((swap) => (
@@ -550,7 +557,6 @@ export function ActiveWorkout({
   const [prs, setPrs] = useState<
     Record<string, { weight: number; reps: number; date: string }>
   >({});
-  const [exerciseFeedback, setExerciseFeedback] = useState<Record<string, ExerciseFeedback>>({});
 
   // Cardio tracking
   const [cardioEntries, setCardioEntries] = useState<CardioEntry[]>(session.cardio || []);
@@ -659,7 +665,6 @@ export function ActiveWorkout({
       toast(`Skipped ${activeExercises.find((e) => e.id === exId)?.name || 'exercise'}`, 'success');
     },
     onFinishWorkout: () => {
-      if (onSaveFeedback && Object.keys(exerciseFeedback).length > 0) onSaveFeedback(exerciseFeedback);
       onFinish();
     },
   });
@@ -1050,60 +1055,6 @@ export function ActiveWorkout({
         </div>
       )}
 
-      {/* Exercise Feedback (RP-style) */}
-      {activeExercises.some((ex) => (session.sets[ex.id] || []).some((s) => s.completed)) && (
-        <div className="px-4 pt-2">
-          <div className="bg-surface rounded-2xl p-4">
-            <h3 className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3">Exercise Feedback</h3>
-            <div className="space-y-3">
-              {activeExercises
-                .filter((ex) => (session.sets[ex.id] || []).some((s) => s.completed))
-                .map((ex) => {
-                  const fb = exerciseFeedback[ex.id] || { sensation: 0, pump: 0, soreness: 0 };
-                  const setFb = (field: keyof ExerciseFeedback, val: number) => {
-                    setExerciseFeedback((prev) => ({
-                      ...prev,
-                      [ex.id]: { ...prev[ex.id] || { sensation: 0, pump: 0, soreness: 0 }, [field]: val },
-                    }));
-                  };
-                  const labels = ['—', '1', '2', '3', '4', '5'];
-                  return (
-                    <div key={ex.id} className="space-y-1.5">
-                      <div className="text-[11px] font-medium truncate">{ex.name}</div>
-                      <div className="grid grid-cols-3 gap-2">
-                        {([
-                          { key: 'sensation' as const, label: 'Feel', color: '#5b6ef5' },
-                          { key: 'pump' as const, label: 'Pump', color: '#e8572a' },
-                          { key: 'soreness' as const, label: 'Sore', color: '#f5a623' },
-                        ]).map(({ key, label, color }) => (
-                          <div key={key}>
-                            <div className="text-[8px] text-text-muted text-center mb-0.5">{label}</div>
-                            <div className="flex gap-0.5 justify-center">
-                              {[1, 2, 3].map((v) => (
-                                <button
-                                  key={v}
-                                  onClick={() => setFb(key, fb[key] === v ? 0 : v)}
-                                  className="w-5 h-5 rounded text-[9px] font-bold transition-colors"
-                                  style={{
-                                    backgroundColor: fb[key] >= v ? color : 'var(--color-surface-raised)',
-                                    color: fb[key] >= v ? '#fff' : 'var(--color-text-muted)',
-                                  }}
-                                >
-                                  {v}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })}
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Cardio tracking — hide if day has programmed cardio exercises */}
       {!activeExercises.some((e) => e.exerciseType === 'cardio') && (
       <div className="px-4 pt-2">
@@ -1266,9 +1217,6 @@ export function ActiveWorkout({
       <div className="fixed bottom-14 left-0 right-0 p-4 bg-bg/95 backdrop-blur-sm border-t border-border z-20 safe-bottom">
         <button
           onClick={() => {
-            if (onSaveFeedback && Object.keys(exerciseFeedback).length > 0) {
-              onSaveFeedback(exerciseFeedback);
-            }
             onFinish();
           }}
           className="btn-primary w-full flex items-center justify-center gap-2"
