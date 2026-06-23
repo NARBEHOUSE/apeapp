@@ -205,28 +205,52 @@ export async function createCoachShareFile(
 ): Promise<{ fileId: string; folderId: string }> {
   const folderId = await getOrCreateCoachShareFolder(token);
 
-  const metadata = { name: COACH_FILE_NAME, mimeType: 'application/json', parents: [folderId] };
-  const boundary = 'ape_coach_boundary';
-  const body = `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n${content}\r\n--${boundary}--`;
+  // Check for existing files — never create duplicates
+  const existingRes = await driveRequest(token,
+    `https://www.googleapis.com/drive/v3/files?q=name='${COACH_FILE_NAME}' and '${folderId}' in parents and trashed=false&fields=files(id,modifiedTime)&orderBy=modifiedTime desc&pageSize=10`
+  );
+  const existingData = await existingRes.json();
+  const existingFiles: { id: string; modifiedTime: string }[] = existingData.files || [];
 
-  const res = await driveRequest(token, 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
-    method: 'POST',
-    headers: { 'Content-Type': `multipart/related; boundary=${boundary}` },
-    body,
-  });
-  const file = await res.json();
+  let fileId: string;
+  if (existingFiles.length > 0) {
+    // Reuse the most recently modified file
+    fileId = existingFiles[0].id;
+    await writeSharedFile(token, fileId, content);
+    // Delete any stale duplicates
+    for (const f of existingFiles.slice(1)) {
+      try { await deleteFile(token, f.id); } catch { /* best-effort */ }
+    }
+  } else {
+    // No existing file — create one
+    const metadata = { name: COACH_FILE_NAME, mimeType: 'application/json', parents: [folderId] };
+    const boundary = 'ape_coach_boundary';
+    const body = `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n${content}\r\n--${boundary}--`;
+    const res = await driveRequest(token, 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+      method: 'POST',
+      headers: { 'Content-Type': `multipart/related; boundary=${boundary}` },
+      body,
+    });
+    const file = await res.json();
+    fileId = file.id;
+  }
 
-  // Share the FOLDER (not just the file) — triggers Google email notification
+  // Share the FOLDER with the coach — triggers Google email notification
+  // If already shared, the permissions API returns an error we can safely ignore
   try {
-    const permRes = await fetch(`https://www.googleapis.com/drive/v3/files/${folderId}/permissions?sendNotificationEmail=true`, {
+    const permRes = await fetch(`https://www.googleapis.com/drive/v3/files/${folderId}/permissions?sendNotificationEmail=${existingFiles.length === 0}`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ role: 'writer', type: 'user', emailAddress: coachEmail }),
     });
     if (!permRes.ok) {
-      const errText = await permRes.text().catch(() => '');
-      console.error('Permission grant failed:', permRes.status, errText);
-      throw new Error(`Failed to share with ${coachEmail}: ${permRes.status}. Make sure the email is a valid Google account.`);
+      const errBody = await permRes.text().catch(() => '');
+      // "already shared" errors (400/409) are not fatal — the coach still has access
+      const alreadyShared = permRes.status === 400 && (errBody.includes('sharee') || errBody.includes('already')) || permRes.status === 409;
+      if (!alreadyShared) {
+        console.error('Permission grant failed:', permRes.status, errBody);
+        throw new Error(`Failed to share with ${coachEmail}: ${permRes.status}. Make sure the email is a valid Google account.`);
+      }
     }
   } catch (err) {
     if (err instanceof Error && err.message.includes('Failed to share')) throw err;
@@ -234,7 +258,7 @@ export async function createCoachShareFile(
     throw new Error(`Failed to share with ${coachEmail}. Check the email address.`);
   }
 
-  return { fileId: file.id, folderId };
+  return { fileId, folderId };
 }
 
 export async function readSharedFile(token: string, fileId: string): Promise<string> {
@@ -321,8 +345,10 @@ export async function findSharedClientFolders(token: string): Promise<{ folderId
 
 export async function findDataFileInFolder(token: string, folderId: string): Promise<string | null> {
   try {
+    // Sort by modifiedTime desc so we always read the most recently updated file
+    // (guards against stale duplicates the client hasn't cleaned up yet)
     const res = await driveRequest(token,
-      `https://www.googleapis.com/drive/v3/files?q=name='${COACH_FILE_NAME}' and '${folderId}' in parents and trashed=false&fields=files(id)&pageSize=1`
+      `https://www.googleapis.com/drive/v3/files?q=name='${COACH_FILE_NAME}' and '${folderId}' in parents and trashed=false&fields=files(id)&orderBy=modifiedTime desc&pageSize=1`
     );
     const data = await res.json();
     return data.files?.[0]?.id || null;
