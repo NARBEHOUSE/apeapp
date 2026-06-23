@@ -299,7 +299,7 @@ function ExerciseCard({
 
           {/* Header */}
           <div className={`grid ${effortMetric !== 'none' ? 'grid-cols-[1.5rem_1fr_1fr_2.5rem_2.25rem]' : 'grid-cols-[1.5rem_1fr_1fr_2.25rem]'} gap-1.5 px-0.5`}>
-            <span className="text-[9px] text-text-muted text-center">#</span>
+            <span className="text-[9px] text-warning text-center" title="Tap to toggle warmup">W</span>
             <span className="text-[9px] text-text-muted">Weight ({weightUnit})</span>
             <span className="text-[9px] text-text-muted">Reps</span>
             {effortMetric !== 'none' && <span className="text-[9px] text-accent-blue text-center">{effortMetric === 'rir' ? 'RIR' : 'RPE'}</span>}
@@ -327,17 +327,19 @@ function ExerciseCard({
                     updated[setIndex] = { ...updated[setIndex], isWarmup: !updated[setIndex].isWarmup };
                     setInputs(updated);
                   }}
-                  className="text-[11px] text-center"
+                  className={`text-[11px] text-center w-6 h-6 rounded flex items-center justify-center transition-colors ${
+                    inputs[setIndex]?.isWarmup ? 'bg-warning/20 text-warning' : 'bg-surface-raised text-text-muted'
+                  }`}
                   title={inputs[setIndex]?.isWarmup ? 'Warmup set (tap to make working)' : 'Working set (tap to make warmup)'}
                 >
                   {inputs[setIndex]?.isWarmup ? (
-                    <span className="text-[8px] text-warning font-bold">W</span>
+                    <span className="text-[9px] font-bold">W</span>
                   ) : scheme?.type === 'top_set_backoff' && setIndex === 0 ? (
                     <span className="text-[8px] text-accent font-bold">TOP</span>
                   ) : scheme?.type === 'to_failure' ? (
                     <span className="text-[8px] text-danger font-bold">F{setIndex + 1}</span>
                   ) : (
-                    <span className="text-text-muted">{setIndex + 1}</span>
+                    <span className="text-[9px]">{setIndex + 1}</span>
                   )}
                   {showRestElapsed && <SetRestTimer since={setTimestamp} />}
                 </button>
