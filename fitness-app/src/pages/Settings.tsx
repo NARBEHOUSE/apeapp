@@ -82,13 +82,14 @@ interface Props {
   profiles: Profile[];
   onDeleteProfile: (id: string) => void;
   onLogout: () => void;
+  onOpenTour?: () => void;
 }
 
 type Section = 'google' | 'coach' | 'theme' | 'api' | 'dashboard' | 'reports' | 'profile' | 'tdee' | 'data' | 'profiles' | 'about';
 
 const REST_OPTIONS = [60, 90, 120];
 
-export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, onLogout }: Props) {
+export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, onLogout, onOpenTour }: Props) {
   const { user: googleUser, isSignedIn: googleSignedIn, signIn: googleSignIn, signOut: googleSignOut, deleteCloudDataAndSignOut, syncStatus, lastSynced, syncNow, isLoading: googleLoading } = useGoogleAuth();
   const {
     myCoachRels, myClients, loading: coachLoading, pendingChanges,
@@ -2563,6 +2564,16 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
                 "APE is the only fitness app that puts AI in your hands — literally. Bring your own API key from any major AI provider and unlock AI-powered food scanning and coaching with no subscription, no data sold, and no lock-in. Your key. Your data. Your gains."
               </p>
             </div>
+
+            {/* App tour */}
+            {onOpenTour && (
+              <button
+                onClick={onOpenTour}
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-surface-raised border border-border text-sm font-medium text-text-secondary hover:text-text-primary transition-colors"
+              >
+                App Tour
+              </button>
+            )}
 
             {/* Links */}
             <div className="space-y-2.5">
