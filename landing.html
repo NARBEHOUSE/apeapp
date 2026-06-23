@@ -12,8 +12,8 @@
   <meta property="og:image" content="https://narbehouse.github.io/apeapp/icons/icon-512.png" />
 
   <!-- Favicon: APE PWA icon -->
-  <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png" />
-  <link rel="apple-touch-icon" href="./icons/icon-192.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+  <link rel="apple-touch-icon" href="/icons/icon-192.png" />
 
   <!-- Redirect existing PWA installs and hash-based app routes straight to the app -->
   <script>
@@ -23,7 +23,7 @@
       var hash = window.location.hash;
       var isAppRoute = hash && hash.length > 2 && hash.startsWith('#/');
       if (isStandalone || isAppRoute) {
-        window.location.replace('./app.html' + hash);
+        window.location.replace('/app.html' + hash);
       }
     })();
   </script>
@@ -759,14 +759,14 @@
   <!-- HEADER -->
   <header>
     <a class="logo" href="#">
-      <img src="./images/ape-app-pwa-512.png" alt="APE logo" />
+      <img src="/images/ape-app-pwa-512.png" alt="APE logo" />
       <span>APE</span>
     </a>
     <nav>
       <a class="nav-link" href="#features">Features</a>
       <a class="nav-link" href="#ai">Bring Your AI</a>
       <a class="nav-link" href="#support">Support</a>
-      <a class="btn-launch" href="./app.html">
+      <a class="btn-launch" href="/app.html">
         Launch App
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
       </a>
@@ -794,7 +794,7 @@
         No subscription. No lock-in. No middleman.
       </p>
       <div class="hero-cta reveal">
-        <a class="btn-primary" href="./app.html">
+        <a class="btn-primary" href="/app.html">
           Open APE App
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
         </a>
@@ -897,7 +897,7 @@
             Your key is stored only on your device and never included in sync data.
             AI calls go directly from your browser to the provider. We never see them.
           </p>
-          <a class="btn-primary reveal" href="./app.html" style="display:inline-flex">
+          <a class="btn-primary reveal" href="/app.html" style="display:inline-flex">
             Try it now
           </a>
         </div>
@@ -967,7 +967,7 @@
       <p class="section-body reveal" style="margin-bottom:0;">
         Free to use. Free forever. Install it on your phone in under 30 seconds.
       </p>
-      <a class="btn-primary reveal" href="./app.html">
+      <a class="btn-primary reveal" href="/app.html">
         Open APE App
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
       </a>
@@ -1027,7 +1027,7 @@
               <li>Google Drive access is scoped to files the app creates. We cannot read other Drive files.</li>
             </ul>
             <p style="margin-top:0.75rem;">
-              <a href="./app.html#/privacy">Read full Privacy Policy →</a>
+              <a href="/app.html#/privacy">Read full Privacy Policy →</a>
             </p>
           </div>
 
@@ -1054,7 +1054,7 @@
     <footer>
       <p class="footer-copy">&copy; 2024–2026 NARBE LLC. All rights reserved. APE is source-available software — not open source.</p>
       <div class="footer-links">
-        <a href="./app.html#/privacy">Privacy Policy</a>
+        <a href="/app.html#/privacy">Privacy Policy</a>
         <button class="footer-legal-toggle" id="legal-toggle" onclick="toggleLegal()">License &amp; Terms ▾</button>
         <a href="https://github.com/NARBEHOUSE/apeapp" target="_blank" rel="noopener">GitHub</a>
         <a href="https://streamelements.com/bigbroacro/tip" target="_blank" rel="noopener">Support ☕</a>
