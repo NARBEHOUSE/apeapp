@@ -68,6 +68,7 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
   const [showProgramPicker, setShowProgramPicker] = useState(false);
   const importRef = useRef<HTMLInputElement>(null);
   const [myPrograms, setMyPrograms] = useState<Program[]>([]);
+  const [chartRange, setChartRange] = useState<7 | 30 | 60 | 90>(30);
 
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -165,85 +166,106 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
   const dateIdx = foodDates.indexOf(nutritionDate);
   const todayFood = useMemo(() => data.foodEntries.filter((f) => f.date === nutritionDate).sort((a, b) => a.loggedAt.localeCompare(b.loggedAt)), [data.foodEntries, nutritionDate]);
   const todayTotals = useMemo(() => todayFood.reduce((acc, f) => ({ calories: acc.calories + f.calories * f.servingsConsumed, protein: acc.protein + f.protein * f.servingsConsumed, carbs: acc.carbs + f.carbs * f.servingsConsumed, fat: acc.fat + f.fat * f.servingsConsumed }), { calories: 0, protein: 0, carbs: 0, fat: 0 }), [todayFood]);
-  const recentMeasurements = useMemo(() => [...data.measurements].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 30), [data.measurements]);
+  const rangeStart = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - chartRange);
+    return d.toISOString().split('T')[0];
+  }, [chartRange]);
+
+  const recentMeasurements = useMemo(() => [...data.measurements].filter((m) => m.date >= rangeStart).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 30), [data.measurements, rangeStart]);
+
   const weightChartData = useMemo(() => {
-    const sorted = [...data.measurements].filter((m) => m.weight).sort((a, b) => a.date.localeCompare(b.date));
-    // Sample down to ~120 points if very dense, keeping even spread
+    const sorted = [...data.measurements].filter((m) => m.weight && m.date >= rangeStart).sort((a, b) => a.date.localeCompare(b.date));
     const max = 120;
     const step = sorted.length > max ? Math.ceil(sorted.length / max) : 1;
-    return sorted.filter((_, i) => i % step === 0 || i === sorted.length - 1).map((m) => ({
-      date: m.date.slice(5),
-      w: m.weight,
-    }));
-  }, [data.measurements]);
+    return sorted.filter((_, i) => i % step === 0 || i === sorted.length - 1).map((m) => ({ date: m.date.slice(5), w: m.weight }));
+  }, [data.measurements, rangeStart]);
+
   const nutritionTrendData = useMemo(() => {
     const byDate: Record<string, { cal: number; protein: number; carbs: number; fat: number }> = {};
     for (const f of data.foodEntries) {
+      if (f.date < rangeStart) continue;
       if (!byDate[f.date]) byDate[f.date] = { cal: 0, protein: 0, carbs: 0, fat: 0 };
       byDate[f.date].cal += f.calories * f.servingsConsumed;
       byDate[f.date].protein += f.protein * f.servingsConsumed;
       byDate[f.date].carbs += f.carbs * f.servingsConsumed;
       byDate[f.date].fat += f.fat * f.servingsConsumed;
     }
-    return Object.entries(byDate)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .slice(-60)
-      .map(([date, v]) => ({ date: date.slice(5), cal: Math.round(v.cal), protein: Math.round(v.protein), carbs: Math.round(v.carbs), fat: Math.round(v.fat) }));
-  }, [data.foodEntries]);
+    return Object.entries(byDate).sort(([a], [b]) => a.localeCompare(b)).map(([date, v]) => ({
+      date: date.slice(5), cal: Math.round(v.cal), protein: Math.round(v.protein), carbs: Math.round(v.carbs), fat: Math.round(v.fat),
+    }));
+  }, [data.foodEntries, rangeStart]);
 
   const workoutFrequencyData = useMemo(() => {
     const weeks: Record<string, number> = {};
     for (const w of data.workoutSessions) {
+      if (w.date < rangeStart) continue;
       const d = new Date(w.date + 'T12:00:00');
-      const dayOfWeek = d.getDay();
       const monday = new Date(d);
-      monday.setDate(d.getDate() - ((dayOfWeek + 6) % 7));
-      const key = monday.toISOString().split('T')[0].slice(5); // MM-DD
+      monday.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+      const key = monday.toISOString().split('T')[0].slice(5);
       weeks[key] = (weeks[key] || 0) + 1;
     }
-    // Build last 16 weeks
+    const weekCount = Math.max(1, Math.ceil(chartRange / 7));
     const result = [];
     const now = new Date();
-    for (let i = 15; i >= 0; i--) {
+    for (let i = weekCount - 1; i >= 0; i--) {
       const monday = new Date(now);
-      monday.setDate(now.getDate() - now.getDay() - ((now.getDay() + 6) % 7) + 1 - i * 7);
+      monday.setDate(now.getDate() - ((now.getDay() + 6) % 7) - i * 7);
       const key = monday.toISOString().split('T')[0].slice(5);
       result.push({ week: key, workouts: weeks[key] || 0 });
     }
     return result;
-  }, [data.workoutSessions]);
+  }, [data.workoutSessions, rangeStart, chartRange]);
 
   const stepsTrendData = useMemo(() => {
     if (!data.steps || data.steps.length === 0) return [];
-    return [...data.steps]
-      .sort((a, b) => a.date.localeCompare(b.date))
-      .slice(-60)
-      .map((s) => ({ date: s.date.slice(5), steps: s.count }));
-  }, [data.steps]);
+    return [...data.steps].filter((s) => s.date >= rangeStart).sort((a, b) => a.date.localeCompare(b.date)).map((s) => ({ date: s.date.slice(5), steps: s.count }));
+  }, [data.steps, rangeStart]);
 
   const bodyMeasurementsData = useMemo(() => {
-    const withMeasurements = [...data.measurements]
-      .filter((m) => m.measurements && Object.keys(m.measurements).length > 0)
-      .sort((a, b) => a.date.localeCompare(b.date));
-    if (withMeasurements.length < 2) return [];
-    const step = withMeasurements.length > 60 ? Math.ceil(withMeasurements.length / 60) : 1;
-    return withMeasurements.filter((_, i) => i % step === 0 || i === withMeasurements.length - 1).map((m) => ({
-      date: m.date.slice(5),
-      waist: m.measurements?.waist,
-      chest: m.measurements?.chest,
-      hips: m.measurements?.hips,
-      arms: m.measurements?.arms,
+    const withM = [...data.measurements].filter((m) => m.measurements && Object.keys(m.measurements).length > 0 && m.date >= rangeStart).sort((a, b) => a.date.localeCompare(b.date));
+    if (withM.length < 2) return [];
+    const step = withM.length > 60 ? Math.ceil(withM.length / 60) : 1;
+    return withM.filter((_, i) => i % step === 0 || i === withM.length - 1).map((m) => ({
+      date: m.date.slice(5), waist: m.measurements?.waist, chest: m.measurements?.chest, hips: m.measurements?.hips, arms: m.measurements?.arms,
     }));
-  }, [data.measurements]);
+  }, [data.measurements, rangeStart]);
 
   const checkInTrend = useMemo(() => {
     if (!data.checkIns || data.checkIns.length < 2) return [];
-    return [...data.checkIns].sort((a, b) => a.date.localeCompare(b.date)).slice(-30).map((ci) => {
+    return [...data.checkIns].filter((ci) => ci.date >= rangeStart).sort((a, b) => a.date.localeCompare(b.date)).map((ci) => {
       const row: Record<string, string | number> = { date: ci.date.slice(5) };
       for (const r of ci.responses) { if (typeof r.value === 'number') row[r.questionId] = r.value; }
       return row;
     });
-  }, [data.checkIns]);
+  }, [data.checkIns, rangeStart]);
+
+  const rangeStats = useMemo(() => {
+    const workoutsInRange = data.workoutSessions.filter((w) => w.date >= rangeStart).length;
+    const weightInRange = data.measurements.filter((m) => m.weight && m.date >= rangeStart).sort((a, b) => a.date.localeCompare(b.date));
+    const avgWeight = weightInRange.length > 0 ? weightInRange.reduce((s, m) => s + (m.weight || 0), 0) / weightInRange.length : null;
+    const firstWeight = weightInRange[0]?.weight;
+    const lastWeight = weightInRange[weightInRange.length - 1]?.weight;
+    const weightDelta = firstWeight != null && lastWeight != null && weightInRange.length > 1 ? lastWeight - firstWeight : null;
+    const byDate: Record<string, { cal: number; protein: number }> = {};
+    for (const f of data.foodEntries) {
+      if (f.date < rangeStart) continue;
+      if (!byDate[f.date]) byDate[f.date] = { cal: 0, protein: 0 };
+      byDate[f.date].cal += f.calories * f.servingsConsumed;
+      byDate[f.date].protein += f.protein * f.servingsConsumed;
+    }
+    const loggedDays = Object.keys(byDate).length;
+    const avgCal = loggedDays > 0 ? Math.round(Object.values(byDate).reduce((s, d) => s + d.cal, 0) / loggedDays) : null;
+    const avgProtein = loggedDays > 0 ? Math.round(Object.values(byDate).reduce((s, d) => s + d.protein, 0) / loggedDays) : null;
+    const stepsInRange = (data.steps || []).filter((s) => s.date >= rangeStart);
+    const avgSteps = stepsInRange.length > 0 ? Math.round(stepsInRange.reduce((s, x) => s + x.count, 0) / stepsInRange.length) : null;
+    const calTarget = data.profile.macroTargets?.calories;
+    const proteinTarget = data.profile.macroTargets?.protein;
+    const calHit = calTarget && loggedDays > 0 ? Object.values(byDate).filter((d) => d.cal >= calTarget * 0.85 && d.cal <= calTarget * 1.15).length : null;
+    const proteinHit = proteinTarget && loggedDays > 0 ? Object.values(byDate).filter((d) => d.protein >= proteinTarget * 0.9).length : null;
+    return { workoutsInRange, avgWeight, weightDelta, loggedDays, avgCal, avgProtein, avgSteps, calHit, proteinHit, calTarget, proteinTarget, weightCount: weightInRange.length };
+  }, [data, rangeStart]);
 
   // Build and push all changes at once
   async function handlePushChanges() {
@@ -415,73 +437,165 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
         ))}
       </div>
 
+      {/* Range picker — shown above content on chart tabs */}
+      {['overview','workouts','nutrition','progress','checkins'].includes(tab) && (
+        <div className="sticky top-[94px] z-10 bg-bg px-4 pt-2 pb-1 flex items-center justify-between">
+          <span className="text-[10px] text-text-muted uppercase tracking-wider">Range</span>
+          <div className="flex gap-1.5">
+            {([7, 30, 60, 90] as const).map((r) => (
+              <button key={r} onClick={() => setChartRange(r)}
+                className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-colors ${chartRange === r ? 'bg-text-primary text-bg' : 'bg-surface text-text-muted'}`}
+              >
+                {r}d
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="p-4 space-y-4 pb-24">
         {/* OVERVIEW */}
         {tab === 'overview' && (
           <>
-            {/* Profile card */}
+            {/* Profile header */}
             <div className="card p-4 space-y-3">
-              <h3 className="text-lg font-bold">{data.profile.name}</h3>
-              {data.profile.goal && <div className="text-xs text-text-muted">Goal: {data.profile.goal}</div>}
-              {data.profile.bodyStats && (
-                <div className="grid grid-cols-4 gap-2 text-center">
+              <div className="flex items-start justify-between">
+                <div>
+                  <h3 className="text-lg font-bold">{data.profile.name}</h3>
+                  {data.profile.goal && <div className="text-xs text-text-muted">{data.profile.goal}</div>}
+                </div>
+                {data.profile.bodyStats && (
+                  <div className="text-right text-[10px] text-text-muted">
+                    {data.profile.bodyStats.age && <div>{data.profile.bodyStats.age} yrs</div>}
+                    {data.profile.tdee && <div>TDEE {data.profile.tdee} cal</div>}
+                  </div>
+                )}
+              </div>
+              {data.profile.macroTargets && (
+                <div className="flex gap-2 pt-1 border-t border-border">
                   {[
-                    { label: 'Age', value: data.profile.bodyStats.age ?? '-' },
-                    { label: 'Height', value: data.profile.bodyStats.heightCm ? `${Math.round(data.profile.bodyStats.heightCm)} cm` : '-' },
-                    { label: 'Weight', value: data.profile.bodyStats.weightKg ? `${Math.round(data.profile.bodyStats.weightKg * 2.205)} lbs` : '-' },
-                    { label: 'TDEE', value: data.profile.tdee ?? '-' },
-                  ].map((s) => (
-                    <div key={s.label} className="bg-surface-raised rounded-lg p-2">
-                      <div className="text-[9px] text-text-muted uppercase">{s.label}</div>
-                      <div className="text-sm font-semibold">{s.value}</div>
+                    { label: 'Cal', value: data.profile.macroTargets.calories, unit: '', color: '#e8572a' },
+                    { label: 'P', value: data.profile.macroTargets.protein, unit: 'g', color: '#5b6ef5' },
+                    { label: 'C', value: data.profile.macroTargets.carbs, unit: 'g', color: '#2e9e6b' },
+                    { label: 'F', value: data.profile.macroTargets.fat, unit: 'g', color: '#f5a623' },
+                  ].map((m) => (
+                    <div key={m.label} className="flex-1 text-center bg-surface-raised rounded-lg py-1.5">
+                      <div className="text-sm font-bold" style={{ color: m.color }}>{m.value}{m.unit}</div>
+                      <div className="text-[9px] text-text-muted">{m.label}</div>
                     </div>
                   ))}
                 </div>
               )}
             </div>
 
-            {/* Today's nutrition vs targets */}
-            {data.profile.macroTargets && (
+            {/* Range stats grid */}
+            <div className="grid grid-cols-2 gap-2">
+              {/* Workouts */}
+              <div className="card p-3 space-y-0.5">
+                <div className="text-[9px] text-text-muted uppercase tracking-wider">Workouts</div>
+                <div className="text-2xl font-bold" style={{ color: '#e8572a' }}>{rangeStats.workoutsInRange}</div>
+                <div className="text-[10px] text-text-muted">in {chartRange} days</div>
+              </div>
+              {/* Weight change */}
+              <div className="card p-3 space-y-0.5">
+                <div className="text-[9px] text-text-muted uppercase tracking-wider">Weight</div>
+                {rangeStats.avgWeight != null ? (
+                  <>
+                    <div className="text-2xl font-bold" style={{ color: '#5b6ef5' }}>{rangeStats.avgWeight.toFixed(1)}<span className="text-xs font-normal text-text-muted ml-0.5">lbs avg</span></div>
+                    {rangeStats.weightDelta != null && (
+                      <div className={`text-[11px] font-medium ${rangeStats.weightDelta < 0 ? 'text-success' : rangeStats.weightDelta > 0 ? 'text-danger' : 'text-text-muted'}`}>
+                        {rangeStats.weightDelta > 0 ? '+' : ''}{rangeStats.weightDelta.toFixed(1)} lbs change
+                      </div>
+                    )}
+                  </>
+                ) : <div className="text-sm text-text-muted">No data</div>}
+              </div>
+              {/* Avg calories */}
+              <div className="card p-3 space-y-0.5">
+                <div className="text-[9px] text-text-muted uppercase tracking-wider">Avg Calories</div>
+                {rangeStats.avgCal != null ? (
+                  <>
+                    <div className="text-2xl font-bold" style={{ color: '#f5a623' }}>{rangeStats.avgCal.toLocaleString()}</div>
+                    {rangeStats.calTarget && rangeStats.calHit != null && (
+                      <div className="text-[10px] text-text-muted">On target {rangeStats.calHit}/{rangeStats.loggedDays} days</div>
+                    )}
+                  </>
+                ) : <div className="text-sm text-text-muted">No data</div>}
+              </div>
+              {/* Avg protein */}
+              <div className="card p-3 space-y-0.5">
+                <div className="text-[9px] text-text-muted uppercase tracking-wider">Avg Protein</div>
+                {rangeStats.avgProtein != null ? (
+                  <>
+                    <div className="text-2xl font-bold" style={{ color: '#5b6ef5' }}>{rangeStats.avgProtein}<span className="text-xs font-normal text-text-muted ml-0.5">g</span></div>
+                    {rangeStats.proteinTarget && rangeStats.proteinHit != null && (
+                      <div className="text-[10px] text-text-muted">Hit target {rangeStats.proteinHit}/{rangeStats.loggedDays} days</div>
+                    )}
+                  </>
+                ) : <div className="text-sm text-text-muted">No data</div>}
+              </div>
+              {/* Nutrition logged */}
+              <div className="card p-3 space-y-0.5">
+                <div className="text-[9px] text-text-muted uppercase tracking-wider">Nutrition Logged</div>
+                <div className="text-2xl font-bold" style={{ color: '#f5a623' }}>{rangeStats.loggedDays}</div>
+                <div className="text-[10px] text-text-muted">of {chartRange} days</div>
+              </div>
+              {/* Steps */}
+              {rangeStats.avgSteps != null ? (
+                <div className="card p-3 space-y-0.5">
+                  <div className="text-[9px] text-text-muted uppercase tracking-wider">Avg Steps</div>
+                  <div className="text-2xl font-bold" style={{ color: '#2e9e6b' }}>{rangeStats.avgSteps.toLocaleString()}</div>
+                  <div className="text-[10px] text-text-muted">per day</div>
+                </div>
+              ) : (
+                <div className="card p-3 space-y-0.5">
+                  <div className="text-[9px] text-text-muted uppercase tracking-wider">Weigh-ins</div>
+                  <div className="text-2xl font-bold" style={{ color: '#5b6ef5' }}>{rangeStats.weightCount}</div>
+                  <div className="text-[10px] text-text-muted">in {chartRange} days</div>
+                </div>
+              )}
+            </div>
+
+            {/* Weight sparkline */}
+            {weightChartData.length >= 2 && (
               <div className="card p-4">
-                <div className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3">Today's Nutrition</div>
-                <MacroSummary
-                  totals={{ ...todayTotals, fiber: 0 }}
-                  targets={data.profile.macroTargets}
-                />
+                <div className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-2">Weight Trend</div>
+                <div className="h-32">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={weightChartData}>
+                      <XAxis dataKey="date" tick={{ fontSize: 9 }} interval="preserveStartEnd" />
+                      <YAxis tick={{ fontSize: 9 }} width={32} domain={['auto', 'auto']} />
+                      <Tooltip contentStyle={{ fontSize: 11, background: '#1a1a1f', border: '1px solid #333', borderRadius: 8 }} formatter={(v) => [`${v} lbs`, 'Weight']} />
+                      <Line type="monotone" dataKey="w" stroke="#5b6ef5" strokeWidth={2} dot={false} connectNulls />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
               </div>
             )}
 
-            {/* Activity stats */}
-            <div className="grid grid-cols-3 gap-2">
-              {[
-                { v: data.workoutSessions.length, l: 'Workouts', color: '#e8572a' },
-                { v: data.foodEntries.length, l: 'Food Logs', color: '#f5a623' },
-                { v: data.measurements.length, l: 'Weigh-ins', color: '#5b6ef5' },
-              ].map((s) => (
-                <div key={s.l} className="card p-3 text-center">
-                  <div className="text-lg font-bold" style={{ color: s.color }}>{s.v}</div>
-                  <div className="text-[9px] text-text-muted uppercase">{s.l}</div>
+            {/* Calorie bar chart */}
+            {nutritionTrendData.length >= 3 && (
+              <div className="card p-4">
+                <div className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-2">Calories</div>
+                <div className="h-28">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={nutritionTrendData} barSize={chartRange <= 7 ? 20 : chartRange <= 30 ? 10 : 5}>
+                      <XAxis dataKey="date" tick={{ fontSize: 9 }} interval="preserveStartEnd" />
+                      <YAxis tick={{ fontSize: 9 }} width={32} domain={[0, 'auto']} />
+                      <Tooltip contentStyle={{ fontSize: 11, background: '#1a1a1f', border: '1px solid #333', borderRadius: 8 }} />
+                      {data.profile.macroTargets && <ReferenceLine y={data.profile.macroTargets.calories} stroke="#e8572a" strokeDasharray="4 2" strokeWidth={1} />}
+                      <Bar dataKey="cal" fill="#e8572a" radius={[2, 2, 0, 0]} opacity={0.85} />
+                    </BarChart>
+                  </ResponsiveContainer>
                 </div>
-              ))}
-            </div>
+              </div>
+            )}
 
-            {/* Macro targets reference */}
-            {data.profile.macroTargets && (
-              <div className="card p-3">
-                <div className="text-[9px] text-text-muted uppercase tracking-wider mb-2">Daily Targets</div>
-                <div className="flex gap-3">
-                  {[
-                    { label: 'Calories', value: data.profile.macroTargets.calories, unit: '', color: '#e8572a' },
-                    { label: 'Protein', value: data.profile.macroTargets.protein, unit: 'g', color: '#5b6ef5' },
-                    { label: 'Carbs', value: data.profile.macroTargets.carbs, unit: 'g', color: '#2e9e6b' },
-                    { label: 'Fat', value: data.profile.macroTargets.fat, unit: 'g', color: '#f5a623' },
-                  ].map((m) => (
-                    <div key={m.label} className="flex-1 text-center">
-                      <div className="text-sm font-bold" style={{ color: m.color }}>{m.value}{m.unit}</div>
-                      <div className="text-[9px] text-text-muted">{m.label}</div>
-                    </div>
-                  ))}
-                </div>
+            {/* Today's nutrition vs targets */}
+            {data.profile.macroTargets && todayTotals.calories > 0 && (
+              <div className="card p-4">
+                <div className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3">Today's Nutrition</div>
+                <MacroSummary totals={{ ...todayTotals, fiber: 0 }} targets={data.profile.macroTargets} />
               </div>
             )}
 
@@ -507,11 +621,12 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
           <>
             {workoutFrequencyData.some((w) => w.workouts > 0) && (
               <div className="card p-4">
-                <div className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3">Workouts per Week (last 16 weeks)</div>
+                <div className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-1">Workouts per Week</div>
+                <div className="text-[10px] text-text-muted mb-3">{rangeStats.workoutsInRange} workouts in {chartRange} days</div>
                 <div className="h-36">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={workoutFrequencyData} barSize={14}>
-                      <XAxis dataKey="week" tick={{ fontSize: 9 }} interval={3} />
+                    <BarChart data={workoutFrequencyData} barSize={chartRange <= 7 ? 28 : chartRange <= 30 ? 18 : 12}>
+                      <XAxis dataKey="week" tick={{ fontSize: 9 }} interval={chartRange <= 30 ? 0 : 'preserveStartEnd'} />
                       <YAxis tick={{ fontSize: 9 }} width={20} allowDecimals={false} />
                       <Tooltip contentStyle={{ fontSize: 11, background: '#1a1a1f', border: '1px solid #333', borderRadius: 8 }} />
                       <Bar dataKey="workouts" fill="#e8572a" radius={[3, 3, 0, 0]} />
@@ -579,22 +694,25 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
         {/* NUTRITION */}
         {tab === 'nutrition' && (
           <>
-            {nutritionTrendData.length >= 7 && (
+            {nutritionTrendData.length >= 3 && (
               <div className="card p-4 space-y-4">
-                <div className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Nutrition Trends (last 60 days)</div>
+                <div className="flex items-center justify-between">
+                  <div className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Nutrition Trends</div>
+                  {rangeStats.avgCal != null && (
+                    <div className="text-[10px] text-text-muted">avg {rangeStats.avgCal.toLocaleString()} cal · {rangeStats.avgProtein}g protein</div>
+                  )}
+                </div>
                 {/* Calorie trend */}
                 <div>
                   <div className="text-[10px] text-text-muted mb-1">Calories vs Target</div>
                   <div className="h-36">
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={nutritionTrendData} barSize={6}>
+                      <BarChart data={nutritionTrendData} barSize={chartRange <= 7 ? 20 : chartRange <= 30 ? 10 : 5}>
                         <XAxis dataKey="date" tick={{ fontSize: 9 }} interval="preserveStartEnd" />
                         <YAxis tick={{ fontSize: 9 }} width={32} domain={[0, 'auto']} />
                         <Tooltip contentStyle={{ fontSize: 11, background: '#1a1a1f', border: '1px solid #333', borderRadius: 8 }} />
-                        {data.profile.macroTargets && (
-                          <ReferenceLine y={data.profile.macroTargets.calories} stroke="#e8572a" strokeDasharray="4 2" strokeWidth={1} />
-                        )}
-                        <Bar dataKey="cal" fill="#e8572a" radius={[2, 2, 0, 0]} opacity={0.8} />
+                        {data.profile.macroTargets && <ReferenceLine y={data.profile.macroTargets.calories} stroke="#e8572a" strokeDasharray="4 2" strokeWidth={1} />}
+                        <Bar dataKey="cal" fill="#e8572a" radius={[2, 2, 0, 0]} opacity={0.85} />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
@@ -608,12 +726,29 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
                         <XAxis dataKey="date" tick={{ fontSize: 9 }} interval="preserveStartEnd" />
                         <YAxis tick={{ fontSize: 9 }} width={28} />
                         <Tooltip contentStyle={{ fontSize: 11, background: '#1a1a1f', border: '1px solid #333', borderRadius: 8 }} />
-                        {data.profile.macroTargets && (
-                          <ReferenceLine y={data.profile.macroTargets.protein} stroke="#5b6ef5" strokeDasharray="4 2" strokeWidth={1} />
-                        )}
+                        {data.profile.macroTargets && <ReferenceLine y={data.profile.macroTargets.protein} stroke="#5b6ef5" strokeDasharray="4 2" strokeWidth={1} />}
                         <Line type="monotone" dataKey="protein" stroke="#5b6ef5" strokeWidth={1.5} dot={false} connectNulls />
                       </LineChart>
                     </ResponsiveContainer>
+                  </div>
+                </div>
+                {/* Carbs + fat */}
+                <div>
+                  <div className="text-[10px] text-text-muted mb-1">Carbs &amp; Fat (g)</div>
+                  <div className="h-28">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={nutritionTrendData}>
+                        <XAxis dataKey="date" tick={{ fontSize: 9 }} interval="preserveStartEnd" />
+                        <YAxis tick={{ fontSize: 9 }} width={28} />
+                        <Tooltip contentStyle={{ fontSize: 11, background: '#1a1a1f', border: '1px solid #333', borderRadius: 8 }} />
+                        <Line type="monotone" dataKey="carbs" stroke="#2e9e6b" strokeWidth={1.5} dot={false} connectNulls name="Carbs" />
+                        <Line type="monotone" dataKey="fat" stroke="#f5a623" strokeWidth={1.5} dot={false} connectNulls name="Fat" />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="flex gap-3 mt-1">
+                    <span className="text-[9px] flex items-center gap-1"><span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: '#2e9e6b' }} />Carbs</span>
+                    <span className="text-[9px] flex items-center gap-1"><span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: '#f5a623' }} />Fat</span>
                   </div>
                 </div>
               </div>
@@ -730,19 +865,24 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
               <>
                 {weightChartData.length >= 2 && (
                   <div className="card p-4 mb-3">
-                    <div className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3">
-                      Weight Trend ({data.measurements.filter((m) => m.weight).length} entries)
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Weight Trend</div>
+                      <div className="text-[10px] text-text-muted">
+                        {weightChartData.length} entries · {rangeStats.weightDelta != null ? (
+                          <span className={rangeStats.weightDelta < 0 ? 'text-success' : rangeStats.weightDelta > 0 ? 'text-danger' : ''}>
+                            {rangeStats.weightDelta > 0 ? '+' : ''}{rangeStats.weightDelta.toFixed(1)} lbs
+                          </span>
+                        ) : 'no change'}
+                      </div>
                     </div>
-                    <div className="h-40">
+                    <div className="h-44">
                       <ResponsiveContainer width="100%" height="100%">
                         <LineChart data={weightChartData}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#ffffff08" />
                           <XAxis dataKey="date" tick={{ fontSize: 9 }} interval="preserveStartEnd" />
                           <YAxis tick={{ fontSize: 9 }} width={32} domain={['auto', 'auto']} />
-                          <Tooltip
-                            contentStyle={{ fontSize: 11, background: '#1a1a1f', border: '1px solid #333', borderRadius: 8 }}
-                            formatter={(v) => [`${v} lbs`, 'Weight']}
-                          />
-                          <Line type="monotone" dataKey="w" stroke="#5b6ef5" strokeWidth={1.5} dot={false} connectNulls />
+                          <Tooltip contentStyle={{ fontSize: 11, background: '#1a1a1f', border: '1px solid #333', borderRadius: 8 }} formatter={(v) => [`${v} lbs`, 'Weight']} />
+                          <Line type="monotone" dataKey="w" stroke="#5b6ef5" strokeWidth={2} dot={false} connectNulls />
                         </LineChart>
                       </ResponsiveContainer>
                     </div>
@@ -916,7 +1056,7 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
         })()}
 
         {/* CHECK-INS */}
-        {tab === 'checkins' && (<>{checkInTrend.length >= 2 && <div className="card p-4 space-y-3"><div className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Trends (last 30 days)</div><div className="h-48"><ResponsiveContainer width="100%" height="100%"><LineChart data={checkInTrend}><XAxis dataKey="date" tick={{ fontSize: 9 }} interval="preserveStartEnd" /><YAxis domain={[1, 10]} tick={{ fontSize: 9 }} width={20} /><Tooltip contentStyle={{ fontSize: 11, background: '#1a1a1f', border: '1px solid #333', borderRadius: 8 }} />{DEFAULT_CHECKIN_QUESTIONS.map((q, i) => <Line key={q.id} type="monotone" dataKey={q.id} name={q.label} stroke={CHART_COLORS[i % CHART_COLORS.length]} strokeWidth={1.5} dot={false} connectNulls />)}</LineChart></ResponsiveContainer></div><div className="flex flex-wrap gap-x-3 gap-y-1">{DEFAULT_CHECKIN_QUESTIONS.map((q, i) => <span key={q.id} className="text-[9px] flex items-center gap-1"><span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }} />{q.label}</span>)}</div></div>}{(!data.checkIns || data.checkIns.length === 0) ? <p className="text-sm text-text-muted text-center py-8">No check-ins</p> : <div className="space-y-2"><div className="text-xs font-semibold text-text-secondary uppercase tracking-wider">History</div>{[...data.checkIns].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 21).map((ci) => <div key={ci.id} className="card p-3 space-y-2"><div className="text-xs font-semibold">{ci.date}</div><div className="space-y-1.5">{ci.responses.map((r) => { const q = DEFAULT_CHECKIN_QUESTIONS.find((qq) => qq.id === r.questionId); return <div key={r.questionId} className="flex items-center justify-between"><span className="text-xs text-text-secondary">{q?.label || r.questionId}</span>{typeof r.value === 'number' ? <div className="flex items-center gap-1"><div className="w-16 h-1.5 rounded-full bg-surface-raised overflow-hidden"><div className="h-full rounded-full" style={{ width: `${(r.value / 10) * 100}%`, backgroundColor: r.value >= 7 ? '#2e9e6b' : r.value >= 4 ? '#f5a623' : '#e85757' }} /></div><span className="text-xs font-medium w-5 text-right">{r.value}</span></div> : <span className="text-xs text-text-muted">{r.value}</span>}</div>; })}</div>{ci.notes && <p className="text-[10px] text-text-muted italic">{ci.notes}</p>}</div>)}</div>}</>)}
+        {tab === 'checkins' && (<>{checkInTrend.length >= 2 && <div className="card p-4 space-y-3"><div className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Check-In Trends</div><div className="h-48"><ResponsiveContainer width="100%" height="100%"><LineChart data={checkInTrend}><XAxis dataKey="date" tick={{ fontSize: 9 }} interval="preserveStartEnd" /><YAxis domain={[1, 10]} tick={{ fontSize: 9 }} width={20} /><Tooltip contentStyle={{ fontSize: 11, background: '#1a1a1f', border: '1px solid #333', borderRadius: 8 }} />{DEFAULT_CHECKIN_QUESTIONS.map((q, i) => <Line key={q.id} type="monotone" dataKey={q.id} name={q.label} stroke={CHART_COLORS[i % CHART_COLORS.length]} strokeWidth={1.5} dot={false} connectNulls />)}</LineChart></ResponsiveContainer></div><div className="flex flex-wrap gap-x-3 gap-y-1">{DEFAULT_CHECKIN_QUESTIONS.map((q, i) => <span key={q.id} className="text-[9px] flex items-center gap-1"><span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }} />{q.label}</span>)}</div></div>}{(!data.checkIns || data.checkIns.length === 0) ? <p className="text-sm text-text-muted text-center py-8">No check-ins</p> : <div className="space-y-2"><div className="text-xs font-semibold text-text-secondary uppercase tracking-wider">History</div>{[...data.checkIns].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 21).map((ci) => <div key={ci.id} className="card p-3 space-y-2"><div className="text-xs font-semibold">{ci.date}</div><div className="space-y-1.5">{ci.responses.map((r) => { const q = DEFAULT_CHECKIN_QUESTIONS.find((qq) => qq.id === r.questionId); return <div key={r.questionId} className="flex items-center justify-between"><span className="text-xs text-text-secondary">{q?.label || r.questionId}</span>{typeof r.value === 'number' ? <div className="flex items-center gap-1"><div className="w-16 h-1.5 rounded-full bg-surface-raised overflow-hidden"><div className="h-full rounded-full" style={{ width: `${(r.value / 10) * 100}%`, backgroundColor: r.value >= 7 ? '#2e9e6b' : r.value >= 4 ? '#f5a623' : '#e85757' }} /></div><span className="text-xs font-medium w-5 text-right">{r.value}</span></div> : <span className="text-xs text-text-muted">{r.value}</span>}</div>; })}</div>{ci.notes && <p className="text-[10px] text-text-muted italic">{ci.notes}</p>}</div>)}</div>}</>)}
 
         {/* CHANGES — unified push tab */}
         {tab === 'changes' && !readonly && (
