@@ -365,7 +365,7 @@ export function Workout({ profile, onUpdateProfile }: Props) {
                     ...d,
                     exercises: d.exercises.map((e) =>
                       e.id === exerciseId
-                        ? { ...e, name: swap.name, muscles: swap.muscles, equipment: swap.equipment }
+                        ? { ...e, name: swap.name }
                         : e
                     ),
                   }

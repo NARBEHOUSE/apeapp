@@ -82,6 +82,57 @@ function MuscleAutocomplete({ label, value, onChange, suggestions, placeholder }
   );
 }
 
+function AlternativesInput({ value, onChange }: { value: string[]; onChange: (alts: string[]) => void }) {
+  const [newAlt, setNewAlt] = useState('');
+  return (
+    <div>
+      <label className="label mb-1 block">Alternatives (optional)</label>
+      {value.length > 0 && (
+        <div className="flex flex-wrap gap-1 mb-1.5">
+          {value.map((alt) => (
+            <span key={alt} className="flex items-center gap-1 text-[11px] bg-surface-raised rounded-lg px-2 py-0.5">
+              {alt}
+              <button
+                type="button"
+                onClick={() => onChange(value.filter((a) => a !== alt))}
+                className="text-text-muted hover:text-danger transition-colors"
+              >
+                ×
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+      <div className="flex gap-1.5">
+        <input
+          className="input-field text-sm flex-1"
+          value={newAlt}
+          onChange={(e) => setNewAlt(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && newAlt.trim()) {
+              e.preventDefault();
+              if (!value.includes(newAlt.trim())) onChange([...value, newAlt.trim()]);
+              setNewAlt('');
+            }
+          }}
+          placeholder="Type name, press Enter to add"
+        />
+        <button
+          type="button"
+          onClick={() => {
+            if (newAlt.trim() && !value.includes(newAlt.trim())) onChange([...value, newAlt.trim()]);
+            setNewAlt('');
+          }}
+          className="px-3 py-2 rounded-xl bg-surface-raised text-text-secondary text-xs font-medium hover:bg-surface active:scale-95 transition-all"
+        >
+          Add
+        </button>
+      </div>
+      <p className="text-[10px] text-text-muted mt-1">These will appear as swap options during a workout.</p>
+    </div>
+  );
+}
+
 function SecondaryMuscleInput({ value, onChange, suggestions }: { value: string[]; onChange: (muscles: string[]) => void; suggestions: string[] }) {
   const [text, setText] = useState(value.join(', '));
 
@@ -356,6 +407,10 @@ function SortableExercise({
             value={exercise.secondaryMuscles || []}
             onChange={(muscles) => onUpdate(exercise.id, { secondaryMuscles: muscles })}
             suggestions={allMuscles.filter((m) => m !== exercise.muscle)}
+          />
+          <AlternativesInput
+            value={exercise.alternatives || []}
+            onChange={(alts) => onUpdate(exercise.id, { alternatives: alts.length > 0 ? alts : undefined })}
           />
           <div>
             <label className="label mb-1 block">Note (optional)</label>

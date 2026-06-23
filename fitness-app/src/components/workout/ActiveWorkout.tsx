@@ -129,11 +129,7 @@ function ExerciseCard({
   const [showSwaps, setShowSwaps] = useState(false);
   const [showVideoInput, setShowVideoInput] = useState(false);
   const [videoUrl, setVideoUrl] = useState(() => getExerciseVideo(exercise.name) || '');
-  const swapSuggestions = useMemo(() => {
-    if (!showSwaps) return [];
-    const fallback = [exercise.muscle, ...(exercise.secondaryMuscles || [])].filter(Boolean) as string[];
-    return getSimilarExercises(exercise.name, 5, fallback.length > 0 ? fallback : undefined);
-  }, [showSwaps, exercise.name, exercise.muscle, exercise.secondaryMuscles]);
+  const swapSuggestions = exercise.alternatives || [];
   const weightUnit: WeightUnit = getDashboardConfig().weightUnit ?? 'lbs';
   const lastSets = lastPerformance?.sets.filter((s) => s.completed);
   const scheme = exercise.setScheme;
@@ -496,19 +492,16 @@ function ExerciseCard({
             </div>
           )}
           {showSwaps && swapSuggestions.length === 0 && (
-            <p className="text-[10px] text-text-muted mt-1">No alternatives found for this exercise.</p>
+            <p className="text-[10px] text-text-muted mt-1">No alternatives set. Add them in the program editor.</p>
           )}
           {showSwaps && swapSuggestions.length > 0 && (
             <div className="space-y-1 mt-1">
-              {swapSuggestions.map((swap) => (
-                <div key={swap.name} className="flex items-center justify-between bg-surface-raised rounded-md px-2 py-1.5 gap-2">
-                  <div className="min-w-0">
-                    <span className="text-[10px] font-medium text-text-secondary">{swap.name}</span>
-                    <span className="text-[10px] text-text-muted ml-1">· {swap.muscles.join(', ')} · {swap.equipment}</span>
-                  </div>
+              {swapSuggestions.map((altName) => (
+                <div key={altName} className="flex items-center justify-between bg-surface-raised rounded-md px-2 py-1.5 gap-2">
+                  <span className="text-[10px] font-medium text-text-secondary">{altName}</span>
                   {onSwap && (
                     <button
-                      onClick={() => { onSwap(swap); setShowSwaps(false); }}
+                      onClick={() => { onSwap({ name: altName, muscles: [], equipment: '' }); setShowSwaps(false); }}
                       className="shrink-0 text-[10px] font-semibold text-accent-blue bg-accent-blue/10 hover:bg-accent-blue/20 px-2 py-0.5 rounded-md transition-colors"
                     >
                       Swap
@@ -605,18 +598,18 @@ export function ActiveWorkout({
   }
 
   // Exercise swap state
-  const [sessionSwaps, setSessionSwaps] = useState<Record<string, LibraryExercise>>({});
-  const [pendingSwap, setPendingSwap] = useState<{ exerciseId: string; oldName: string; swap: LibraryExercise } | null>(null);
+  const [sessionSwaps, setSessionSwaps] = useState<Record<string, string>>({});
+  const [pendingSwap, setPendingSwap] = useState<{ exerciseId: string; oldName: string; newName: string } | null>(null);
 
-  function handleSwapRequest(exerciseId: string, oldName: string, swap: LibraryExercise) {
-    setPendingSwap({ exerciseId, oldName, swap });
+  function handleSwapRequest(exerciseId: string, oldName: string, newName: string) {
+    setPendingSwap({ exerciseId, oldName, newName });
   }
 
   function confirmSwap(permanent: boolean) {
     if (!pendingSwap) return;
-    setSessionSwaps((prev) => ({ ...prev, [pendingSwap.exerciseId]: pendingSwap.swap }));
-    onSwapExercise?.(pendingSwap.exerciseId, pendingSwap.swap, permanent);
-    toast(`Swapped to ${pendingSwap.swap.name}${permanent ? ' — program updated' : ' (this session)'}`, 'success');
+    setSessionSwaps((prev) => ({ ...prev, [pendingSwap.exerciseId]: pendingSwap.newName }));
+    onSwapExercise?.(pendingSwap.exerciseId, { name: pendingSwap.newName, muscles: [], equipment: '' }, permanent);
+    toast(`Swapped to ${pendingSwap.newName}${permanent ? ' — program updated' : ' (this session)'}`, 'success');
     setPendingSwap(null);
   }
 
@@ -902,9 +895,7 @@ export function ActiveWorkout({
             );
           }
           const swapOverride = sessionSwaps[exercise.id];
-          const effectiveExercise = swapOverride
-            ? { ...exercise, name: swapOverride.name, muscles: swapOverride.muscles, equipment: swapOverride.equipment }
-            : exercise;
+          const effectiveExercise = swapOverride ? { ...exercise, name: swapOverride } : exercise;
           return (
           <div key={exercise.id} className="relative">
             <ExerciseCard
@@ -917,7 +908,7 @@ export function ActiveWorkout({
               prs={prs}
               onComplete={handleComplete}
               onUpdate={onUpdateSet}
-              onSwap={(swap) => handleSwapRequest(exercise.id, exercise.name, swap)}
+              onSwap={(swap) => handleSwapRequest(exercise.id, exercise.name, swap.name)}
               progression={progressionSuggestions[exercise.id] || null}
               effortMetric={effortMetric}
             />
@@ -1241,13 +1232,8 @@ export function ActiveWorkout({
           <div className="card mx-6 max-w-sm w-full space-y-4">
             <h3 className="font-bold text-base">Swap Exercise?</h3>
             <div className="bg-surface-raised rounded-xl p-3 space-y-1">
-              <div className="flex items-center gap-2 text-sm">
-                <span className="text-text-muted line-through">{pendingSwap.oldName}</span>
-              </div>
-              <div className="flex items-center gap-2 text-sm font-medium">
-                <span className="text-accent-blue">→ {pendingSwap.swap.name}</span>
-              </div>
-              <p className="text-[10px] text-text-muted">{pendingSwap.swap.muscles.join(', ')} · {pendingSwap.swap.equipment}</p>
+              <div className="text-sm text-text-muted line-through">{pendingSwap.oldName}</div>
+              <div className="text-sm font-medium text-accent-blue">→ {pendingSwap.newName}</div>
             </div>
             <div className="space-y-2">
               <button
