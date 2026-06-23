@@ -42,6 +42,8 @@ jobs:
         run: |
           cp fitness-app/dist/index.html fitness-app/dist/app.html
           cp landing.html fitness-app/dist/index.html
+          mkdir -p fitness-app/dist/images
+          cp -r images/. fitness-app/dist/images/
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
