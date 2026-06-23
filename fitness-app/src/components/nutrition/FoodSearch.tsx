@@ -268,6 +268,7 @@ export function FoodSearch({ onAdd, onClose, profileId, defaultTab, saveOnly = f
         { facingMode: 'environment' },
         { fps: 10, qrbox: { width: 260, height: 100 }, aspectRatio: 1.0 },
         (decodedText) => {
+          html5QrRef.current = null; // clear ref so stopScanner doesn't double-stop
           scanner.stop().catch(() => {});
           setShowScanner(false);
           handleBarcodeLookup(decodedText);
@@ -284,7 +285,11 @@ export function FoodSearch({ onAdd, onClose, profileId, defaultTab, saveOnly = f
     const scanner = html5QrRef.current as { stop: () => Promise<void> } | null;
     if (scanner) {
       html5QrRef.current = null; // clear ref first so cleanup doesn't double-stop
-      scanner.stop().catch(() => {});
+      try {
+        scanner.stop().catch(() => {});
+      } catch {
+        // ignore — DOM may already be gone
+      }
     }
     setShowScanner(false);
   }, []);
