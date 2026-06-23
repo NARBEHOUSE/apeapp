@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
-import { Search, Loader2, ChevronRight, Barcode, Globe, Database, Clock, Camera } from 'lucide-react';
+import { Search, Loader2, ChevronRight, Barcode, Globe, Database, Clock, Camera, ArrowLeft } from 'lucide-react';
+import { ManualEntry } from './ManualEntry';
 import { searchFoods, lookupBarcode } from '../../utils/usda';
 import { FOOD_DATABASE, type BuiltInFood } from '../../data/foods';
 import { searchSavedFoods, saveFoodToHistory, lookupByBarcode as lookupLocalBarcode } from '../../db/foodHistory';
@@ -242,6 +243,9 @@ export function FoodSearch({ onAdd, onClose, profileId, defaultTab, saveOnly = f
       });
     }
   }
+
+  // Manual entry fallback for unknown barcodes
+  const [showManualForBarcode, setShowManualForBarcode] = useState(false);
 
   // Scanner state — must be before any early returns to satisfy rules of hooks
   const [showScanner, setShowScanner] = useState(defaultTab === 'barcode');
@@ -553,7 +557,44 @@ export function FoodSearch({ onAdd, onClose, profileId, defaultTab, saveOnly = f
       )}
 
       {barcodeSearching && <div className="flex items-center justify-center py-3"><Loader2 size={16} className="animate-spin text-text-muted" /> <span className="text-xs text-text-muted ml-2">Looking up barcode...</span></div>}
-      {barcodeError && <p className="text-[10px] text-danger text-center">{barcodeError}</p>}
+
+      {barcodeError && !showManualForBarcode && (
+        <div className="space-y-2">
+          <p className="text-[10px] text-danger text-center">{barcodeError}</p>
+          {profileId && (
+            <button
+              type="button"
+              onClick={() => setShowManualForBarcode(true)}
+              className="w-full bg-surface rounded-xl py-2.5 text-sm font-medium text-text-secondary flex items-center justify-center gap-2 active:scale-[0.98] transition-transform"
+            >
+              Add product manually →
+            </button>
+          )}
+        </div>
+      )}
+
+      {showManualForBarcode && profileId && (
+        <div className="space-y-3">
+          <button
+            type="button"
+            onClick={() => setShowManualForBarcode(false)}
+            className="flex items-center gap-1.5 text-xs text-text-muted"
+          >
+            <ArrowLeft size={12} /> Back to scan
+          </button>
+          <ManualEntry
+            onAdd={(entry) => { onAdd(entry); setShowManualForBarcode(false); }}
+            onClose={() => setShowManualForBarcode(false)}
+            onSaved={() => {
+              setShowManualForBarcode(false);
+              setBarcodeError('');
+              handleBarcodeLookup(barcodeQuery);
+            }}
+            profileId={profileId}
+            initialBarcode={barcodeQuery}
+          />
+        </div>
+      )}
 
       {/* Search results */}
       <div className="space-y-1 max-h-64 overflow-y-auto">

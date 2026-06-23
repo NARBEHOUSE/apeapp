@@ -19,6 +19,8 @@ interface ManualEntryProps {
   dailyTotals?: DailyTotals;
   macroTargets?: DailyTotals;
   saveOnly?: boolean;
+  initialBarcode?: string;
+  onSaved?: () => void;
 }
 
 function calcCalories(p: number, c: number, f: number): number {
@@ -33,7 +35,7 @@ interface BasePer100g {
   fiber: number;
 }
 
-export function ManualEntry({ onAdd, onClose, profileId, dailyTotals, macroTargets, saveOnly = false }: ManualEntryProps) {
+export function ManualEntry({ onAdd, onClose, profileId, dailyTotals, macroTargets, saveOnly = false, initialBarcode, onSaved }: ManualEntryProps) {
   const [name, setName] = useState('');
   const [protein, setProtein] = useState('');
   const [carbs, setCarbs] = useState('');
@@ -53,7 +55,7 @@ export function ManualEntry({ onAdd, onClose, profileId, dailyTotals, macroTarge
   });
   const [selectedSource, setSelectedSource] = useState<FoodEntry['source']>('manual');
   const [selectedBrand, setSelectedBrand] = useState<string | undefined>();
-  const [barcode, setBarcode] = useState('');
+  const [barcode, setBarcode] = useState(initialBarcode ?? '');
 
   // Base rates from selected food (per gram) — used to recalculate when serving size changes
   const [basePer100g, setBasePer100g] = useState<BasePer100g | null>(null);
@@ -150,6 +152,7 @@ export function ManualEntry({ onAdd, onClose, profileId, dailyTotals, macroTarge
       servingSize: parsedServingSize, servingUnit, source: selectedSource,
       barcode: barcode.trim() || undefined,
     });
+    onSaved?.();
     onClose();
   }
 
