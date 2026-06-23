@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { Plus, ChevronRight, ChevronLeft, Upload, Loader2, LogOut } from 'lucide-react';
+import { Plus, ChevronRight, ChevronLeft, Upload, Loader2, LogOut, Trash2 } from 'lucide-react';
 import type { Profile, BodyStats, FitnessGoal, ActivityLevel, Gender, MacroTargets } from '../types';
 import { importBackupProfiles } from '../utils/exportImport';
 import { toast } from '../components/shared/Toast';
@@ -28,6 +28,7 @@ type Step = 'list' | 'name' | 'method' | 'body' | 'goal' | 'review' | 'custom_ma
 
 export function ProfileSelector({ profiles, onSelect, onCreate, onDelete, onRefresh }: Props) {
   const [step, setStep] = useState<Step>('list');
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const importRef = useRef<HTMLInputElement>(null);
   const { isSignedIn, isLoading: googleLoading, signIn: googleSignIn, signOut: googleSignOut, deleteCloudDataAndSignOut, user: googleUser } = useGoogleAuth();
 
@@ -205,6 +206,35 @@ export function ProfileSelector({ profiles, onSelect, onCreate, onDelete, onRefr
                   <LogOut size={12} />
                   Sign Out
                 </button>
+                {profiles.length > 1 && (
+                  <>
+                    <div className="w-px bg-border" />
+                    {confirmDeleteId === profile.id ? (
+                      <div className="flex-1 flex items-center justify-center gap-2 py-2.5">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); onDelete(profile.id); setConfirmDeleteId(null); }}
+                          className="text-[11px] text-danger font-medium"
+                        >
+                          Confirm Delete
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(null); }}
+                          className="text-[11px] text-text-muted"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(profile.id); }}
+                        className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-[11px] text-text-muted hover:text-danger transition-colors"
+                      >
+                        <Trash2 size={12} />
+                        Delete Profile
+                      </button>
+                    )}
+                  </>
+                )}
               </div>
             </div>
           ))}
@@ -259,33 +289,58 @@ export function ProfileSelector({ profiles, onSelect, onCreate, onDelete, onRefr
 
           {/* Local-only profiles (always visible, filtered to non-Google) */}
           {profiles.filter((p) => !p.googleEmail).map((profile) => (
-            <button
-              key={profile.id}
-              onClick={() => onSelect(profile.id)}
-              className="w-full flex items-center gap-4 bg-surface rounded-2xl p-4 text-left active:scale-[0.98] transition-transform"
-            >
-              {profile.profilePhoto ? (
-                <img
-                  src={profile.profilePhoto}
-                  alt={profile.name}
-                  className="w-10 h-10 rounded-full object-cover shrink-0"
-                />
+            <div key={profile.id} className="bg-surface rounded-2xl overflow-hidden">
+              {confirmDeleteId === profile.id ? (
+                <div className="flex items-center gap-3 p-4">
+                  <span className="flex-1 text-sm text-text-secondary">Delete <span className="font-medium text-text-primary">{profile.name}</span>? This won't delete workout or nutrition data.</span>
+                  <button
+                    onClick={() => { onDelete(profile.id); setConfirmDeleteId(null); }}
+                    className="px-3 py-1.5 rounded-xl bg-danger text-white text-xs font-medium"
+                  >
+                    Delete
+                  </button>
+                  <button
+                    onClick={() => setConfirmDeleteId(null)}
+                    className="px-3 py-1.5 rounded-xl bg-surface-2 text-text-muted text-xs"
+                  >
+                    Cancel
+                  </button>
+                </div>
               ) : (
-                <div
-                  className="w-10 h-10 rounded-full flex items-center justify-center text-white font-medium text-sm"
-                  style={{ backgroundColor: profile.avatarColor }}
-                >
-                  {profile.name[0]?.toUpperCase()}
+                <div className="flex items-center">
+                  <button
+                    onClick={() => onSelect(profile.id)}
+                    className="flex-1 flex items-center gap-4 p-4 text-left active:scale-[0.98] transition-transform"
+                  >
+                    {profile.profilePhoto ? (
+                      <img src={profile.profilePhoto} alt={profile.name} className="w-10 h-10 rounded-full object-cover shrink-0" />
+                    ) : (
+                      <div
+                        className="w-10 h-10 rounded-full flex items-center justify-center text-white font-medium text-sm shrink-0"
+                        style={{ backgroundColor: profile.avatarColor }}
+                      >
+                        {profile.name[0]?.toUpperCase()}
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-sm">{profile.name}</div>
+                      <div className="text-[11px] text-text-muted truncate">
+                        {profile.macroTargets.calories} cal · {profile.goal || 'No goal'}
+                      </div>
+                    </div>
+                    <ChevronRight size={16} className="text-text-muted" />
+                  </button>
+                  {profiles.length > 1 && (
+                    <button
+                      onClick={() => setConfirmDeleteId(profile.id)}
+                      className="pr-4 pl-2 py-4 text-text-muted hover:text-danger transition-colors"
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  )}
                 </div>
               )}
-              <div className="flex-1 min-w-0">
-                <div className="font-medium text-sm">{profile.name}</div>
-                <div className="text-[11px] text-text-muted truncate">
-                  {profile.macroTargets.calories} cal · {profile.goal || 'No goal'}
-                </div>
-              </div>
-              <ChevronRight size={16} className="text-text-muted" />
-            </button>
+            </div>
           ))}
 
           {profiles.filter((p) => !p.googleEmail).length < 5 && !isSignedIn && (
