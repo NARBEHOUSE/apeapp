@@ -60,7 +60,9 @@ export function WeeklyInsights({ sessions, allFoodEntries, measurements, checkIn
 
     const caloriesByDay = new Map<string, number>();
     const proteinByDay = new Map<string, number>();
+    const todayStr = today();
     for (const f of weekFood) {
+      if (f.date === todayStr) continue; // exclude today — day isn't complete yet
       const cals = f.calories * f.servingsConsumed;
       const prot = f.protein * f.servingsConsumed;
       caloriesByDay.set(f.date, (caloriesByDay.get(f.date) || 0) + cals);
