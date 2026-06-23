@@ -825,7 +825,7 @@ export function Workout({ profile, onUpdateProfile }: Props) {
       {summarySession && (() => {
         const isQuickSummary = summarySession.programId === 'quick';
         const summaryProgram = isQuickSummary
-          ? { id: 'quick', name: 'Quick Workout', days: [{ id: 'quick', title: 'Freestyle', tag: 'Quick Workout', label: '', subtitle: '', accent: '#e8572a', note: '', exercises: summaryExercises }], isBuiltIn: false, createdAt: '', updatedAt: '' } as Program
+          ? { id: 'quick', name: 'Quick Workout', description: '', days: [{ id: 'quick', title: 'Freestyle', tag: 'Quick Workout', label: '', subtitle: '', accent: '#e8572a', note: '', exercises: summaryExercises }], isBuiltIn: false, createdAt: '', updatedAt: '' } as Program
           : programs.find((p) => p.id === summarySession.programId);
         if (!summaryProgram) return null;
         return (
@@ -850,6 +850,7 @@ export function Workout({ profile, onUpdateProfile }: Props) {
                   note: '',
                   exercises: summaryExercises.map((e) => ({ ...e, id: crypto.randomUUID() })),
                 }],
+                description: '',
                 isBuiltIn: false,
                 createdAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString(),
