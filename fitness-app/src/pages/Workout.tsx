@@ -458,6 +458,14 @@ export function Workout({ profile, onUpdateProfile }: Props) {
             <h2 className="font-semibold truncate">{program.name}</h2>
             <p className="text-xs text-text-muted truncate">{program.description}</p>
           </div>
+          {!program.isBuiltIn && (
+            <button
+              onClick={() => handleEditProgram(program.id)}
+              className="p-2 rounded-xl text-text-muted hover:text-accent-orange transition-colors"
+            >
+              <Pencil size={16} />
+            </button>
+          )}
         </div>
 
         {/* Program info */}
@@ -562,15 +570,25 @@ export function Workout({ profile, onUpdateProfile }: Props) {
                 <div className="label mb-1">Current Program</div>
                 <h2 className="text-lg font-semibold truncate">{activeProgram.name}</h2>
               </div>
-              <button
-                onClick={() => {
-                  setSelectedProgramId(enrollment.programId);
-                  setView('days');
-                }}
-                className="text-xs text-text-muted flex items-center gap-1"
-              >
-                View <ChevronRight size={12} />
-              </button>
+              <div className="flex items-center gap-3">
+                {!activeProgram.isBuiltIn && (
+                  <button
+                    onClick={() => handleEditProgram(enrollment.programId)}
+                    className="text-xs text-text-muted flex items-center gap-1 hover:text-accent-orange transition-colors"
+                  >
+                    <Pencil size={11} /> Edit
+                  </button>
+                )}
+                <button
+                  onClick={() => {
+                    setSelectedProgramId(enrollment.programId);
+                    setView('days');
+                  }}
+                  className="text-xs text-text-muted flex items-center gap-1"
+                >
+                  View <ChevronRight size={12} />
+                </button>
+              </div>
             </div>
 
             {/* Progress bar */}
