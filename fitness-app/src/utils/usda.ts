@@ -89,7 +89,12 @@ export async function searchFoodsWithFallback(query: string): Promise<FoodWithSo
 }
 
 export async function lookupBarcodeWithFallback(upc: string): Promise<FoodWithSource | null> {
-  const usda = await lookupBarcode(upc);
+  let usda: ParsedFood | null = null;
+  try {
+    usda = await lookupBarcode(upc);
+  } catch {
+    usda = null;
+  }
   if (usda) return { ...usda, source: 'usda' };
   return lookupBarcodeOFF(upc);
 }
