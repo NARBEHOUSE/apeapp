@@ -43,7 +43,7 @@ interface Props {
   currentWeek: number;
   onLogSet: (exerciseId: string, set: SetLog) => void;
   onUpdateSet: (exerciseId: string, setIndex: number, updates: Partial<SetLog>) => void;
-  onFinish: () => void;
+  onFinish: (exercises: Exercise[]) => void;
   onCancel: () => void;
   restTimerDuration?: number;
   profileId: string;
@@ -656,7 +656,7 @@ export function ActiveWorkout({
       toast(`Skipped ${activeExercises.find((e) => e.id === exId)?.name || 'exercise'}`, 'success');
     },
     onFinishWorkout: () => {
-      onFinish();
+      onFinish(activeExercises);
     },
   });
 
@@ -1205,7 +1205,7 @@ export function ActiveWorkout({
       <div className="fixed bottom-14 left-0 right-0 p-4 bg-bg/95 backdrop-blur-sm border-t border-border z-20 safe-bottom">
         <button
           onClick={() => {
-            onFinish();
+            onFinish(activeExercises);
           }}
           className="btn-primary w-full flex items-center justify-center gap-2"
         >

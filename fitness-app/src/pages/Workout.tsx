@@ -128,6 +128,8 @@ export function Workout({ profile, onUpdateProfile }: Props) {
   const [summarySession, setSummarySession] = useState<WorkoutSession | null>(null);
   const [summaryPrs, setSummaryPrs] = useState<Record<string, { weight: number; reps: number; date: string }>>({});
   const [summaryPreviousPrs, setSummaryPreviousPrs] = useState<Record<string, { weight: number }>>({});
+  const [summaryExercises, setSummaryExercises] = useState<Exercise[]>([]);
+  const [quickEffortMetric, setQuickEffortMetric] = useState<'none' | 'rir' | 'rpe'>('rir');
 
   const enrollment = profile.activeProgram;
   const activeProgram = enrollment ? programs.find((p) => p.id === enrollment.programId) : null;
@@ -221,7 +223,7 @@ export function Workout({ profile, onUpdateProfile }: Props) {
   }, [enrollment, startWorkout]);
 
   // Finish workout — show summary, then advance day index
-  const handleFinish = useCallback(async () => {
+  const handleFinish = useCallback(async (exercises: Exercise[] = []) => {
     // Capture PRs before saving so we can compare
     const prsBefore = await getAllPRs(profile.id);
     const session = await finishWorkout();
@@ -245,6 +247,7 @@ export function Workout({ profile, onUpdateProfile }: Props) {
     );
     setSummaryPrs(prsAfter);
     setSummarySession(session);
+    setSummaryExercises(exercises);
     navigator.vibrate?.([50, 50, 50]);
   }, [finishWorkout, enrollment, activeProgram, onUpdateProfile, profile.id]);
 
@@ -347,7 +350,7 @@ export function Workout({ profile, onUpdateProfile }: Props) {
         profileId={profile.id}
         onUpdateCardio={updateCardio}
         allSessions={sessions}
-        effortMetric={program?.effortMetric || 'none'}
+        effortMetric={isQuick ? quickEffortMetric : (program?.effortMetric || 'none')}
         programs={programs}
         onSwapExercise={program && !isQuick ? async (exerciseId, swap, permanent) => {
           if (!permanent) return;
@@ -688,22 +691,37 @@ export function Workout({ profile, onUpdateProfile }: Props) {
 
       {/* Quick workout (even with enrolled program) */}
       {enrollment && (
-        <button
-          onClick={() => {
-            setSelectedProgramId('quick');
-            setSelectedDayId('quick');
-            startWorkout('quick', 'quick');
-            setView('active');
-          }}
-          className="w-full bg-surface rounded-2xl p-4 flex items-center gap-3 text-left active:scale-[0.98] transition-transform"
-        >
-          <Plus size={16} className="text-accent" />
-          <div className="flex-1">
-            <div className="text-sm font-medium">Quick Workout</div>
-            <div className="text-[11px] text-text-muted">Freestyle session — add exercises as you go</div>
+        <div className="bg-surface rounded-2xl p-4 space-y-3">
+          <button
+            onClick={() => {
+              setSelectedProgramId('quick');
+              setSelectedDayId('quick');
+              startWorkout('quick', 'quick');
+              setView('active');
+            }}
+            className="w-full flex items-center gap-3 text-left active:scale-[0.98] transition-transform"
+          >
+            <Plus size={16} className="text-accent" />
+            <div className="flex-1">
+              <div className="text-sm font-medium">Quick Workout</div>
+              <div className="text-[11px] text-text-muted">Freestyle session — add exercises as you go</div>
+            </div>
+            <ChevronRight size={14} className="text-text-muted" />
+          </button>
+          {/* Effort metric toggle for quick workouts */}
+          <div className="flex items-center gap-2 pt-1 border-t border-border">
+            <span className="text-[10px] text-text-muted">Effort tracking:</span>
+            {(['none', 'rir', 'rpe'] as const).map((m) => (
+              <button
+                key={m}
+                onClick={() => setQuickEffortMetric(m)}
+                className={`px-2.5 py-1 rounded-lg text-[10px] font-medium transition-colors ${quickEffortMetric === m ? 'bg-accent-blue/20 text-accent-blue' : 'bg-surface-raised text-text-muted'}`}
+              >
+                {m === 'none' ? 'None' : m.toUpperCase()}
+              </button>
+            ))}
           </div>
-          <ChevronRight size={14} className="text-text-muted" />
-        </button>
+        </div>
       )}
 
       {/* History + Library links */}
@@ -805,7 +823,10 @@ export function Workout({ profile, onUpdateProfile }: Props) {
 
       {/* Workout Summary */}
       {summarySession && (() => {
-        const summaryProgram = programs.find((p) => p.id === summarySession.programId);
+        const isQuickSummary = summarySession.programId === 'quick';
+        const summaryProgram = isQuickSummary
+          ? { id: 'quick', name: 'Quick Workout', days: [{ id: 'quick', title: 'Freestyle', tag: 'Quick Workout', label: '', subtitle: '', accent: '#e8572a', note: '', exercises: summaryExercises }], isBuiltIn: false, createdAt: '', updatedAt: '' } as Program
+          : programs.find((p) => p.id === summarySession.programId);
         if (!summaryProgram) return null;
         return (
           <WorkoutSummary
@@ -815,6 +836,28 @@ export function Workout({ profile, onUpdateProfile }: Props) {
             previousPrs={summaryPreviousPrs}
             units={profile.units}
             onClose={handleCloseSummary}
+            onSaveAsProgram={isQuickSummary && summaryExercises.length > 0 ? async () => {
+              const newProgram: Program = {
+                id: crypto.randomUUID(),
+                name: `Quick Workout ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`,
+                days: [{
+                  id: crypto.randomUUID(),
+                  title: 'Day 1',
+                  tag: 'Workout',
+                  label: '',
+                  subtitle: '',
+                  accent: '#e8572a',
+                  note: '',
+                  exercises: summaryExercises.map((e) => ({ ...e, id: crypto.randomUUID() })),
+                }],
+                isBuiltIn: false,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+              };
+              await saveProgram(newProgram);
+              await refreshPrograms();
+              toast('Saved as program!', 'success');
+            } : undefined}
           />
         );
       })()}

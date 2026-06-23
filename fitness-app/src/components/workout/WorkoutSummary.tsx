@@ -1,5 +1,5 @@
-import { useMemo } from 'react';
-import { Share2, X, Trophy, Clock, Dumbbell, TrendingUp } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { Share2, X, Trophy, Clock, Dumbbell, TrendingUp, BookmarkPlus } from 'lucide-react';
 import type { WorkoutSession, Exercise, Program } from '../../types';
 import { buildWorkoutCardData, renderWorkoutCard, renderPRCard, shareOrDownload } from '../../utils/shareCards';
 
@@ -10,9 +10,11 @@ interface Props {
   previousPrs: Record<string, { weight: number }>;
   units: 'imperial' | 'metric';
   onClose: () => void;
+  onSaveAsProgram?: () => Promise<void>;
 }
 
-export function WorkoutSummary({ session, program, prs, previousPrs, units, onClose }: Props) {
+export function WorkoutSummary({ session, program, prs, previousPrs, units, onClose, onSaveAsProgram }: Props) {
+  const [saving, setSaving] = useState(false);
   const day = program.days.find((d) => d.id === session.dayId);
   const dayExercises = day?.exercises || [];
   const unitLabel = units === 'metric' ? 'kg' : 'lbs';
@@ -149,6 +151,21 @@ export function WorkoutSummary({ session, program, prs, previousPrs, units, onCl
             <Share2 size={16} />
             Share Workout
           </button>
+
+          {/* Save as Program (quick workouts only) */}
+          {onSaveAsProgram && (
+            <button
+              onClick={async () => {
+                setSaving(true);
+                try { await onSaveAsProgram(); } finally { setSaving(false); }
+              }}
+              disabled={saving}
+              className="w-full bg-surface-raised text-text-primary font-medium rounded-xl py-3 flex items-center justify-center gap-2 active:scale-[0.98] transition-transform disabled:opacity-50"
+            >
+              <BookmarkPlus size={16} />
+              {saving ? 'Saving…' : 'Save as Program'}
+            </button>
+          )}
 
           {/* Done button */}
           <button
