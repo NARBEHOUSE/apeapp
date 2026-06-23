@@ -19,7 +19,7 @@ interface QuickFood {
 
 interface Props {
   profileId: string;
-  onSave: (meal: Omit<SavedMeal, 'id' | 'profileId' | 'createdAt'>) => void;
+  onSave: (meal: Omit<SavedMeal, 'id' | 'profileId' | 'createdAt'>, ingredients: MealIngredient[]) => void;
   onAddToLog: (ingredients: MealIngredient[]) => void;
   onClose: () => void;
   existingMeal?: SavedMeal;
@@ -136,7 +136,7 @@ export function MealBuilder({ profileId, onSave, onAddToLog, onClose, existingMe
       servingSize: totalGrams || ingredients.reduce((s, i) => s + i.amount, 0),
       servingUnit: totalGrams ? 'g' : ingredients[0]?.servingUnit || 'serving',
       ingredients,
-    });
+    }, ingredients);
   }
 
   const canSave = name.trim().length > 0 && ingredients.length > 0;

@@ -255,6 +255,7 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
   };
   const [editTimeValue, setEditTimeValue] = useState('12:00');
   const [addAtTime, setAddAtTime] = useState<string | null>(null);
+  const [mealBuilderAddToToday, setMealBuilderAddToToday] = useState(false);
   const [overHour, setOverHour] = useState<string | null>(null);
   const [showAllHours, setShowAllHours] = useState(false);
 
@@ -478,7 +479,7 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
     toast('Saved to My Foods', 'success');
   }
 
-  function handleMealBuilderSave(meal: Omit<SavedMeal, 'id' | 'profileId' | 'createdAt'>) {
+  function handleMealBuilderSave(meal: Omit<SavedMeal, 'id' | 'profileId' | 'createdAt'>, ingredients?: MealIngredient[]) {
     if (editingMeal) {
       updateSavedMeal(profile.id, { ...editingMeal, ...meal });
       toast(`${meal.name} updated`, 'success');
@@ -487,8 +488,28 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
       toast(`${meal.name} saved to My Foods`, 'success');
     }
     setSavedMeals(getSavedMeals(profile.id));
+    if (mealBuilderAddToToday && ingredients && ingredients.length > 0) {
+      for (const ing of ingredients) {
+        const factor = ing.amount / (ing.servingSize || 1);
+        addEntryWithTime({
+          date: selectedDate,
+          name: ing.name, brand: ing.brand,
+          servingSize: ing.amount, servingUnit: ing.servingUnit,
+          servingsConsumed: 1,
+          calories: Math.round(ing.calories * factor),
+          protein: Math.round(ing.protein * factor * 10) / 10,
+          carbs: Math.round(ing.carbs * factor * 10) / 10,
+          fat: Math.round(ing.fat * factor * 10) / 10,
+          fiber: ing.fiber ? Math.round(ing.fiber * factor * 10) / 10 : undefined,
+          source: 'manual', mealType: 'snack',
+        });
+      }
+      toast(`Also added to today's log`, 'success');
+    }
     setEditingMeal(null);
     setModal(null);
+    setMealBuilderAddToToday(false);
+    setAddAtTime(null);
   }
 
   function handleMealBuilderAddToLog(ingredients: MealIngredient[]) {
@@ -1392,24 +1413,35 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
         <ManualEntry onAdd={() => {}} onClose={() => setModal(null)} profileId={profile.id} dailyTotals={totals} macroTargets={targets} saveOnly={true} />
       </Modal>
 
-      <Modal open={modal === 'meal-builder'} onClose={() => { setModal(null); setEditingMeal(null); setAddAtTime(null); }} title={editingMeal ? `Edit — ${editingMeal.name}` : 'Build a Meal'}>
-        <div className="mb-3">
-          <label className="label mb-1 block">Log Time (if adding to today)</label>
-          <select
-            className="input-field text-sm"
-            value={addAtTime || currentTimeRounded()}
-            onChange={(e) => setAddAtTime(e.target.value)}
-          >
-            {TIME_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
-            ))}
-          </select>
+      <Modal open={modal === 'meal-builder'} onClose={() => { setModal(null); setEditingMeal(null); setAddAtTime(null); setMealBuilderAddToToday(false); }} title={editingMeal ? `Edit — ${editingMeal.name}` : 'Build a Meal'}>
+        <div className="mb-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-text-secondary">Also add to today's log</span>
+            <button
+              type="button"
+              onClick={() => setMealBuilderAddToToday((v) => !v)}
+              className={`w-11 h-6 rounded-full transition-colors relative ${mealBuilderAddToToday ? 'bg-accent-blue' : 'bg-surface-raised'}`}
+            >
+              <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform ${mealBuilderAddToToday ? 'translate-x-5' : 'translate-x-0.5'}`} />
+            </button>
+          </div>
+          {mealBuilderAddToToday && (
+            <select
+              className="input-field text-sm"
+              value={addAtTime || currentTimeRounded()}
+              onChange={(e) => setAddAtTime(e.target.value)}
+            >
+              {TIME_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+          )}
         </div>
         <MealBuilder
           profileId={profile.id}
           onSave={handleMealBuilderSave}
           onAddToLog={handleMealBuilderAddToLog}
-          onClose={() => { setModal(null); setEditingMeal(null); setAddAtTime(null); }}
+          onClose={() => { setModal(null); setEditingMeal(null); setAddAtTime(null); setMealBuilderAddToToday(false); }}
           existingMeal={editingMeal ?? undefined}
         />
       </Modal>
