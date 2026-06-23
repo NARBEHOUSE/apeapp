@@ -149,12 +149,40 @@ export function GoogleAuthProvider({ children }: { children: ReactNode }) {
     signOut();
   }, [signOut]);
 
+  const pullFromCloud = useCallback(async (): Promise<boolean> => {
+    const token = getAccessToken();
+    if (!token || !user) return false;
+    if (!syncFileIdRef.current) {
+      const existing = await findSyncFile(token);
+      syncFileIdRef.current = existing?.id || null;
+    }
+    if (!syncFileIdRef.current) return false;
+    const content = await downloadSyncData(token, syncFileIdRef.current);
+    const driveData = JSON.parse(content);
+    if (!driveData._apeSync) return false;
+    const driveSyncedAt = driveData.syncedAt ? new Date(driveData.syncedAt).getTime() : 0;
+    const localLastSynced = localStorage.getItem('fitos-last-synced');
+    const localTime = localLastSynced ? new Date(localLastSynced).getTime() : 0;
+    if (driveSyncedAt > localTime) {
+      await restoreAllData(driveData, user.email);
+      markSynced();
+      window.location.reload();
+      return true;
+    }
+    return false;
+  }, [user, markSynced]);
+
   const manualSync = useCallback(async () => {
     if (!user) return;
     const token = await requireAccessToken();
     if (!token) return;
     setSyncStatus('syncing');
     try {
+      // Pull first — if Drive has newer data, restore and reload
+      const pulled = await pullFromCloud();
+      if (pulled) return; // reload in progress
+
+      // Local is newer — push to Drive
       const data = await gatherAllData(user.email);
       const json = JSON.stringify(data);
       if (!syncFileIdRef.current) {
@@ -167,7 +195,7 @@ export function GoogleAuthProvider({ children }: { children: ReactNode }) {
       console.error('Manual sync failed:', err);
       setSyncStatus('error');
     }
-  }, [user, markSynced]);
+  }, [user, markSynced, pullFromCloud]);
 
   useEffect(() => {
     if (!user) return;
@@ -182,11 +210,16 @@ export function GoogleAuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!user) return;
     const handle = () => {
-      if (document.visibilityState === 'hidden') pushToCloud();
+      if (document.visibilityState === 'hidden') {
+        pushToCloud();
+      } else if (document.visibilityState === 'visible') {
+        // App came back into focus — pull if Drive has newer data
+        pullFromCloud().catch(() => {});
+      }
     };
     document.addEventListener('visibilitychange', handle);
     return () => document.removeEventListener('visibilitychange', handle);
-  }, [user, pushToCloud]);
+  }, [user, pushToCloud, pullFromCloud]);
 
   return (
     <GoogleAuthContext.Provider
