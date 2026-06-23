@@ -176,7 +176,13 @@ export function getAccessToken(): string | null {
 export async function requireAccessToken(): Promise<string> {
   const cached = getAccessToken();
   if (cached) return cached;
-  return signInWithGoogle();
+  // Try silent refresh first — no popup if the user already granted access
+  try {
+    return await silentRefresh();
+  } catch {
+    // Silent refresh failed (first-time or revoked) — need explicit user interaction
+    return signInWithGoogle();
+  }
 }
 
 export async function fetchGoogleUser(accessToken: string): Promise<GoogleUser> {
