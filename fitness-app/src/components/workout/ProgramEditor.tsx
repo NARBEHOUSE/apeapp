@@ -370,8 +370,8 @@ function SortableExercise({
           />
           <MuscleAutocomplete
             label="Secondary Muscles"
-            value={(exercise.secondaryMuscles || []).join(', ')}
-            onChange={(v) => onUpdate(exercise.id, { secondaryMuscles: v.split(',').map((m) => m.trim()).filter(Boolean) })}
+            value={Array.isArray(exercise.secondaryMuscles) ? exercise.secondaryMuscles.join(', ') : (exercise.secondaryMuscles || '')}
+            onChange={(v) => onUpdate(exercise.id, { secondaryMuscles: v })}
             suggestions={allMuscles.filter((m) => !exercise.muscle.split(',').map((x) => x.trim()).includes(m))}
             placeholder="e.g. Triceps, Shoulders"
           />
@@ -815,7 +815,9 @@ export function ProgramEditor({ program, fitnessGoal, onSave, onClose }: Props) 
     for (const day of editedProgram.days) {
       for (const ex of day.exercises) {
         if (ex.muscle) ex.muscle.split(',').map((m) => m.trim()).filter(Boolean).forEach((m) => set.add(m));
-        for (const m of ex.secondaryMuscles || []) if (m) set.add(m);
+        const sec = ex.secondaryMuscles;
+        const secArr = Array.isArray(sec) ? sec : (sec || '').split(',').map((m) => m.trim()).filter(Boolean);
+        for (const m of secArr) if (m) set.add(m);
       }
     }
     return Array.from(set).sort();

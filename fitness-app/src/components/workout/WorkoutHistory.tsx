@@ -399,7 +399,9 @@ export function WorkoutHistory({ sessions, programs, onDeleteSession, onUpdateSe
         for (const ex of day.exercises) {
           if (ex.muscle) {
             const primaries = ex.muscle.split(',').map((m) => m.trim()).filter(Boolean);
-            map[ex.id] = { primaries, secondary: ex.secondaryMuscles || [] };
+            const sec = ex.secondaryMuscles;
+            const secondary = Array.isArray(sec) ? sec : (sec || '').split(',').map((m) => m.trim()).filter(Boolean);
+            map[ex.id] = { primaries, secondary };
           }
         }
       }

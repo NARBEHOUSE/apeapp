@@ -148,7 +148,7 @@ export interface Exercise {
   sets: number;
   reps: string;
   muscle: string;
-  secondaryMuscles?: string[];
+  secondaryMuscles?: string | string[];
   alternatives?: string[];
   note: string;
   flag?: string;
