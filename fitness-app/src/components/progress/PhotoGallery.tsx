@@ -114,8 +114,8 @@ export function PhotoGallery({ photos, onDelete, onUpdate, measurements = [], we
     for (const stat of compareStats) {
       if (stat === 'none') continue;
       if (stat === 'weight') {
-        if (photo.weight != null) parts.push(`${photo.weight} ${weightUnit}`);
-        else if (m?.weight != null) parts.push(`${m.weight} ${weightUnit}`);
+        if (m?.weight != null) parts.push(`${m.weight} ${weightUnit}`);
+        else if (photo.weight != null) parts.push(`${photo.weight} ${weightUnit}`);
       } else if (stat === 'bodyFat') {
         if (m?.bodyFatPercent != null) parts.push(`${m.bodyFatPercent}% BF`);
       } else {
@@ -316,6 +316,8 @@ export function PhotoGallery({ photos, onDelete, onUpdate, measurements = [], we
           photo={selectedPhoto}
           photos={filtered}
           poseLabel={filter !== 'all' ? POSE_LABELS[filter] : undefined}
+          measurements={measurements}
+          weightUnit={weightUnit}
           onClose={() => setSelectedPhoto(null)}
           onNavigate={setSelectedPhoto}
           onDelete={(id) => setDeleteId(id)}
@@ -377,15 +379,20 @@ const POSE_OPTIONS: { value: ProgressPhoto['pose']; label: string }[] = [
   { value: 'back', label: 'Back' },
 ];
 
-function EnlargedPhotoView({ photo, photos, poseLabel, onClose, onNavigate, onDelete, onUpdate }: {
+function EnlargedPhotoView({ photo, photos, poseLabel, measurements = [], weightUnit = 'lbs', onClose, onNavigate, onDelete, onUpdate }: {
   photo: ProgressPhoto;
   photos: ProgressPhoto[];
   poseLabel?: string;
+  measurements?: Measurement[];
+  weightUnit?: 'lbs' | 'kg';
   onClose: () => void;
   onNavigate: (photo: ProgressPhoto) => void;
   onDelete: (id: string) => void;
   onUpdate?: (photo: ProgressPhoto) => void;
 }) {
+  const closestM = findClosestMeasurement(photo.date, measurements);
+  const displayWeight = closestM?.weight ?? photo.weight;
+
   const [rotation, setRotation] = useState(0);
   const [editing, setEditing] = useState(false);
   const [editDate, setEditDate] = useState(photo.date);
@@ -436,7 +443,7 @@ function EnlargedPhotoView({ photo, photos, poseLabel, onClose, onNavigate, onDe
             <p className="text-sm font-semibold text-white">{formatDate(photo.date)}</p>
             <p className="text-xs text-white/60 uppercase">
               {poseLabel || POSE_LABELS[photo.pose]}
-              {photo.weight && ` · ${photo.weight} lbs`}
+              {displayWeight != null && ` · ${displayWeight} ${weightUnit}`}
             </p>
           </div>
           <div className="flex items-center gap-1">

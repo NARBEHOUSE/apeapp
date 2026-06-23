@@ -91,6 +91,7 @@ export function useCoach() {
     const uploadedMap: Record<string, string> = JSON.parse(localStorage.getItem(UPLOADED_PHOTOS_KEY) || '{}');
     const db = await getDB();
     const allPhotos = await db.getAll('progressPhotos');
+    const allMeasurements = await db.getAll('measurements') as { profileId: string; date: string; weight?: number }[];
     const profiles = JSON.parse(localStorage.getItem('fitos-profiles') || '[]') as { id: string }[];
     const profileIds = new Set(profiles.map((p) => p.id));
     const myPhotos = (allPhotos as { id: string; profileId: string; imageData: string; date: string; pose: string; weight?: number; notes?: string }[])
@@ -108,7 +109,20 @@ export function useCoach() {
           continue;
         }
       }
-      photoMeta.push({ photoId: photo.id, driveFileId, date: photo.date, pose: photo.pose, weight: photo.weight, notes: photo.notes });
+      // Prefer logged measurement weight over photo-specific weight
+      const effectiveWeight = (() => {
+        const ms = allMeasurements.filter((m) => m.profileId === photo.profileId && m.weight != null);
+        if (ms.length === 0) return photo.weight;
+        const target = new Date(photo.date + 'T00:00:00').getTime();
+        let best = ms[0];
+        let bestDiff = Math.abs(new Date(best.date + 'T00:00:00').getTime() - target);
+        for (const m of ms) {
+          const diff = Math.abs(new Date(m.date + 'T00:00:00').getTime() - target);
+          if (diff < bestDiff) { best = m; bestDiff = diff; }
+        }
+        return bestDiff <= 7 * 86400000 ? best.weight : photo.weight;
+      })();
+      photoMeta.push({ photoId: photo.id, driveFileId, date: photo.date, pose: photo.pose, weight: effectiveWeight, notes: photo.notes });
     }
 
     const currentIds = new Set(myPhotos.map((p) => p.id));

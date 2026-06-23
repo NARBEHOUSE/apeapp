@@ -1217,19 +1217,20 @@ function CoachPhotoSection({ photoMeta, photoUrls, photosLoading, onView }: {
                 </div>
                 <div className="grid grid-cols-3 gap-2">
                   {g.photos.slice(0, 6).map((p) => (
-                    <button
-                      key={p.photoId}
-                      onClick={() => { if (photoUrls[p.photoId]) onView(photoUrls[p.photoId], p.date, p.pose, p.weight, list); }}
-                      className="relative rounded-xl overflow-hidden aspect-[3/4] bg-surface-raised active:scale-95 transition-transform"
-                    >
-                      {photoUrls[p.photoId]
-                        ? <img src={photoUrls[p.photoId]} alt={p.pose} className="w-full h-full object-cover" />
-                        : <div className="w-full h-full flex items-center justify-center text-text-muted"><RefreshCw size={12} className={photosLoading ? 'animate-spin' : ''} /></div>}
-                      <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent p-1">
-                        <div className="text-[8px] text-white/90 font-medium">{p.date}</div>
-                        {p.weight && <div className="text-[7px] text-white/60">{p.weight} lbs</div>}
-                      </div>
-                    </button>
+                    <div key={p.photoId} className="flex flex-col gap-0.5">
+                      <button
+                        onClick={() => { if (photoUrls[p.photoId]) onView(photoUrls[p.photoId], p.date, p.pose, p.weight, list); }}
+                        className="relative rounded-xl overflow-hidden aspect-[3/4] bg-surface-raised active:scale-95 transition-transform"
+                      >
+                        {photoUrls[p.photoId]
+                          ? <img src={photoUrls[p.photoId]} alt={p.pose} className="w-full h-full object-cover" />
+                          : <div className="w-full h-full flex items-center justify-center text-text-muted"><RefreshCw size={12} className={photosLoading ? 'animate-spin' : ''} /></div>}
+                        <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent px-1 pb-1">
+                          <div className="text-[8px] text-white/90 font-medium">{p.date}</div>
+                        </div>
+                      </button>
+                      {p.weight != null && <div className="text-[9px] text-text-muted text-center">{p.weight} lbs</div>}
+                    </div>
                   ))}
                 </div>
               </div>
@@ -1241,19 +1242,20 @@ function CoachPhotoSection({ photoMeta, photoUrls, photosLoading, onView }: {
           {(() => {
             const list = displayed.map(toViewerItem).filter((x) => x.url);
             return displayed.map((p) => (
-              <button
-                key={p.photoId}
-                onClick={() => { if (photoUrls[p.photoId]) onView(photoUrls[p.photoId], p.date, p.pose, p.weight, list); }}
-                className="relative rounded-xl overflow-hidden aspect-[3/4] bg-surface-raised active:scale-95 transition-transform"
-              >
-                {photoUrls[p.photoId]
-                  ? <img src={photoUrls[p.photoId]} alt={p.pose} className="w-full h-full object-cover" />
-                  : <div className="w-full h-full flex items-center justify-center text-text-muted"><RefreshCw size={12} className={photosLoading ? 'animate-spin' : ''} /></div>}
-                <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent p-1">
-                  <div className="text-[8px] text-white/90 font-medium">{p.date}</div>
-                  {p.weight && <div className="text-[7px] text-white/60">{p.weight} lbs</div>}
-                </div>
-              </button>
+              <div key={p.photoId} className="flex flex-col gap-0.5">
+                <button
+                  onClick={() => { if (photoUrls[p.photoId]) onView(photoUrls[p.photoId], p.date, p.pose, p.weight, list); }}
+                  className="relative rounded-xl overflow-hidden aspect-[3/4] bg-surface-raised active:scale-95 transition-transform"
+                >
+                  {photoUrls[p.photoId]
+                    ? <img src={photoUrls[p.photoId]} alt={p.pose} className="w-full h-full object-cover" />
+                    : <div className="w-full h-full flex items-center justify-center text-text-muted"><RefreshCw size={12} className={photosLoading ? 'animate-spin' : ''} /></div>}
+                  <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent px-1 pb-1">
+                    <div className="text-[8px] text-white/90 font-medium">{p.date}</div>
+                  </div>
+                </button>
+                {p.weight != null && <div className="text-[9px] text-text-muted text-center">{p.weight} lbs</div>}
+              </div>
             ));
           })()}
         </div>
