@@ -544,12 +544,28 @@
 
     .final-headline .accent { color: var(--green); }
 
-    /* ── LEGAL SECTION ── */
-    .legal-strip {
+    /* ── LEGAL ACCORDION (footer) ── */
+    .legal-accordion {
+      overflow: hidden;
+      max-height: 0;
+      transition: max-height 0.5s ease;
       background: var(--surface);
-      border-top: 1px solid var(--border);
       border-bottom: 1px solid var(--border);
     }
+
+    .footer-legal-toggle {
+      background: none;
+      border: none;
+      font-size: 0.8rem;
+      color: var(--subtle);
+      cursor: pointer;
+      padding: 0;
+      transition: color 0.15s;
+      font-family: inherit;
+    }
+
+    .footer-legal-toggle:hover { color: var(--muted); }
+    .footer-legal-toggle.active { color: var(--green-dim); }
 
     .legal-inner {
       max-width: 1100px;
@@ -705,7 +721,7 @@
   <!-- HEADER -->
   <header>
     <a class="logo" href="#">
-      <img src="./icons/icon-512.png" alt="APE logo" />
+      <img src="./images/ape-app-pwa-512.png" alt="APE logo" />
       <span>APE</span>
     </a>
     <nav>
@@ -912,8 +928,11 @@
       </a>
     </div>
 
-    <!-- LEGAL SECTION -->
-    <div class="legal-strip" id="legal">
+  </main>
+
+  <!-- FOOTER -->
+  <div class="footer-outer">
+    <div class="legal-accordion" id="legal-accordion">
       <div class="legal-inner">
         <p class="section-label">Legal</p>
         <h2 class="section-title" style="margin-bottom:0.5rem;">License &amp; Terms</h2>
@@ -987,17 +1006,11 @@
       </div>
     </div>
 
-  </main>
-
-  <hr class="full-divider" />
-
-  <!-- FOOTER -->
-  <div class="footer-outer">
     <footer>
       <p class="footer-copy">&copy; 2024–2026 NARBE LLC. All rights reserved. APE is source-available software — not open source.</p>
       <div class="footer-links">
         <a href="./app.html#/privacy">Privacy Policy</a>
-        <a href="#legal">License &amp; Terms</a>
+        <button class="footer-legal-toggle" id="legal-toggle" onclick="toggleLegal()">License &amp; Terms ▾</button>
         <a href="https://github.com/NARBEHOUSE/apeapp" target="_blank" rel="noopener">GitHub</a>
         <a href="mailto:narbehousellc@gmail.com">Contact</a>
         <a href="https://streamelements.com/bigbroacro/tip" target="_blank" rel="noopener">Support ☕</a>
@@ -1022,6 +1035,22 @@
       }
       observer.observe(el);
     });
+
+    function toggleLegal() {
+      const panel = document.getElementById('legal-accordion');
+      const btn = document.getElementById('legal-toggle');
+      const isOpen = panel.style.maxHeight && panel.style.maxHeight !== '0px';
+      if (!isOpen) {
+        panel.style.maxHeight = panel.scrollHeight + 'px';
+        btn.textContent = 'License & Terms ▴';
+        btn.classList.add('active');
+        setTimeout(() => panel.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+      } else {
+        panel.style.maxHeight = '0';
+        btn.textContent = 'License & Terms ▾';
+        btn.classList.remove('active');
+      }
+    }
   </script>
 </body>
 </html>

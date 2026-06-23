@@ -2553,7 +2553,7 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
                 Privacy Policy
               </a>
               <a
-                href="https://streamelements.com/acrolicious/tip"
+                href="https://streamelements.com/bigbroacro/tip"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-2 text-sm text-accent-blue hover:underline"

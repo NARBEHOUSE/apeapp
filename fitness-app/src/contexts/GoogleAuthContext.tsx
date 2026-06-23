@@ -109,6 +109,8 @@ export function GoogleAuthProvider({ children }: { children: ReactNode }) {
         const data = JSON.parse(content);
         if (data._apeSync) {
           await restoreAllData(data, googleUser.email);
+          window.location.reload();
+          return true;
         }
         markSynced();
       } else {

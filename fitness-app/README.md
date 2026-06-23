@@ -8,7 +8,7 @@ whichever AI provider you already have.
 
 No subscription. No ads. No data sold. **Your key. Your data. Your gains.**
 
-🔗 [Live App](https://narbehouse.github.io/apeapp) · [Privacy Policy](https://narbehouse.github.io/apeapp/#/privacy) · [Support APE ☕](https://streamelements.com/acrolicious/tip)
+🔗 [Live App](https://narbehouse.github.io/apeapp) · [Privacy Policy](https://narbehouse.github.io/apeapp/#/privacy) · [Support APE ☕](https://streamelements.com/bigbroacro/tip)
 
 ---
 
@@ -80,7 +80,7 @@ AI API keys are stored only on your device and are explicitly excluded from Goog
 
 APE is free and ad-free. If it's helping your gains, a tip keeps it that way.
 
-👉 **[Tip the creator](https://streamelements.com/acrolicious/tip)**
+👉 **[Tip the creator](https://streamelements.com/bigbroacro/tip)**
 
 ---
 
