@@ -617,6 +617,10 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
       await importData(importFile, importMode);
       setImportStatus('success');
       setTimeout(() => setImportStatus('idle'), 3000);
+      // Push updated data to coach share file automatically after import
+      if (myCoachRels.length > 0) {
+        syncCoachFiles().catch(() => {});
+      }
     } catch (err) {
       setImportError(err instanceof Error ? err.message : 'Import failed');
       setImportStatus('error');
@@ -2161,6 +2165,9 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
                         const sheetsWithData = results.filter((r) => r.count > 0).length;
                         if (totalImported > 0) {
                           toast(`Imported data from ${sheetsWithData} sheets (${totalImported} total items)`, 'success');
+                          if (myCoachRels.length > 0) {
+                            syncCoachFiles().catch(() => {});
+                          }
                         } else {
                           toast('No new data to import (all duplicates or empty)', 'info');
                         }
@@ -2183,6 +2190,9 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
                           const typeLabel = { workouts: 'workout sessions', nutrition: 'nutrition entries', measurements: 'measurements', steps: 'step entries', recipes: 'recipes', foods: 'foods', skipped: 'items' }[result.type] || 'items';
                           toast(`Imported ${result.count} ${typeLabel} from ${getSourceLabel(result.source)}`, 'success');
                           saveImportToHistory(result);
+                          if (myCoachRels.length > 0) {
+                            syncCoachFiles().catch(() => {});
+                          }
                         } else if (result.errors.length > 0) {
                           toast(result.errors[0], 'error');
                         } else if (result.skipped > 0) {
