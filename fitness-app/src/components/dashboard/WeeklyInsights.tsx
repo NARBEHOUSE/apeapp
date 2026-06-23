@@ -60,18 +60,33 @@ export function WeeklyInsights({ sessions, allFoodEntries, measurements, checkIn
 
     const caloriesByDay = new Map<string, number>();
     const proteinByDay = new Map<string, number>();
+    const carbsByDay = new Map<string, number>();
+    const fatByDay = new Map<string, number>();
     const todayStr = today();
     for (const f of weekFood) {
       if (f.date === todayStr) continue; // exclude today — day isn't complete yet
       const cals = f.calories * f.servingsConsumed;
       const prot = f.protein * f.servingsConsumed;
+      const carbs = f.carbs * f.servingsConsumed;
+      const fat = f.fat * f.servingsConsumed;
       caloriesByDay.set(f.date, (caloriesByDay.get(f.date) || 0) + cals);
       proteinByDay.set(f.date, (proteinByDay.get(f.date) || 0) + prot);
+      carbsByDay.set(f.date, (carbsByDay.get(f.date) || 0) + carbs);
+      fatByDay.set(f.date, (fatByDay.get(f.date) || 0) + fat);
     }
 
     const daysLogged = caloriesByDay.size;
     const avgCalories = daysLogged > 0
       ? Math.round([...caloriesByDay.values()].reduce((a, b) => a + b, 0) / daysLogged)
+      : 0;
+    const avgProtein = daysLogged > 0
+      ? Math.round([...proteinByDay.values()].reduce((a, b) => a + b, 0) / daysLogged)
+      : 0;
+    const avgCarbs = daysLogged > 0
+      ? Math.round([...carbsByDay.values()].reduce((a, b) => a + b, 0) / daysLogged)
+      : 0;
+    const avgFat = daysLogged > 0
+      ? Math.round([...fatByDay.values()].reduce((a, b) => a + b, 0) / daysLogged)
       : 0;
 
     const prevCalsByDay = new Map<string, number>();
@@ -127,6 +142,9 @@ export function WeeklyInsights({ sessions, allFoodEntries, measurements, checkIn
       volume: weekVolume,
       prevVolume,
       avgCalories,
+      avgProtein,
+      avgCarbs,
+      avgFat,
       prevAvgCalories,
       calorieTarget: macroTargets.calories,
       daysLogged,
@@ -310,6 +328,42 @@ export function WeeklyInsights({ sessions, allFoodEntries, measurements, checkIn
                 suffix="cal"
               />
             ) : null}
+          </div>
+        </div>
+      )}
+
+      {/* Expanded: avg macro breakdown */}
+      {expanded && insights.daysLogged > 0 && (
+        <div className="mt-3 pt-3 border-t border-border">
+          <div className="text-[10px] text-text-muted font-semibold uppercase mb-2">
+            Avg Daily Intake <span className="font-normal normal-case">({insights.daysLogged}d logged, today excluded)</span>
+          </div>
+          <div className="space-y-2">
+            {[
+              { label: 'Calories', value: insights.avgCalories, target: macroTargets.calories, unit: 'cal', color: '#e8572a' },
+              { label: 'Protein',  value: insights.avgProtein,  target: macroTargets.protein,  unit: 'g',   color: '#5b6ef5' },
+              { label: 'Carbs',    value: insights.avgCarbs,    target: macroTargets.carbs,    unit: 'g',   color: '#2e9e6b' },
+              { label: 'Fat',      value: insights.avgFat,      target: macroTargets.fat,      unit: 'g',   color: '#f5a623' },
+            ].map(({ label, value, target, unit, color }) => {
+              const pct = target > 0 ? Math.min((value / target) * 100, 100) : 0;
+              const over = target > 0 && value > target;
+              return (
+                <div key={label}>
+                  <div className="flex items-center justify-between mb-0.5">
+                    <span className="text-[10px] text-text-muted">{label}</span>
+                    <span className="text-[10px] tabular-nums">
+                      <span className="font-medium" style={{ color: over ? '#e85757' : 'var(--color-text-primary)' }}>
+                        {value.toLocaleString()}
+                      </span>
+                      <span className="text-text-muted"> / {target.toLocaleString()} {unit}</span>
+                    </span>
+                  </div>
+                  <div className="h-1.5 rounded-full bg-surface-raised overflow-hidden">
+                    <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: over ? '#e85757' : color }} />
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

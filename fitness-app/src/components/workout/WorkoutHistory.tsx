@@ -336,6 +336,7 @@ export function WorkoutHistory({ sessions, programs, onDeleteSession, onUpdateSe
   const [activeTab, setActiveTab] = useState<'history' | 'volume' | 'strength'>('history');
   const [volumeMetric, setVolumeMetric] = useState<VolumeMetric>('volume');
   const [volumeGranularity, setVolumeGranularity] = useState<'session' | 'weekly'>('session');
+  const [selectedMuscle, setSelectedMuscle] = useState<string | null>(null);
 
   // Per-session metrics (last 30, chronological)
   const sessionMetrics = useMemo(() => {
@@ -389,6 +390,110 @@ export function WorkoutHistory({ sessions, programs, onDeleteSession, onUpdateSe
 
   const [selectedExId, setSelectedExId] = useState<string | null>(null);
   const [strengthMode, setStrengthMode] = useState<'weight' | '1rm'>('weight');
+
+  // Exercise → muscle group map (reused from programs)
+  const exerciseMuscleMap = useMemo(() => {
+    const map: Record<string, { primary: string; secondary: string[] }> = {};
+    for (const prog of programs) {
+      for (const day of prog.days) {
+        for (const ex of day.exercises) {
+          if (ex.muscle) {
+            const muscles = ex.muscle.split(',').map((m) => m.trim()).filter(Boolean);
+            map[ex.id] = { primary: muscles[0] || '', secondary: ex.secondaryMuscles || muscles.slice(1) };
+          }
+        }
+      }
+    }
+    return map;
+  }, [programs]);
+
+  // Per-session muscle volume breakdown (last 30 sessions)
+  const sessionMuscleMetrics = useMemo(() => {
+    return sessions
+      .slice()
+      .reverse()
+      .slice(-30)
+      .map((s) => {
+        const label = new Date(s.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        const muscleVolumes: Record<string, number> = {};
+        for (const [exId, sets] of Object.entries(s.sets)) {
+          const workingSets = sets.filter((st) => st.completed && !st.isWarmup);
+          if (workingSets.length === 0) continue;
+          const info = exerciseMuscleMap[exId];
+          if (!info?.primary) continue;
+          const vol = workingSets.reduce((a, st) => a + st.weight * st.reps, 0);
+          muscleVolumes[info.primary] = (muscleVolumes[info.primary] || 0) + vol;
+          for (const sec of info.secondary) {
+            if (sec) muscleVolumes[sec] = (muscleVolumes[sec] || 0) + Math.round(vol * 0.5);
+          }
+        }
+        return { label, muscleVolumes };
+      });
+  }, [sessions, exerciseMuscleMap]);
+
+  // Per-week muscle volume breakdown (last 12 weeks)
+  const weeklyMuscleMetrics = useMemo(() => {
+    const weeks: Record<string, { label: string; muscleVolumes: Record<string, number> }> = {};
+    for (const s of sessions) {
+      const date = new Date(s.date + 'T00:00:00');
+      const ws = new Date(date);
+      ws.setDate(date.getDate() - date.getDay());
+      const key = `${ws.getFullYear()}-${String(ws.getMonth() + 1).padStart(2, '0')}-${String(ws.getDate()).padStart(2, '0')}`;
+      if (!weeks[key]) weeks[key] = { label: ws.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), muscleVolumes: {} };
+      for (const [exId, sets] of Object.entries(s.sets)) {
+        const workingSets = sets.filter((st) => st.completed && !st.isWarmup);
+        if (workingSets.length === 0) continue;
+        const info = exerciseMuscleMap[exId];
+        if (!info?.primary) continue;
+        const vol = workingSets.reduce((a, st) => a + st.weight * st.reps, 0);
+        weeks[key].muscleVolumes[info.primary] = (weeks[key].muscleVolumes[info.primary] || 0) + vol;
+        for (const sec of info.secondary) {
+          if (sec) weeks[key].muscleVolumes[sec] = (weeks[key].muscleVolumes[sec] || 0) + Math.round(vol * 0.5);
+        }
+      }
+    }
+    return Object.entries(weeks)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .slice(-12)
+      .map(([, d]) => d);
+  }, [sessions, exerciseMuscleMap]);
+
+  // Muscles with data for the current granularity
+  const availableMuscles = useMemo(() => {
+    const data = volumeGranularity === 'session' ? sessionMuscleMetrics : weeklyMuscleMetrics;
+    const muscles = new Set<string>();
+    for (const d of data) {
+      for (const [m, v] of Object.entries(d.muscleVolumes)) {
+        if (v > 0) muscles.add(m);
+      }
+    }
+    return [...muscles].sort();
+  }, [sessionMuscleMetrics, weeklyMuscleMetrics, volumeGranularity]);
+
+  const effectiveMuscle = (selectedMuscle && availableMuscles.includes(selectedMuscle))
+    ? selectedMuscle
+    : availableMuscles[0] ?? null;
+
+  // Chart data for selected muscle
+  const muscleChartData = useMemo(() => {
+    const data = volumeGranularity === 'session' ? sessionMuscleMetrics : weeklyMuscleMetrics;
+    return data.map((d) => ({
+      label: d.label,
+      volume: Math.round(effectiveMuscle ? (d.muscleVolumes[effectiveMuscle] || 0) : 0),
+    }));
+  }, [volumeGranularity, sessionMuscleMetrics, weeklyMuscleMetrics, effectiveMuscle]);
+
+  // Muscle summary for current/previous period (for the breakdown list)
+  const muscleSummary = useMemo(() => {
+    const data = volumeGranularity === 'session' ? sessionMuscleMetrics : weeklyMuscleMetrics;
+    const recent = data.slice(-1)[0]?.muscleVolumes || {};
+    const prev = data.slice(-2, -1)[0]?.muscleVolumes || {};
+    return availableMuscles.map((m) => ({
+      muscle: m,
+      volume: Math.round(recent[m] || 0),
+      prevVolume: Math.round(prev[m] || 0),
+    })).sort((a, b) => b.volume - a.volume);
+  }, [availableMuscles, sessionMuscleMetrics, weeklyMuscleMetrics, volumeGranularity]);
 
   const exerciseNameMap = useMemo(() => {
     const map: Record<string, string> = {};
@@ -507,103 +612,130 @@ export function WorkoutHistory({ sessions, programs, onDeleteSession, onUpdateSe
         </div>
       )}
 
-      {/* Volume tab */}
-      {activeTab === 'volume' && (() => {
-        const chartData = volumeGranularity === 'session' ? sessionMetrics : weeklyMetrics;
-        const xKey = 'label';
-        const { color } = VOLUME_METRIC_META[volumeMetric];
-        const validData = chartData.filter((d) => d[volumeMetric] != null);
-        return (
-          <div className="space-y-3">
-            {/* Metric chips */}
-            <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
-              {(Object.entries(VOLUME_METRIC_META) as [VolumeMetric, typeof VOLUME_METRIC_META[VolumeMetric]][]).map(([key, meta]) => (
-                <button
-                  key={key}
-                  onClick={() => setVolumeMetric(key)}
-                  className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${
-                    volumeMetric === key
-                      ? 'bg-accent-orange text-white'
-                      : 'bg-surface-raised text-text-secondary border border-border'
-                  }`}
-                >
-                  {meta.label}
-                </button>
-              ))}
-            </div>
-
-            {/* Chart card */}
-            <div className="card">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h4 className="label leading-none">
-                    {VOLUME_METRIC_META[volumeMetric].label}
-                    <span className="text-[10px] font-normal text-text-muted ml-1.5">({VOLUME_METRIC_META[volumeMetric].unit})</span>
-                  </h4>
-                  {volumeMetric === 'intensity' && (
-                    <p className="text-[10px] text-text-muted mt-0.5">Volume ÷ workout time</p>
-                  )}
-                </div>
-                <div className="flex rounded-lg overflow-hidden border border-border">
+      {/* Volume tab — per-muscle breakdown */}
+      {activeTab === 'volume' && (
+        <div className="space-y-3">
+          {availableMuscles.length === 0 ? (
+            <p className="text-text-secondary text-sm text-center py-8">Complete more workouts to see muscle volume trends</p>
+          ) : (
+            <>
+              {/* Muscle group chips */}
+              <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+                {availableMuscles.map((m) => (
                   <button
-                    onClick={() => setVolumeGranularity('session')}
-                    className={`px-2.5 py-1 text-[10px] font-semibold transition-colors ${volumeGranularity === 'session' ? 'bg-accent-orange text-white' : 'bg-surface-raised text-text-muted'}`}
+                    key={m}
+                    onClick={() => setSelectedMuscle(m)}
+                    className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${
+                      effectiveMuscle === m
+                        ? 'bg-accent-orange text-white'
+                        : 'bg-surface-raised text-text-secondary border border-border'
+                    }`}
                   >
-                    Session
+                    {m}
                   </button>
-                  <button
-                    onClick={() => setVolumeGranularity('weekly')}
-                    className={`px-2.5 py-1 text-[10px] font-semibold transition-colors ${volumeGranularity === 'weekly' ? 'bg-accent-orange text-white' : 'bg-surface-raised text-text-muted'}`}
-                  >
-                    Weekly
-                  </button>
-                </div>
+                ))}
               </div>
 
-              {validData.length > 1 ? (
-                <div className="h-52">
-                  <ResponsiveContainer width="100%" height="100%">
-                    {volumeGranularity === 'weekly' ? (
-                      <BarChart data={chartData}>
-                        <XAxis dataKey={xKey} tick={{ fill: 'var(--color-text-muted)', fontSize: 10 }} axisLine={{ stroke: 'var(--color-border)' }} tickLine={false} />
-                        <YAxis tick={{ fill: 'var(--color-text-muted)', fontSize: 10 }} axisLine={false} tickLine={false} width={volumeMetric === 'volume' ? 50 : 30} domain={['auto', 'auto']} />
-                        <Tooltip content={({ active, payload, label }) => {
-                          if (!active || !payload?.length || payload[0].value == null) return null;
-                          const { unit, color } = VOLUME_METRIC_META[volumeMetric];
-                          const v = Number(payload[0].value);
-                          const fmt = volumeMetric === 'volume' ? `${v.toLocaleString()} ${unit}` : `${v} ${unit}`;
-                          return <div className="bg-surface-raised border border-border-light rounded-lg px-3 py-2 text-xs shadow-lg"><p className="text-text-secondary mb-0.5">{label as string}</p><p className="font-bold" style={{ color }}>{fmt}</p></div>;
-                        }} cursor={{ fill: 'rgba(232,87,42,0.08)' }} />
-                        <Bar dataKey={volumeMetric} fill={color} radius={[4, 4, 0, 0]} maxBarSize={32} />
-                      </BarChart>
-                    ) : (
-                      <LineChart data={chartData}>
-                        <CartesianGrid stroke="var(--color-border)" strokeDasharray="3 3" />
-                        <XAxis dataKey={xKey} tick={{ fill: 'var(--color-text-muted)', fontSize: 10 }} axisLine={{ stroke: 'var(--color-border)' }} tickLine={false} />
-                        <YAxis tick={{ fill: 'var(--color-text-muted)', fontSize: 10 }} axisLine={false} tickLine={false} width={volumeMetric === 'volume' ? 50 : 30} domain={['auto', 'auto']} />
-                        <Tooltip content={({ active, payload, label }) => {
-                          if (!active || !payload?.length || payload[0].value == null) return null;
-                          const { unit, color } = VOLUME_METRIC_META[volumeMetric];
-                          const v = Number(payload[0].value);
-                          const fmt = volumeMetric === 'volume' ? `${v.toLocaleString()} ${unit}` : `${v} ${unit}`;
-                          return <div className="bg-surface-raised border border-border-light rounded-lg px-3 py-2 text-xs shadow-lg"><p className="text-text-secondary mb-0.5">{label as string}</p><p className="font-bold" style={{ color }}>{fmt}</p></div>;
-                        }} />
-                        <Line type="monotone" dataKey={volumeMetric} stroke={color} strokeWidth={2} dot={{ fill: color, r: 3 }} activeDot={{ fill: color, r: 5 }} connectNulls={false} />
-                      </LineChart>
-                    )}
-                  </ResponsiveContainer>
+              {/* Chart card */}
+              <div className="card">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h4 className="label leading-none">
+                      {effectiveMuscle} Volume
+                      <span className="text-[10px] font-normal text-text-muted ml-1.5">(lbs)</span>
+                    </h4>
+                    <p className="text-[10px] text-text-muted mt-0.5">Weight × reps per {volumeGranularity === 'session' ? 'session' : 'week'}</p>
+                  </div>
+                  <div className="flex rounded-lg overflow-hidden border border-border">
+                    <button
+                      onClick={() => setVolumeGranularity('session')}
+                      className={`px-2.5 py-1 text-[10px] font-semibold transition-colors ${volumeGranularity === 'session' ? 'bg-accent-orange text-white' : 'bg-surface-raised text-text-muted'}`}
+                    >
+                      Session
+                    </button>
+                    <button
+                      onClick={() => setVolumeGranularity('weekly')}
+                      className={`px-2.5 py-1 text-[10px] font-semibold transition-colors ${volumeGranularity === 'weekly' ? 'bg-accent-orange text-white' : 'bg-surface-raised text-text-muted'}`}
+                    >
+                      Weekly
+                    </button>
+                  </div>
                 </div>
-              ) : (
-                <p className="text-text-secondary text-sm text-center py-8">
-                  {volumeMetric === 'duration' || volumeMetric === 'intensity'
-                    ? 'No duration data — workouts must be started and finished in the app'
-                    : 'Complete more workouts to see trends'}
-                </p>
+
+                {muscleChartData.filter((d) => d.volume > 0).length > 1 ? (
+                  <div className="h-52">
+                    <ResponsiveContainer width="100%" height="100%">
+                      {volumeGranularity === 'weekly' ? (
+                        <BarChart data={muscleChartData}>
+                          <XAxis dataKey="label" tick={{ fill: 'var(--color-text-muted)', fontSize: 10 }} axisLine={{ stroke: 'var(--color-border)' }} tickLine={false} />
+                          <YAxis tick={{ fill: 'var(--color-text-muted)', fontSize: 10 }} axisLine={false} tickLine={false} width={50} domain={['auto', 'auto']} />
+                          <Tooltip content={({ active, payload, label }) => {
+                            if (!active || !payload?.length) return null;
+                            return <div className="bg-surface-raised border border-border-light rounded-lg px-3 py-2 text-xs shadow-lg"><p className="text-text-secondary mb-0.5">{label as string}</p><p className="font-bold text-accent-orange">{Number(payload[0].value).toLocaleString()} lbs</p></div>;
+                          }} cursor={{ fill: 'rgba(232,87,42,0.08)' }} />
+                          <Bar dataKey="volume" fill="#e8572a" radius={[4, 4, 0, 0]} maxBarSize={32} />
+                        </BarChart>
+                      ) : (
+                        <LineChart data={muscleChartData}>
+                          <CartesianGrid stroke="var(--color-border)" strokeDasharray="3 3" />
+                          <XAxis dataKey="label" tick={{ fill: 'var(--color-text-muted)', fontSize: 10 }} axisLine={{ stroke: 'var(--color-border)' }} tickLine={false} />
+                          <YAxis tick={{ fill: 'var(--color-text-muted)', fontSize: 10 }} axisLine={false} tickLine={false} width={50} domain={['auto', 'auto']} />
+                          <Tooltip content={({ active, payload, label }) => {
+                            if (!active || !payload?.length) return null;
+                            return <div className="bg-surface-raised border border-border-light rounded-lg px-3 py-2 text-xs shadow-lg"><p className="text-text-secondary mb-0.5">{label as string}</p><p className="font-bold text-accent-orange">{Number(payload[0].value).toLocaleString()} lbs</p></div>;
+                          }} />
+                          <Line type="monotone" dataKey="volume" stroke="#e8572a" strokeWidth={2} dot={{ fill: '#e8572a', r: 3 }} activeDot={{ fill: '#e8572a', r: 5 }} connectNulls={false} />
+                        </LineChart>
+                      )}
+                    </ResponsiveContainer>
+                  </div>
+                ) : (
+                  <p className="text-text-secondary text-sm text-center py-8">Not enough {effectiveMuscle} sessions to show a trend yet</p>
+                )}
+              </div>
+
+              {/* All muscle breakdown */}
+              {muscleSummary.length > 0 && (
+                <div className="card space-y-2">
+                  <h4 className="label">All Muscle Groups</h4>
+                  <p className="text-[10px] text-text-muted -mt-1">vs. previous {volumeGranularity === 'session' ? 'session' : 'week'}</p>
+                  {muscleSummary.map((m) => {
+                    const maxVol = Math.max(...muscleSummary.map((d) => d.volume), 1);
+                    const pct = (m.volume / maxVol) * 100;
+                    const trend = m.prevVolume > 0 ? Math.round(((m.volume - m.prevVolume) / m.prevVolume) * 100) : null;
+                    return (
+                      <div key={m.muscle}>
+                        <div className="flex items-center justify-between text-xs mb-0.5">
+                          <button
+                            onClick={() => setSelectedMuscle(m.muscle)}
+                            className={`font-medium capitalize hover:text-accent-orange transition-colors ${effectiveMuscle === m.muscle ? 'text-accent-orange' : ''}`}
+                          >
+                            {m.muscle}
+                          </button>
+                          <span className="text-text-muted tabular-nums">
+                            {m.volume.toLocaleString()} lbs
+                            {trend != null && (
+                              <span className={`ml-1.5 ${trend > 0 ? 'text-green-500' : trend < 0 ? 'text-danger' : 'text-text-muted'}`}>
+                                {trend > 0 ? '+' : ''}{trend}%
+                              </span>
+                            )}
+                          </span>
+                        </div>
+                        <div className="h-1.5 rounded-full bg-surface-raised overflow-hidden">
+                          <div
+                            className="h-full rounded-full transition-all"
+                            style={{ width: `${pct}%`, backgroundColor: effectiveMuscle === m.muscle ? '#e8572a' : 'var(--color-border)' }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               )}
-            </div>
-          </div>
-        );
-      })()}
+            </>
+          )}
+        </div>
+      )}
 
       {/* Strength tab */}
       {activeTab === 'strength' && (
