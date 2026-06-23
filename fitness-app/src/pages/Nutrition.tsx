@@ -297,6 +297,7 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
 
   const [prevMealGroups, setPrevMealGroups] = useState<{ label: string; date: string; time: string; items: FoodEntry[] }[]>([]);
   const [copyingMeal, setCopyingMeal] = useState(false);
+  const [showPrevMeals, setShowPrevMeals] = useState(false);
   const [editingMeal, setEditingMeal] = useState<SavedMeal | null>(null);
 
   const totals = getTodayTotals();
@@ -1147,56 +1148,62 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
           </select>
         </div>
 
-        {/* Copy a previous meal */}
+        {/* Copy a previous meal — collapsible */}
         {prevMealGroups.length > 0 && (
           <div className="mb-4">
-            <p className="label mb-2">Copy a previous meal</p>
-            <div className="space-y-1.5">
-              {prevMealGroups.map((group, i) => {
-                const groupCal = group.items.reduce((s, e) => s + e.calories, 0);
-                const groupP = group.items.reduce((s, e) => s + e.protein, 0);
-                return (
-                  <button
-                    key={i}
-                    type="button"
-                    disabled={copyingMeal}
-                    onClick={async () => {
-                      setCopyingMeal(true);
-                      for (const item of group.items) {
-                        await addEntryWithTime({
-                          date: selectedDate,
-                          name: item.name, brand: item.brand,
-                          servingSize: item.servingSize, servingUnit: item.servingUnit,
-                          servingsConsumed: item.servingsConsumed,
-                          calories: item.calories, protein: item.protein,
-                          carbs: item.carbs, fat: item.fat, fiber: item.fiber,
-                          source: item.source, fdcId: item.fdcId, mealType: item.mealType,
-                        });
-                      }
-                      setCopyingMeal(false);
-                      setModal(null);
-                      setAddAtTime(null);
-                      toast(`Added ${group.items.length} items from ${group.label}`, 'success');
-                    }}
-                    className="w-full bg-surface rounded-xl px-3 py-2.5 flex items-center justify-between text-left active:scale-[0.98] transition-transform disabled:opacity-50"
-                  >
-                    <div>
-                      <div className="text-xs font-medium">{group.label}</div>
-                      <div className="text-[10px] text-text-muted mt-0.5">
-                        {group.items.length} item{group.items.length > 1 ? 's' : ''} · {group.items.map((e) => e.name).join(', ').slice(0, 50)}{group.items.map((e) => e.name).join(', ').length > 50 ? '…' : ''}
+            <button
+              type="button"
+              onClick={() => setShowPrevMeals((v) => !v)}
+              className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-surface text-left"
+            >
+              <span className="text-xs font-medium text-text-secondary">Copy a previous meal</span>
+              <span className="text-[10px] text-text-muted">{showPrevMeals ? '▲ hide' : `▼ ${prevMealGroups.length} recent`}</span>
+            </button>
+            {showPrevMeals && (
+              <div className="space-y-1.5 mt-1.5">
+                {prevMealGroups.map((group, i) => {
+                  const groupCal = group.items.reduce((s, e) => s + e.calories, 0);
+                  const groupP = group.items.reduce((s, e) => s + e.protein, 0);
+                  return (
+                    <button
+                      key={i}
+                      type="button"
+                      disabled={copyingMeal}
+                      onClick={async () => {
+                        setCopyingMeal(true);
+                        for (const item of group.items) {
+                          await addEntryWithTime({
+                            date: selectedDate,
+                            name: item.name, brand: item.brand,
+                            servingSize: item.servingSize, servingUnit: item.servingUnit,
+                            servingsConsumed: item.servingsConsumed,
+                            calories: item.calories, protein: item.protein,
+                            carbs: item.carbs, fat: item.fat, fiber: item.fiber,
+                            source: item.source, fdcId: item.fdcId, mealType: item.mealType,
+                          });
+                        }
+                        setCopyingMeal(false);
+                        setModal(null);
+                        setAddAtTime(null);
+                        toast(`Added ${group.items.length} items from ${group.label}`, 'success');
+                      }}
+                      className="w-full bg-surface rounded-xl px-3 py-2.5 flex items-center justify-between text-left active:scale-[0.98] transition-transform disabled:opacity-50"
+                    >
+                      <div>
+                        <div className="text-xs font-medium">{group.label}</div>
+                        <div className="text-[10px] text-text-muted mt-0.5">
+                          {group.items.length} item{group.items.length > 1 ? 's' : ''} · {group.items.map((e) => e.name).join(', ').slice(0, 50)}{group.items.map((e) => e.name).join(', ').length > 50 ? '…' : ''}
+                        </div>
                       </div>
-                    </div>
-                    <div className="text-right shrink-0 ml-3">
-                      <div className="text-xs font-semibold text-accent-orange">{Math.round(groupCal)} cal</div>
-                      <div className="text-[10px] text-accent-blue">P{Math.round(groupP)}g</div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-            <div className="mt-3 border-t border-border pt-3">
-              <p className="label mb-2">Or search for food</p>
-            </div>
+                      <div className="text-right shrink-0 ml-3">
+                        <div className="text-xs font-semibold text-accent-orange">{Math.round(groupCal)} cal</div>
+                        <div className="text-[10px] text-accent-blue">P{Math.round(groupP)}g</div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 
