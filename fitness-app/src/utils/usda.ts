@@ -58,3 +58,38 @@ export async function lookupBarcode(upc: string): Promise<ParsedFood | null> {
   if (!foods || foods.length === 0) return null;
   return parseFoods([foods[0]])[0];
 }
+
+// ---------------------------------------------------------------------------
+// Combined USDA + Open Food Facts fallback functions
+// ---------------------------------------------------------------------------
+
+import { searchOFF, lookupBarcodeOFF } from './openFoodFacts';
+
+export type FoodWithSource = ParsedFood & { source?: 'usda' | 'off' };
+
+export async function searchFoodsWithFallback(query: string): Promise<FoodWithSource[]> {
+  let usdaResults: ParsedFood[] = [];
+  try {
+    usdaResults = await searchFoods(query);
+  } catch {
+    usdaResults = [];
+  }
+
+  const tagged: FoodWithSource[] = usdaResults.map((f) => ({ ...f, source: 'usda' as const }));
+
+  if (tagged.length >= 3) return tagged.slice(0, 15);
+
+  const offResults = await searchOFF(query);
+  const usdaNames = new Set(tagged.map((f) => f.name.toLowerCase()));
+  const merged: FoodWithSource[] = [
+    ...tagged,
+    ...offResults.filter((f) => !usdaNames.has(f.name.toLowerCase())),
+  ];
+  return merged.slice(0, 15);
+}
+
+export async function lookupBarcodeWithFallback(upc: string): Promise<FoodWithSource | null> {
+  const usda = await lookupBarcode(upc);
+  if (usda) return { ...usda, source: 'usda' };
+  return lookupBarcodeOFF(upc);
+}

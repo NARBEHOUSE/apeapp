@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { Clock, Database, Search, X, Pencil, Check, AlertCircle } from 'lucide-react';
 import { searchSavedFoods, getFrequentFoods, updateSavedFood } from '../../db/foodHistory';
 import { FOOD_DATABASE, type BuiltInFood } from '../../data/foods';
-import { searchFoods as searchUSDA } from '../../utils/usda';
+import { searchFoodsWithFallback as searchUSDA } from '../../utils/usda';
 
 export interface SelectedFood {
   name: string;
@@ -35,7 +35,7 @@ interface ResultItem {
   fiber?: number;
   servingSize: number;
   servingUnit: string;
-  source: 'manual' | 'usda' | 'ai_vision' | 'builtin';
+  source: 'manual' | 'usda' | 'ai_vision' | 'builtin' | 'off';
   isFromHistory: boolean;
   frequency?: number;
   category?: string;
@@ -142,7 +142,7 @@ export function FoodAutocomplete({ profileId, onSelect, onQueryChange, placehold
               fiber: f.fiberPer100g,
               servingSize: 100,
               servingUnit: 'g',
-              source: 'usda' as const,
+              source: (f.source ?? 'usda') as ResultItem['source'],
               isFromHistory: false,
               category: 'USDA',
             }));
@@ -236,7 +236,7 @@ export function FoodAutocomplete({ profileId, onSelect, onQueryChange, placehold
       fiber: item.fiber,
       servingSize: item.servingSize,
       servingUnit: item.servingUnit,
-      source: item.source,
+      source: item.source === 'off' ? 'usda' : item.source,
       isFromHistory: item.isFromHistory,
     };
     setQuery(item.name);

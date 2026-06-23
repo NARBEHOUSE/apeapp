@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { Search, Loader2, ChevronRight, Barcode, Globe, Database, Clock, Camera, ArrowLeft } from 'lucide-react';
 import { ManualEntry } from './ManualEntry';
-import { searchFoods, lookupBarcode } from '../../utils/usda';
+import { searchFoodsWithFallback, lookupBarcodeWithFallback } from '../../utils/usda';
 import { FOOD_DATABASE, type BuiltInFood } from '../../data/foods';
 import { searchSavedFoods, saveFoodToHistory, lookupByBarcode as lookupLocalBarcode } from '../../db/foodHistory';
 import { getFoodEmoji } from '../../utils/foodEmoji';
@@ -19,6 +19,7 @@ interface ParsedFood {
   carbsPer100g: number;
   fatPer100g: number;
   fiberPer100g: number;
+  source?: 'usda' | 'off';
 }
 
 interface LocalResult {
@@ -147,7 +148,7 @@ export function FoodSearch({ onAdd, onClose, profileId, defaultTab, saveOnly = f
       setUsdaSearching(true);
       setUsdaError('');
       try {
-        const foods = await searchFoods(query.trim());
+        const foods = await searchFoodsWithFallback(query.trim());
         setUsdaResults(foods);
       } catch (err) {
         setUsdaError(err instanceof Error ? err.message : 'Search failed');
@@ -183,7 +184,7 @@ export function FoodSearch({ onAdd, onClose, profileId, defaultTab, saveOnly = f
     setBarcodeError('');
     setBarcodeResult(null);
     try {
-      const result = await lookupBarcode(code);
+      const result = await lookupBarcodeWithFallback(code);
       if (result) {
         // Auto-select so the detail view shows immediately
         setSelected({
@@ -626,7 +627,7 @@ export function FoodSearch({ onAdd, onClose, profileId, defaultTab, saveOnly = f
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5">
                     <span className="text-sm font-medium truncate">{food.name}</span>
-                    <span className="text-[8px] px-1 py-0.5 rounded bg-green-500/15 text-green-500 shrink-0">USDA</span>
+                    <span className="text-[8px] px-1 py-0.5 rounded bg-green-500/15 text-green-500 shrink-0">{food.source === 'off' ? 'OFF' : 'USDA'}</span>
                   </div>
                   {food.brand && <div className="text-[10px] text-text-muted truncate">{food.brand}</div>}
                   <div className="text-[10px] text-text-muted mt-0.5">
