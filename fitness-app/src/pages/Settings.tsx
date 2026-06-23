@@ -907,6 +907,8 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
                               if (data && !data.error) {
                                 setViewingClient({ fileId: client.fileId, data });
                                 backupClientData(client.fileId, client.clientName || 'Client');
+                              } else if (data?.autoRemoved) {
+                                toast(data.error || 'Client removed your access', 'info');
                               } else {
                                 toast(data?.error || 'Could not load client data', 'error');
                               }

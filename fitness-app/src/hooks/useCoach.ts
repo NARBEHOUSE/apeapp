@@ -449,8 +449,13 @@ export function useCoach() {
       }
       const msg = err instanceof Error ? err.message : String(err);
       console.error('Failed to read client data:', msg);
-      if (msg.includes('404')) return { error: 'Client file not found. They may not have synced yet.' };
-      if (msg.includes('403')) return { error: 'Permission denied. The client needs to share their data with you.' };
+      if (msg.includes('403') || msg.includes('404')) {
+        // Permission revoked or file deleted — client removed the coach. Auto-clean the relationship.
+        const updated = relationships.filter((r) => !(r.role === 'coach' && (r.fileId === fileId || r.fileId === actualFileId)));
+        saveRelationships(updated);
+        setRelationships(updated);
+        return { error: 'This client has removed your coaching access and has been removed from your client list.', autoRemoved: true };
+      }
       return { error: `Failed to load: ${msg}` };
     }
   }, [relationships]);
