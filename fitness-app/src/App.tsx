@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useProfile } from './hooks/useProfile';
 import { Layout } from './components/layout/Layout';
@@ -11,7 +11,6 @@ import { Settings } from './pages/Settings';
 import { Privacy } from './pages/Privacy';
 import { ToastContainer } from './components/shared/Toast';
 import { GoogleAuthProvider, useGoogleAuth } from './contexts/GoogleAuthContext';
-import { FeatureTour, tourHasBeenSeen } from './components/shared/FeatureTour';
 
 function AppContent() {
   const {
@@ -25,14 +24,6 @@ function AppContent() {
     refreshProfiles,
   } = useProfile();
   const { isSignedIn } = useGoogleAuth();
-  const [showTour, setShowTour] = useState(false);
-
-  // Auto-show tour once for new users
-  useEffect(() => {
-    if (activeProfile && !tourHasBeenSeen()) {
-      setShowTour(true);
-    }
-  }, [activeProfile]);
 
   // If signed out of Google while on a Google-linked profile, kick back to profile selector
   useEffect(() => {
@@ -77,7 +68,6 @@ function AppContent() {
                 profiles={profiles}
                 onDeleteProfile={deleteProfile}
                 onLogout={logout}
-                onOpenTour={() => setShowTour(true)}
               />
             }
           />
@@ -85,7 +75,6 @@ function AppContent() {
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </Layout>
-      <FeatureTour open={showTour} onClose={() => setShowTour(false)} />
       <ToastContainer />
     </HashRouter>
   );
