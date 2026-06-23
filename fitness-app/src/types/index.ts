@@ -250,14 +250,14 @@ export interface CheckInEntry {
 }
 
 export const DEFAULT_CHECKIN_QUESTIONS: CheckInQuestion[] = [
-  { id: 'mood', label: 'How are you feeling?', type: 'scale', min: 1, max: 10 },
-  { id: 'sleep', label: 'How was your sleep?', type: 'scale', min: 1, max: 10 },
+  { id: 'mood', label: 'Overall mood', type: 'scale', min: 1, max: 10 },
+  { id: 'sleep', label: 'Sleep quality', type: 'scale', min: 1, max: 10 },
   { id: 'energy', label: 'Energy level', type: 'scale', min: 1, max: 10 },
-  { id: 'stress', label: 'Stress level', type: 'scale', min: 1, max: 10 },
-  { id: 'soreness', label: 'Muscle soreness', type: 'scale', min: 1, max: 10 },
+  { id: 'stress', label: 'How stress-free do you feel?', type: 'scale', min: 1, max: 10 },
+  { id: 'soreness', label: 'How recovered do you feel?', type: 'scale', min: 1, max: 10 },
   { id: 'motivation', label: 'Motivation', type: 'scale', min: 1, max: 10 },
-  { id: 'hunger', label: 'Hunger/appetite', type: 'scale', min: 1, max: 10 },
-  { id: 'digestion', label: 'Digestion', type: 'scale', min: 1, max: 10 },
+  { id: 'hunger', label: 'Appetite control', type: 'scale', min: 1, max: 10 },
+  { id: 'digestion', label: 'Digestion quality', type: 'scale', min: 1, max: 10 },
 ];
 
 export interface CardioEntry {

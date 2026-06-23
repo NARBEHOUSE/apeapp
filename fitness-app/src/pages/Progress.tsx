@@ -84,7 +84,22 @@ export function Progress({ profile, onUpdateProfile }: Props) {
     if (tab === 'checkin') {
       const stored = localStorage.getItem('fitos-checkin-questions');
       if (stored) {
-        try { setQuestions(JSON.parse(stored)); } catch { /* invalid */ }
+        try {
+          const LABEL_FIXES: Record<string, string> = {
+            'How are you feeling?': 'Overall mood',
+            'How was your sleep?': 'Sleep quality',
+            'Stress level': 'How stress-free do you feel?',
+            'Muscle soreness': 'How recovered do you feel?',
+            'Hunger/appetite': 'Appetite control',
+            'Digestion': 'Digestion quality',
+          };
+          const q: CheckInQuestion[] = JSON.parse(stored);
+          const migrated = q.map((x) => LABEL_FIXES[x.label] ? { ...x, label: LABEL_FIXES[x.label] } : x);
+          setQuestions(migrated);
+          if (JSON.stringify(migrated) !== stored) {
+            localStorage.setItem('fitos-checkin-questions', JSON.stringify(migrated));
+          }
+        } catch { /* invalid */ }
       } else {
         setQuestions(DEFAULT_QUESTIONS);
       }

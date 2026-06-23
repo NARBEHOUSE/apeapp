@@ -212,14 +212,11 @@ export function GoogleAuthProvider({ children }: { children: ReactNode }) {
     const handle = () => {
       if (document.visibilityState === 'hidden') {
         pushToCloud();
-      } else if (document.visibilityState === 'visible') {
-        // App came back into focus — pull if Drive has newer data
-        pullFromCloud().catch(() => {});
       }
     };
     document.addEventListener('visibilitychange', handle);
     return () => document.removeEventListener('visibilitychange', handle);
-  }, [user, pushToCloud, pullFromCloud]);
+  }, [user, pushToCloud]);
 
   return (
     <GoogleAuthContext.Provider
