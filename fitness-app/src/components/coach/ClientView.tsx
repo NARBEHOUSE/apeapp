@@ -58,6 +58,7 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
   const readonly = data.coachPermission === 'readonly';
   const [tab, setTab] = useState<'overview' | 'workouts' | 'nutrition' | 'progress' | 'programs' | 'checkins' | 'changes' | 'history'>('overview');
   const [viewingPhoto, setViewingPhoto] = useState<{ url: string; date: string; pose: string; weight?: number } | null>(null);
+  const [viewingPhotoList, setViewingPhotoList] = useState<{ url: string; date: string; pose: string; weight?: number }[]>([]);
   const [photoUrls, setPhotoUrls] = useState<Record<string, string>>({});
   const [photosLoading, setPhotosLoading] = useState(false);
   const [expandedWorkout, setExpandedWorkout] = useState<string | null>(null);
@@ -961,26 +962,12 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
             )}
 
             {data.photoMeta && data.photoMeta.length > 0 && (
-              <div className="space-y-2 mt-4">
-                <div className="text-xs font-semibold text-text-secondary uppercase tracking-wider">
-                  Progress Photos {photosLoading && <span className="text-text-muted">(loading…)</span>}
-                </div>
-                <div className="grid grid-cols-3 gap-2">
-                  {data.photoMeta.map((p) => (
-                    <button
-                      key={p.photoId}
-                      onClick={() => photoUrls[p.photoId] && setViewingPhoto({ url: photoUrls[p.photoId], date: p.date, pose: p.pose, weight: p.weight })}
-                      className="relative rounded-xl overflow-hidden aspect-square bg-surface-raised active:scale-95 transition-transform"
-                    >
-                      {photoUrls[p.photoId]
-                        ? <img src={photoUrls[p.photoId]} alt={p.pose} className="w-full h-full object-cover" />
-                        : <div className="w-full h-full flex items-center justify-center text-text-muted"><RefreshCw size={14} className={photosLoading ? 'animate-spin' : ''} /></div>
-                      }
-                      <div className="absolute bottom-0 inset-x-0 bg-black/60 px-1.5 py-0.5 text-[8px] text-white">{p.date} · {p.pose}{p.weight ? ` · ${p.weight}` : ''}</div>
-                    </button>
-                  ))}
-                </div>
-              </div>
+              <CoachPhotoSection
+                photoMeta={data.photoMeta}
+                photoUrls={photoUrls}
+                photosLoading={photosLoading}
+                onView={(url, date, pose, weight, list) => { setViewingPhoto({ url, date, pose, weight }); setViewingPhotoList(list || []); }}
+              />
             )}
           </>
         )}
@@ -1137,7 +1124,223 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
       </div>
 
       {/* Fullscreen photo viewer */}
-      {viewingPhoto && <div className="fixed inset-0 z-[300] bg-black flex flex-col" onClick={() => setViewingPhoto(null)}><div className="flex items-center justify-between p-4 text-white"><div><div className="text-sm font-medium">{viewingPhoto.date} · {viewingPhoto.pose}</div>{viewingPhoto.weight && <div className="text-xs opacity-70">{viewingPhoto.weight} lbs</div>}</div><button onClick={() => setViewingPhoto(null)} className="p-2"><X size={20} /></button></div><div className="flex-1 flex items-center justify-center overflow-auto p-4"><img src={viewingPhoto.url} alt={viewingPhoto.pose} className="max-w-full max-h-full object-contain" style={{ touchAction: 'pinch-zoom' }} onClick={(e) => e.stopPropagation()} /></div></div>}
+      {viewingPhoto && (
+        <CoachPhotoViewer
+          photo={viewingPhoto}
+          photos={viewingPhotoList}
+          onNavigate={setViewingPhoto}
+          onClose={() => setViewingPhoto(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+const COACH_POSES = [
+  { value: 'front',      label: 'Front'  },
+  { value: 'back',       label: 'Back'   },
+  { value: 'side_left',  label: 'Side L' },
+  { value: 'side_right', label: 'Side R' },
+] as const;
+
+function CoachPhotoSection({ photoMeta, photoUrls, photosLoading, onView }: {
+  photoMeta: CoachPhotoMeta[];
+  photoUrls: Record<string, string>;
+  photosLoading: boolean;
+  onView: (url: string, date: string, pose: string, weight?: number, list?: { url: string; date: string; pose: string; weight?: number }[]) => void;
+}) {
+  const [poseFilter, setPoseFilter] = useState<string>('all');
+
+  const sorted = [...photoMeta].sort((a, b) => b.date.localeCompare(a.date));
+
+  const poseGroups = COACH_POSES.map((p) => ({
+    ...p,
+    photos: sorted.filter((m) => m.pose === p.value),
+    latest: sorted.find((m) => m.pose === p.value) || null,
+  })).filter((g) => g.photos.length > 0);
+
+  const displayed = poseFilter === 'all' ? sorted : sorted.filter((m) => m.pose === poseFilter);
+
+  const toViewerItem = (m: CoachPhotoMeta) => ({ url: photoUrls[m.photoId] || '', date: m.date, pose: m.pose, weight: m.weight });
+
+  return (
+    <div className="space-y-3 mt-4">
+      <div className="flex items-center gap-2">
+        <div className="text-xs font-semibold text-text-secondary uppercase tracking-wider flex-1">
+          Progress Photos {photosLoading && <span className="text-text-muted text-[10px] font-normal">(loading…)</span>}
+        </div>
+      </div>
+
+      {/* Category tiles */}
+      <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4">
+        <button
+          onClick={() => setPoseFilter('all')}
+          className={`flex-shrink-0 flex flex-col items-center justify-center w-14 h-14 rounded-xl border-2 transition-colors ${poseFilter === 'all' ? 'border-accent-blue bg-accent-blue/10' : 'border-border bg-surface'}`}
+        >
+          <span className={`text-[10px] font-semibold ${poseFilter === 'all' ? 'text-accent-blue' : 'text-text-muted'}`}>All</span>
+          <span className={`text-[9px] ${poseFilter === 'all' ? 'text-accent-blue/70' : 'text-text-muted'}`}>{photoMeta.length}</span>
+        </button>
+        {poseGroups.map((g) => (
+          <button
+            key={g.value}
+            onClick={() => setPoseFilter(g.value)}
+            className={`flex-shrink-0 relative w-14 h-14 rounded-xl overflow-hidden border-2 transition-colors ${poseFilter === g.value ? 'border-accent-blue' : 'border-border'}`}
+          >
+            {g.latest && photoUrls[g.latest.photoId] ? (
+              <img src={photoUrls[g.latest.photoId]} alt={g.label} className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-full h-full bg-surface-raised" />
+            )}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
+            <div className="absolute bottom-0 inset-x-0 px-1 pb-0.5 text-center">
+              <div className="text-[9px] font-bold text-white">{g.label}</div>
+              <div className="text-[8px] text-white/60">{g.photos.length}</div>
+            </div>
+          </button>
+        ))}
+      </div>
+
+      {/* Grid — grouped by pose when "all", flat when filtered */}
+      {poseFilter === 'all' ? (
+        <div className="space-y-4">
+          {poseGroups.map((g) => {
+            const list = g.photos.map(toViewerItem).filter((x) => x.url);
+            return (
+              <div key={g.value}>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[11px] font-semibold text-text-secondary uppercase tracking-wider">{g.label}</span>
+                  {g.photos.length > 3 && (
+                    <button onClick={() => setPoseFilter(g.value)} className="text-[10px] text-accent-blue">
+                      See all {g.photos.length} →
+                    </button>
+                  )}
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  {g.photos.slice(0, 6).map((p) => (
+                    <button
+                      key={p.photoId}
+                      onClick={() => { if (photoUrls[p.photoId]) onView(photoUrls[p.photoId], p.date, p.pose, p.weight, list); }}
+                      className="relative rounded-xl overflow-hidden aspect-[3/4] bg-surface-raised active:scale-95 transition-transform"
+                    >
+                      {photoUrls[p.photoId]
+                        ? <img src={photoUrls[p.photoId]} alt={p.pose} className="w-full h-full object-cover" />
+                        : <div className="w-full h-full flex items-center justify-center text-text-muted"><RefreshCw size={12} className={photosLoading ? 'animate-spin' : ''} /></div>}
+                      <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent p-1">
+                        <div className="text-[8px] text-white/90 font-medium">{p.date}</div>
+                        {p.weight && <div className="text-[7px] text-white/60">{p.weight} lbs</div>}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="grid grid-cols-3 gap-2">
+          {(() => {
+            const list = displayed.map(toViewerItem).filter((x) => x.url);
+            return displayed.map((p) => (
+              <button
+                key={p.photoId}
+                onClick={() => { if (photoUrls[p.photoId]) onView(photoUrls[p.photoId], p.date, p.pose, p.weight, list); }}
+                className="relative rounded-xl overflow-hidden aspect-[3/4] bg-surface-raised active:scale-95 transition-transform"
+              >
+                {photoUrls[p.photoId]
+                  ? <img src={photoUrls[p.photoId]} alt={p.pose} className="w-full h-full object-cover" />
+                  : <div className="w-full h-full flex items-center justify-center text-text-muted"><RefreshCw size={12} className={photosLoading ? 'animate-spin' : ''} /></div>}
+                <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent p-1">
+                  <div className="text-[8px] text-white/90 font-medium">{p.date}</div>
+                  {p.weight && <div className="text-[7px] text-white/60">{p.weight} lbs</div>}
+                </div>
+              </button>
+            ));
+          })()}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CoachPhotoViewer({ photo, photos, onNavigate, onClose }: {
+  photo: { url: string; date: string; pose: string; weight?: number };
+  photos: { url: string; date: string; pose: string; weight?: number }[];
+  onNavigate: (p: { url: string; date: string; pose: string; weight?: number }) => void;
+  onClose: () => void;
+}) {
+  const touchStart = useRef<{ x: number; y: number } | null>(null);
+  const currentIdx = photos.findIndex((p) => p.url === photo.url && p.date === photo.date);
+  const hasPrev = currentIdx > 0;
+  const hasNext = currentIdx < photos.length - 1;
+
+  const goNext = () => { if (hasNext) onNavigate(photos[currentIdx + 1]); };
+  const goPrev = () => { if (hasPrev) onNavigate(photos[currentIdx - 1]); };
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length === 1) touchStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  };
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (!touchStart.current || e.changedTouches.length !== 1) return;
+    const dx = e.changedTouches[0].clientX - touchStart.current.x;
+    const dy = e.changedTouches[0].clientY - touchStart.current.y;
+    touchStart.current = null;
+    if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+      if (dx < 0) goNext(); else goPrev();
+    }
+  };
+
+  const showDots = photos.length > 0 && photos.length <= 9;
+  const poseName: Record<string, string> = { front: 'Front', back: 'Back', side_left: 'Side L', side_right: 'Side R' };
+
+  return (
+    <div className="fixed inset-0 z-[300] bg-black flex flex-col">
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-3 bg-black/60">
+        <div>
+          <div className="text-sm font-medium text-white">{photo.date} · {poseName[photo.pose] || photo.pose}</div>
+          {photo.weight && <div className="text-xs text-white/60">{photo.weight} lbs</div>}
+        </div>
+        <button onClick={onClose} className="p-2 text-white/70 hover:text-white"><X size={20} /></button>
+      </div>
+
+      {/* Image */}
+      <div className="flex-1 flex items-center justify-center relative overflow-hidden"
+        onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}
+      >
+        {hasPrev && (
+          <button onClick={goPrev} className="absolute left-2 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full bg-black/50 border border-white/20 flex items-center justify-center text-white/80">
+            <ChevronLeft size={22} />
+          </button>
+        )}
+        {hasNext && (
+          <button onClick={goNext} className="absolute right-2 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full bg-black/50 border border-white/20 flex items-center justify-center text-white/80">
+            <ChevronRight size={22} />
+          </button>
+        )}
+        <img src={photo.url} alt={photo.pose} className="max-w-full max-h-full object-contain p-4" style={{ touchAction: 'pinch-zoom' }} onClick={(e) => e.stopPropagation()} />
+        {photos.length > 1 && (
+          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 bg-black/40 rounded-full px-3 py-1.5">
+            <ChevronLeft size={11} className="text-white/50" />
+            <span className="text-[10px] text-white/50">swipe</span>
+            <ChevronRight size={11} className="text-white/50" />
+          </div>
+        )}
+      </div>
+
+      {/* Position indicator */}
+      {photos.length > 1 && (
+        <div className="flex items-center justify-center pb-4 gap-1.5">
+          {showDots ? (
+            photos.map((_, i) => (
+              <button key={i} onClick={() => onNavigate(photos[i])}
+                className={`rounded-full transition-all ${i === currentIdx ? 'w-4 h-1.5 bg-white' : 'w-1.5 h-1.5 bg-white/30'}`}
+              />
+            ))
+          ) : (
+            <span className="text-[11px] text-white/50">{currentIdx + 1} / {photos.length}</span>
+          )}
+        </div>
+      )}
     </div>
   );
 }
