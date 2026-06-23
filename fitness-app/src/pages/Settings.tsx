@@ -41,6 +41,7 @@ import { ClientView } from '../components/coach/ClientView';
 import { CoachHistory as CoachHistoryComponent } from '../components/coach/CoachHistory';
 // USDA now uses Cloudflare Worker proxy — no user key needed
 import { testClaudeKey } from '../utils/claudeVision';
+import { saveApiKey, clearApiKey, getApiKey, detectProvider } from '../utils/apiKeyManager';
 import {
   exportAllData, downloadJSON, importData, clearAllData,
   exportProgram, importProgram, exportAllPrograms, importProgramsBundle,
@@ -113,7 +114,7 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
 
   // API Keys
   const [usdaKey, setUsdaKey] = useState(() => localStorage.getItem('fitos-usda-key') || '');
-  const [claudeKey, setClaudeKey] = useState(() => localStorage.getItem('fitos-claude-key') || '');
+  const [claudeKey, setClaudeKey] = useState(() => getApiKey());
   const claudeEnabled = !!claudeKey.trim();
   const [showUsdaKey, setShowUsdaKey] = useState(false);
   const [showClaudeKey, setShowClaudeKey] = useState(false);
@@ -493,9 +494,9 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
   // API Key handlers
   const handleSaveClaudeKey = () => {
     if (claudeKey.trim()) {
-      localStorage.setItem('fitos-claude-key', claudeKey.trim());
+      saveApiKey(claudeKey.trim());
     } else {
-      localStorage.removeItem('fitos-claude-key');
+      clearApiKey();
     }
   };
 
@@ -1059,15 +1060,35 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
               </p>
             </div>
 
-            {/* Claude Key */}
+            {/* AI API Key (multi-provider) */}
             <div className="space-y-2">
-              <label className="label block">Claude AI Vision Key</label>
+              <div className="flex items-center justify-between">
+                <label className="label block">AI API Key</label>
+                {claudeKey.trim() && (() => {
+                  const p = detectProvider(claudeKey.trim());
+                  const labels: Record<string, string> = {
+                    anthropic: 'Anthropic', openai: 'OpenAI', openrouter: 'OpenRouter', gemini: 'Gemini',
+                  };
+                  const colors: Record<string, string> = {
+                    anthropic: 'text-orange-400 bg-orange-400/10',
+                    openai: 'text-success bg-success/10',
+                    openrouter: 'text-accent-blue bg-accent-blue/10',
+                    gemini: 'text-yellow-400 bg-yellow-400/10',
+                    unknown: 'text-text-muted bg-surface-raised',
+                  };
+                  return (
+                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${colors[p] || colors.unknown}`}>
+                      {labels[p] || 'Unknown format'}
+                    </span>
+                  );
+                })()}
+              </div>
               <div className="flex gap-2">
                 <div className="relative flex-1">
                   <input
                     type={showClaudeKey ? 'text' : 'password'}
                     className="input-field pr-10"
-                    placeholder="Enter Anthropic API key"
+                    placeholder="sk-ant-..., sk-or-..., AIza..., sk-..."
                     value={claudeKey}
                     onChange={(e) => setClaudeKey(e.target.value)}
                     onBlur={handleSaveClaudeKey}
@@ -1094,15 +1115,7 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
               </div>
               <div className="flex items-center justify-between">
                 <p className="text-[11px] text-text-muted">
-                  Get a key at{' '}
-                  <a
-                    href="https://console.anthropic.com/"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-accent-blue hover:underline inline-flex items-center gap-0.5"
-                  >
-                    console.anthropic.com <ExternalLink size={10} />
-                  </a>
+                  Supports Anthropic, OpenAI, OpenRouter, and Google Gemini
                 </p>
                 {claudeEnabled && (
                   <span className="text-[10px] font-semibold text-success bg-success/10 px-2 py-0.5 rounded-full">
@@ -2506,15 +2519,65 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
       <div className="card">
         <SectionHeader section="about" icon={Info} title="About" />
         {expanded.has('about') && (
-          <div className="pt-4 pb-2 text-center space-y-3">
-            <img src={`${import.meta.env.BASE_URL}logo.png`} alt="APE" className="h-14 mx-auto invert brightness-200" />
-            <p className="text-[11px] text-text-muted tracking-[0.15em] uppercase">
-              Aesthetic Physique Enthusiast
-            </p>
-            <p className="text-[10px] text-text-muted">
-              Aesthetic Physique Enthusiast &mdash; NARBE LLC
-            </p>
-            <a href="#/privacy" className="text-[10px] text-accent-blue underline">Privacy Policy</a>
+          <div className="pt-4 pb-2 space-y-4">
+            {/* Identity */}
+            <div className="text-center space-y-1.5">
+              <img src={`${import.meta.env.BASE_URL}logo.png`} alt="APE" className="h-14 mx-auto invert brightness-200" />
+              <p className="text-[11px] text-text-muted tracking-[0.15em] uppercase">
+                Aesthetic Physique Enthusiast Application
+              </p>
+              <p className="text-[10px] text-text-muted">
+                &copy; 2025&ndash;2026 NARBE LLC. All rights reserved.
+              </p>
+            </div>
+
+            {/* Tagline callout */}
+            <div className="p-4 rounded-xl bg-surface-raised border border-border">
+              <p className="text-xs text-text-secondary leading-relaxed italic">
+                "APE is the only fitness app that puts AI in your hands — literally. Bring your own API key from any major AI provider and unlock AI-powered food scanning and coaching with no subscription, no data sold, and no lock-in. Your key. Your data. Your gains."
+              </p>
+            </div>
+
+            {/* Links */}
+            <div className="space-y-2.5">
+              <a
+                href="https://github.com/NARBEHOUSE/apeapp"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 text-sm text-accent-blue hover:underline"
+              >
+                <ExternalLink size={13} />
+                View source on GitHub
+              </a>
+              <a href="#/privacy" className="flex items-center gap-2 text-sm text-accent-blue hover:underline">
+                Privacy Policy
+              </a>
+              <a
+                href="https://streamelements.com/acrolicious/tip"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 text-sm text-accent-blue hover:underline"
+              >
+                <ExternalLink size={13} />
+                Support APE ☕
+              </a>
+              <a
+                href="mailto:narbehousellc@gmail.com"
+                className="flex items-center gap-2 text-sm text-accent-blue hover:underline"
+              >
+                Contact / Licensing
+              </a>
+            </div>
+
+            {/* Legal disclaimer */}
+            <div className="space-y-2 pt-1 border-t border-border">
+              <p className="text-[10px] text-text-muted leading-relaxed">
+                APE is a personal fitness and nutrition tracking tool. Nothing in this app constitutes medical advice, diagnosis, or treatment. Always consult a qualified healthcare professional before starting any diet, exercise, or supplementation program. AI-generated nutrition estimates and coaching suggestions are for informational purposes only.
+              </p>
+              <p className="text-[10px] text-text-muted leading-relaxed">
+                Source available under the APE Source Available License. Commercial use requires written permission from NARBE LLC.
+              </p>
+            </div>
           </div>
         )}
       </div>

@@ -1,3 +1,4 @@
+import { callAI } from './aiAdapter';
 import type { WorkoutSession, FoodEntry, Measurement, CheckInEntry, StepEntry, MacroTargets, Profile, Program } from '../types';
 import { getWeekDates, today } from './dateHelpers';
 
@@ -298,35 +299,13 @@ Respond ONLY with valid JSON in this exact format:
 
 The action field is optional. Only include it when you have a specific, concrete adjustment to suggest. Use "none" type for observational suggestions.`;
 
-export async function getCoachSuggestions(snapshot: CoachDataSnapshot, apiKey: string): Promise<CoachResponse> {
+export async function getCoachSuggestions(snapshot: CoachDataSnapshot, _apiKey: string): Promise<CoachResponse> {
   const userMessage = `Here is my fitness data for this week. Please analyze and give me suggestions.
 
 ${JSON.stringify(snapshot, null, 2)}`;
 
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-      'anthropic-dangerous-direct-browser-access': 'true',
-    },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 1024,
-      system: SYSTEM_PROMPT,
-      messages: [{ role: 'user', content: userMessage }],
-    }),
-  });
-
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(`AI Coach error: ${res.status} - ${(err as { error?: { message?: string } }).error?.message || 'Unknown error'}`);
-  }
-
-  const data = await res.json();
-  let text: string = data.content[0].text;
-  text = text.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim();
+  const { text: rawText } = await callAI({ systemPrompt: SYSTEM_PROMPT, userPrompt: userMessage });
+  let text = rawText.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim();
   const parsed = JSON.parse(text);
 
   return {

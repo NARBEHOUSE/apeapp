@@ -54,6 +54,20 @@ export function Privacy() {
       </section>
 
       <section className="space-y-2">
+        <h2 className="text-lg font-semibold">AI API Keys</h2>
+        <p className="text-sm text-text-secondary leading-relaxed">
+          If you choose to use AI features, APE requires you to provide your own API key from a third-party AI provider (such as Anthropic, OpenAI, OpenRouter, Groq, or Google). Your API key is stored exclusively in your browser's local storage on your device. It is never transmitted to NARBE LLC servers, never included in Google Drive sync data, and never logged or shared. API calls made using your key go directly from your device to the provider's servers. NARBE LLC has no visibility into those calls. You are responsible for your own API usage costs and for complying with your provider's terms of service. Remove your key at any time in Settings.
+        </p>
+      </section>
+
+      <section className="space-y-2">
+        <h2 className="text-lg font-semibold">Third-Party AI Providers</h2>
+        <p className="text-sm text-text-secondary leading-relaxed">
+          APE is compatible with third-party AI services including Anthropic, OpenAI, OpenRouter, Groq, and Google. Use of these services is subject to their respective terms of service and privacy policies. NARBE LLC is not affiliated with, endorsed by, or responsible for any of these third-party providers. All trademarks belong to their respective owners.
+        </p>
+      </section>
+
+      <section className="space-y-2">
         <h2 className="text-lg font-semibold">Google API Usage &amp; Scopes</h2>
         <p className="text-sm text-text-secondary leading-relaxed">
           APE uses Google Sign-In for authentication and the Google Drive API for data synchronization. The app may request the following permissions depending on how you use it:

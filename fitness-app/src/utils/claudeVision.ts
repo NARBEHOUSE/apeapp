@@ -1,3 +1,5 @@
+import { callAI } from './aiAdapter';
+
 interface DetectedFood {
   name: string;
   estimatedAmount: string;
@@ -41,67 +43,21 @@ Respond ONLY with valid JSON in this exact format, no other text:
   "disclaimer": "These are estimates. Verify against packaging when possible."
 }`;
 
-export async function analyzeFood(base64Image: string, apiKey: string, userNotes?: string): Promise<VisionResult> {
+export async function analyzeFood(base64Image: string, _apiKey: string, userNotes?: string): Promise<VisionResult> {
   const userText = userNotes?.trim()
     ? `Analyze this food and estimate the nutrition. The user provided these notes about the food — use them to make your estimates more accurate:\n"${userNotes.trim()}"`
     : 'Analyze this food and estimate the nutrition.';
 
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-      'anthropic-dangerous-direct-browser-access': 'true',
-    },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 1024,
-      system: SYSTEM_PROMPT,
-      messages: [
-        {
-          role: 'user',
-          content: [
-            {
-              type: 'image',
-              source: { type: 'base64', media_type: 'image/jpeg', data: base64Image },
-            },
-            { type: 'text', text: userText },
-          ],
-        },
-      ],
-    }),
-  });
+  const { text } = await callAI({ systemPrompt: SYSTEM_PROMPT, userPrompt: userText, imageBase64: base64Image });
 
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(`Claude API error: ${res.status} - ${(err as { error?: { message?: string } }).error?.message || 'Unknown error'}`);
-  }
-
-  const data = await res.json();
-  let text: string = data.content[0].text;
-  // Strip markdown code fences if present
-  text = text.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim();
-  return JSON.parse(text) as VisionResult;
+  let cleaned = text.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim();
+  return JSON.parse(cleaned) as VisionResult;
 }
 
-export async function testClaudeKey(apiKey: string): Promise<boolean> {
+export async function testClaudeKey(_apiKey: string): Promise<boolean> {
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true',
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 10,
-        messages: [{ role: 'user', content: 'Hi' }],
-      }),
-    });
-    return res.ok;
+    await callAI({ systemPrompt: '', userPrompt: 'Hi' });
+    return true;
   } catch {
     return false;
   }
