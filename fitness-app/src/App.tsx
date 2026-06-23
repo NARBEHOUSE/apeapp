@@ -32,19 +32,11 @@ function AppContent() {
     }
   }, [isSignedIn, activeProfile, logout]);
 
-  // Privacy page must be accessible without login for Google OAuth verification
-  if (typeof window !== 'undefined' && window.location.hash === '#/privacy') {
-    return (
-      <HashRouter>
-        <Routes>
-          <Route path="/privacy" element={<Privacy />} />
-          <Route path="*" element={<Privacy />} />
-        </Routes>
-      </HashRouter>
-    );
-  }
-
   if (!activeProfile || (!isSignedIn && activeProfile?.googleEmail)) {
+    // Allow privacy page to be viewed without a profile (needed for Google OAuth verification)
+    if (typeof window !== 'undefined' && window.location.hash === '#/privacy') {
+      return <Privacy />;
+    }
     return (
       <>
         <ProfileSelector

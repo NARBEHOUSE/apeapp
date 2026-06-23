@@ -1,7 +1,32 @@
+import { useNavigate } from 'react-router-dom';
+import { ArrowLeft } from 'lucide-react';
+
 export function Privacy() {
+  let navigate: ReturnType<typeof useNavigate> | null = null;
+  try {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    navigate = useNavigate();
+  } catch {
+    // Rendered outside a router (no-profile view) — back button uses history API
+  }
+
+  const handleBack = () => {
+    if (navigate) {
+      navigate(-1);
+    } else {
+      window.history.back();
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-bg text-text-primary px-6 py-8 max-w-2xl mx-auto space-y-6">
-      <h1 className="text-2xl font-bold">Privacy Policy</h1>
+    <div className="min-h-screen bg-bg text-text-primary max-w-2xl mx-auto">
+      <div className="sticky top-0 bg-bg border-b border-border px-4 py-3 flex items-center gap-3 z-10">
+        <button onClick={handleBack} className="p-1.5 -ml-1.5 rounded-xl hover:bg-surface transition-colors">
+          <ArrowLeft size={18} />
+        </button>
+        <h1 className="text-base font-semibold">Privacy Policy</h1>
+      </div>
+      <div className="px-6 py-6 space-y-6">
       <p className="text-xs text-text-muted">Last updated: June 22, 2026</p>
 
       <section className="space-y-2">
@@ -123,6 +148,7 @@ export function Privacy() {
         <p className="text-[10px] text-text-muted text-center">
           APE — Aesthetic Physique Enthusiast · NARBE LLC · &copy; 2024–2026
         </p>
+      </div>
       </div>
     </div>
   );
