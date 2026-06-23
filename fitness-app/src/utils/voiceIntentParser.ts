@@ -18,6 +18,11 @@ export interface FoodIntentItem {
   estimatedServingUnit: string;
   estimatedServings: number;
   mealType: 'breakfast' | 'lunch' | 'dinner' | 'snack';
+  estimatedCalories?: number;
+  estimatedProtein?: number;
+  estimatedCarbs?: number;
+  estimatedFat?: number;
+  estimatedFiber?: number;
 }
 
 export interface FoodIntent {
@@ -43,13 +48,15 @@ Rules:
 - If user names a different exercise, match it from the exercise list
 - Default to the current exercise if no exercise is named
 
-Respond ONLY with valid JSON:
-{"action":"log_set","exerciseId":"...","exerciseName":"...","weight":185,"reps":8}
+Respond ONLY with valid JSON. Include rir or rpe when mentioned, omit them otherwise:
+{"action":"log_set","exerciseId":"...","exerciseName":"...","weight":185,"reps":8,"rir":2}
+or {"action":"log_set","exerciseId":"...","exerciseName":"...","weight":185,"reps":8,"rpe":8}
+or {"action":"log_set","exerciseId":"...","exerciseName":"...","weight":185,"reps":8}
 or {"action":"skip_exercise","exerciseId":"...","exerciseName":"..."}
 or {"action":"finish_workout"}
 or {"action":"unknown","rawText":"..."}`;
 
-const FOOD_SYSTEM_PROMPT = `You are a food logging voice assistant. Parse what the user ate into individual food items.
+const FOOD_SYSTEM_PROMPT = `You are a food logging voice assistant. Parse what the user ate into individual food items with accurate macros.
 
 Current time: {{time}}
 
@@ -60,9 +67,10 @@ Rules:
 - Estimate common amounts: 1 slice bread ≈ 30g, 1 tbsp peanut butter ≈ 16g, 1 egg ≈ 50g, 1 chicken breast ≈ 170g, 1 cup rice cooked ≈ 186g, 1 tortilla ≈ 45g
 - Guess meal type from time: before 11am → breakfast, 11-3pm → lunch, 3-8pm → dinner, else → snack
 - Handle casual speech: "like 30g" → 30g, "a little bit of" → small serving
+- Always include your best estimated macros for the stated serving size (calories, protein, carbs, fat, fiber in grams)
 
 Respond ONLY with valid JSON:
-{"items":[{"searchQuery":"flour tortilla","estimatedServingSize":45,"estimatedServingUnit":"g","estimatedServings":1,"mealType":"lunch"}]}`;
+{"items":[{"searchQuery":"flour tortilla","estimatedServingSize":45,"estimatedServingUnit":"g","estimatedServings":1,"mealType":"lunch","estimatedCalories":130,"estimatedProtein":3,"estimatedCarbs":22,"estimatedFat":3,"estimatedFiber":1}]}`;
 
 function buildWorkoutPrompt(context: WorkoutVoiceContext): string {
   return WORKOUT_SYSTEM_PROMPT

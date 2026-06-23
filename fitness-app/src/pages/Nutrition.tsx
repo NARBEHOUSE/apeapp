@@ -120,7 +120,7 @@ function DraggableEntry({ entry, onDelete, onToggleFavorite, onEditTime, onEdit 
       <span className="text-base shrink-0">{getFoodEmoji(entry.name)}</span>
       <div className="flex-1 min-w-0">
         <div className="text-[12px] font-medium truncate">{entry.name}</div>
-        <div className="flex items-center gap-1.5 text-[9px] text-text-muted mt-0.5">
+        <div className="flex items-center gap-1.5 text-[11px] text-text-muted mt-0.5">
           <span className="text-accent-orange font-medium">{cals} cal</span>
           <span>P{Math.round(entry.protein * entry.servingsConsumed)}</span>
           <span>C{Math.round(entry.carbs * entry.servingsConsumed)}</span>
@@ -131,8 +131,8 @@ function DraggableEntry({ entry, onDelete, onToggleFavorite, onEditTime, onEdit 
         <button onClick={() => onEdit(entry)} className="p-0.5">
           <Pencil size={10} className="text-text-muted/30 hover:text-accent-blue" />
         </button>
-        <button onClick={() => onEditTime(entry)} className="text-[8px] text-text-muted bg-surface rounded px-1 py-0.5 flex items-center gap-0.5">
-          <Clock size={7} />{formatTime12(entry.loggedAt)}
+        <button onClick={() => onEditTime(entry)} className="text-[10px] text-text-muted bg-surface rounded px-1 py-0.5 flex items-center gap-0.5">
+          <Clock size={9} />{formatTime12(entry.loggedAt)}
         </button>
         <button onClick={() => onToggleFavorite(entry.id)} className="p-0.5">
           <Star size={10} className={entry.isFavorite ? 'text-nutrition fill-nutrition' : 'text-text-muted/20'} />
@@ -159,7 +159,7 @@ function HourSlot({ hour, children, onAddAtHour, isOver }: {
     >
       {/* Hour label */}
       <div className="w-[38px] pt-1.5 text-right shrink-0">
-        <span className={`text-[10px] font-medium ${hasChildren ? 'text-text-secondary' : 'text-text-muted/40'}`}>
+        <span className={`text-xs font-medium ${hasChildren ? 'text-text-secondary' : 'text-text-muted/40'}`}>
           {formatHourLabel(hour)}
         </span>
       </div>
@@ -179,9 +179,9 @@ function HourSlot({ hour, children, onAddAtHour, isOver }: {
         ) : (
           <button
             onClick={() => onAddAtHour(hour)}
-            className={`w-full flex items-center justify-center gap-1 py-1.5 rounded-lg text-[10px] text-text-muted/40 hover:text-text-muted hover:bg-surface-raised/50 transition-colors ${isOver ? 'text-accent-blue bg-accent-blue/10' : ''}`}
+            className={`w-full flex items-center justify-center gap-1 py-1.5 rounded-lg text-xs text-text-muted/40 hover:text-text-muted hover:bg-surface-raised/50 transition-colors ${isOver ? 'text-accent-blue bg-accent-blue/10' : ''}`}
           >
-            <Plus size={10} />
+            <Plus size={13} />
           </button>
         )}
       </div>

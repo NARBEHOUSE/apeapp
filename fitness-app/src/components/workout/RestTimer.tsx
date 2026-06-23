@@ -104,51 +104,53 @@ export function RestTimer({ duration, onComplete, onDismiss }: Props) {
   const seconds = remaining % 60;
   const timeDisplay = `${minutes}:${seconds.toString().padStart(2, '0')}`;
 
-  return (
-    <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/80 backdrop-blur-sm">
-      <div className="flex flex-col items-center gap-6">
-        <p className="text-text-secondary text-sm font-semibold uppercase tracking-wider">
-          Rest Timer
-        </p>
+  const smallRadius = 28;
+  const smallCircumference = 2 * Math.PI * smallRadius;
+  const smallDashoffset = smallCircumference * (1 - progress);
 
-        <div className="relative w-40 h-40 flex items-center justify-center">
+  return (
+    <div className="fixed bottom-20 right-3 z-[150] select-none">
+      <div className="bg-surface border border-border rounded-2xl shadow-2xl p-3 flex flex-col items-center gap-2 w-[90px]">
+        <p className="text-[9px] font-bold uppercase tracking-widest text-text-muted">Rest</p>
+
+        <div className="relative w-16 h-16 flex items-center justify-center">
           <svg
             className="absolute inset-0 -rotate-90"
-            width="160"
-            height="160"
-            viewBox="0 0 120 120"
+            width="64"
+            height="64"
+            viewBox="0 0 72 72"
           >
             <circle
-              cx="60"
-              cy="60"
-              r={radius}
+              cx="36"
+              cy="36"
+              r={smallRadius}
               fill="none"
               stroke="var(--color-border)"
-              strokeWidth="6"
+              strokeWidth="5"
             />
             <circle
-              cx="60"
-              cy="60"
-              r={radius}
+              cx="36"
+              cy="36"
+              r={smallRadius}
               fill="none"
               stroke="#e8572a"
-              strokeWidth="6"
+              strokeWidth="5"
               strokeLinecap="round"
-              strokeDasharray={circumference}
-              strokeDashoffset={strokeDashoffset}
+              strokeDasharray={smallCircumference}
+              strokeDashoffset={smallDashoffset}
               className="transition-[stroke-dashoffset] duration-1000 ease-linear"
             />
           </svg>
-          <span className="text-4xl font-black text-text-primary tabular-nums">
+          <span className="text-base font-black text-text-primary tabular-nums">
             {timeDisplay}
           </span>
         </div>
 
         <button
           onClick={() => { cleanup(); onDismiss(); }}
-          className="flex items-center gap-2 px-6 py-3 rounded-xl bg-surface-raised border border-border-light text-text-secondary font-semibold active:scale-95 transition-transform"
+          className="flex items-center gap-1 px-3 py-1 rounded-lg bg-surface-raised border border-border-light text-text-muted text-[10px] font-semibold active:scale-95 transition-transform"
         >
-          <X size={18} />
+          <X size={10} />
           Skip
         </button>
       </div>

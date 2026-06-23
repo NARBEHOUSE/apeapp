@@ -73,7 +73,7 @@ export function useVoiceMode({
           return;
         }
 
-        // Look up each item via USDA
+        // Look up each item via USDA, fall back to Claude's own estimates
         const resolved = await Promise.all(
           foodIntent.items.map(async (item) => {
             try {
@@ -81,23 +81,36 @@ export function useVoiceMode({
               if (results.length > 0) {
                 const top = results[0];
                 const factor = item.estimatedServingSize / 100;
-                return {
-                  item,
-                  macros: {
-                    name: top.name, brand: top.brand,
-                    calories: Math.round(top.caloriesPer100g * factor),
-                    protein: Math.round(top.proteinPer100g * factor * 10) / 10,
-                    carbs: Math.round(top.carbsPer100g * factor * 10) / 10,
-                    fat: Math.round(top.fatPer100g * factor * 10) / 10,
-                    fiber: Math.round(top.fiberPer100g * factor * 10) / 10,
-                    servingSize: item.estimatedServingSize,
-                  },
-                };
+                const calories = Math.round(top.caloriesPer100g * factor);
+                if (calories > 0) {
+                  return {
+                    item,
+                    macros: {
+                      name: top.name, brand: top.brand,
+                      calories,
+                      protein: Math.round(top.proteinPer100g * factor * 10) / 10,
+                      carbs: Math.round(top.carbsPer100g * factor * 10) / 10,
+                      fat: Math.round(top.fatPer100g * factor * 10) / 10,
+                      fiber: Math.round(top.fiberPer100g * factor * 10) / 10,
+                      servingSize: item.estimatedServingSize,
+                    },
+                  };
+                }
               }
-              return { item, macros: { name: item.searchQuery, calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0, servingSize: item.estimatedServingSize } };
-            } catch {
-              return { item, macros: { name: item.searchQuery, calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0, servingSize: item.estimatedServingSize } };
-            }
+            } catch {}
+            // Fallback to Claude's own estimates when USDA fails or returns empty macros
+            return {
+              item,
+              macros: {
+                name: item.searchQuery,
+                calories: item.estimatedCalories ?? 0,
+                protein: item.estimatedProtein ?? 0,
+                carbs: item.estimatedCarbs ?? 0,
+                fat: item.estimatedFat ?? 0,
+                fiber: item.estimatedFiber ?? 0,
+                servingSize: item.estimatedServingSize,
+              },
+            };
           })
         );
 
