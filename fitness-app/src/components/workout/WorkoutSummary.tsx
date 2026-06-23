@@ -54,8 +54,8 @@ export function WorkoutSummary({ session, program, prs, previousPrs, units, onCl
   const durationStr = mins >= 60 ? `${Math.floor(mins / 60)}h ${mins % 60}m` : `${mins}m`;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center">
-      <div className="bg-bg w-full max-w-md max-h-[90vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl">
+    <div className="fixed inset-0 z-[150] bg-black/70 flex items-end sm:items-center justify-center">
+      <div className="bg-bg w-full max-w-md max-h-[90vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl pb-20 sm:pb-5">
         {/* Header */}
         <div className="sticky top-0 bg-bg border-b border-border px-4 py-3 flex items-center justify-between z-10">
           <h2 className="font-semibold text-base">Workout Complete</h2>

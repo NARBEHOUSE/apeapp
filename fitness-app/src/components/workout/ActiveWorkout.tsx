@@ -952,9 +952,8 @@ export function ActiveWorkout({
 
       {/* Skip exercise modal */}
       {skipTarget && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
-          <div className="bg-bg rounded-t-3xl w-full max-w-lg p-5 space-y-3 safe-bottom animate-in slide-in-from-bottom">
-            <h3 className="font-bold text-base">Skip Exercise</h3>
+        <div className="fixed inset-0 z-[150] flex items-end justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-bg rounded-t-3xl w-full max-w-lg p-5 pb-20 space-y-3 animate-in slide-in-from-bottom">
             <p className="text-sm text-text-secondary">
               Skip "{day.exercises.find((e) => e.id === skipTarget)?.name}" for today only. The program stays unchanged.
             </p>
@@ -975,8 +974,8 @@ export function ActiveWorkout({
 
       {/* Add exercise modal */}
       {showAddExercise && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
-          <div className="bg-bg rounded-t-3xl w-full max-w-lg p-5 space-y-3 safe-bottom animate-in slide-in-from-bottom max-h-[80vh] overflow-y-auto">
+        <div className="fixed inset-0 z-[150] flex items-end justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-bg rounded-t-3xl w-full max-w-lg p-5 pb-20 space-y-3 animate-in slide-in-from-bottom max-h-[80vh] overflow-y-auto">
             <h3 className="font-bold text-base">Add Exercise</h3>
             <p className="text-xs text-text-muted">Search the library or type a custom exercise name.</p>
             <input
@@ -1096,8 +1095,8 @@ export function ActiveWorkout({
 
       {/* Add cardio modal */}
       {showAddCardio && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
-          <div className="bg-bg rounded-t-3xl w-full max-w-lg p-5 space-y-3 safe-bottom animate-in slide-in-from-bottom">
+        <div className="fixed inset-0 z-[150] flex items-end justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-bg rounded-t-3xl w-full max-w-lg p-5 pb-20 space-y-3 animate-in slide-in-from-bottom">
             <h3 className="font-bold text-base">Add Cardio</h3>
 
             <div>
@@ -1226,7 +1225,7 @@ export function ActiveWorkout({
 
       {/* Swap exercise confirm */}
       {pendingSwap && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/60 backdrop-blur-sm">
           <div className="card mx-6 max-w-sm w-full space-y-4">
             <h3 className="font-bold text-base">Swap Exercise?</h3>
             <div className="bg-surface-raised rounded-xl p-3 space-y-1">
@@ -1261,7 +1260,7 @@ export function ActiveWorkout({
 
       {/* Cancel confirm */}
       {showCancelConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/60 backdrop-blur-sm">
           <div className="card mx-6 max-w-sm w-full">
             <h3 className="font-bold text-lg mb-2">Cancel Workout?</h3>
             <p className="text-text-secondary text-sm mb-6">

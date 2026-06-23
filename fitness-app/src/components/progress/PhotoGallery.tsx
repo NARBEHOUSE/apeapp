@@ -435,7 +435,7 @@ function EnlargedPhotoView({ photo, photos, poseLabel, measurements = [], weight
   const showDots = photos.length <= 9;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/90 backdrop-blur-sm">
       <div className="relative w-full h-full flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 bg-black/50 z-10">

@@ -269,7 +269,7 @@ export default function TrendSnapshotCard({
 
   // Expanded detail view — mobile-friendly bottom sheet style
   return (
-    <div className="fixed inset-0 z-50 flex flex-col">
+    <div className="fixed inset-0 z-[150] flex flex-col">
       <div className="flex-1 bg-black/60" onClick={() => setExpanded(false)} />
       <div className="bg-bg rounded-t-3xl max-h-[85vh] flex flex-col safe-bottom animate-in slide-in-from-bottom">
         {/* Handle bar */}

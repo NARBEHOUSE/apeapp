@@ -240,7 +240,7 @@ export function AICoachCard({ profile, sessions, allFoodEntries, measurements, c
 
       {/* Disclaimer modal */}
       {showDisclaimer && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/70 backdrop-blur-sm">
           <div className="bg-bg rounded-2xl mx-6 max-w-sm w-full p-5 space-y-4">
             <div className="flex items-center gap-2">
               <AlertTriangle size={18} className="text-warning" />
