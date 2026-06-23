@@ -1,4 +1,4 @@
-const WORKER_URL = 'https://ape-coach-invites.narbehousellc.workers.dev';
+const WORKER_URL = 'https://ape-coach-invite.narbehousellc.workers.dev';
 
 export interface CoachInvite {
   id: string;
