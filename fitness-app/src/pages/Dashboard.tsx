@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Flame, Trophy, Loader2, Zap, ChevronRight, Dumbbell, HardDrive, ClipboardCheck, Check } from 'lucide-react';
 
@@ -114,6 +114,25 @@ export default function Dashboard({ profile, onUpdateProfile }: DashboardProps) 
     if (googleSignedIn && myCoachRels.length > 0) {
       syncCoachFiles().then(() => checkForCoachChanges());
     }
+  }, [googleSignedIn, myCoachRels.length, syncCoachFiles, checkForCoachChanges]);
+
+  // Periodic coach sync every 5 minutes + re-sync when tab regains focus
+  const coachSyncIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  useEffect(() => {
+    if (!googleSignedIn || myCoachRels.length === 0) return;
+    coachSyncIntervalRef.current = setInterval(() => {
+      syncCoachFiles().then(() => checkForCoachChanges());
+    }, 5 * 60 * 1000);
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        syncCoachFiles().then(() => checkForCoachChanges());
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => {
+      if (coachSyncIntervalRef.current) clearInterval(coachSyncIntervalRef.current);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
   }, [googleSignedIn, myCoachRels.length, syncCoachFiles, checkForCoachChanges]);
 
   const activeProgram = profile.activeProgram

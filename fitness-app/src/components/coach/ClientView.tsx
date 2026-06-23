@@ -68,13 +68,29 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
   const importRef = useRef<HTMLInputElement>(null);
   const [myPrograms, setMyPrograms] = useState<Program[]>([]);
 
-  // Auto-refresh client data on mount so coach always sees latest
+  const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Auto-refresh on mount, then poll every 90 seconds and on tab focus
   useEffect(() => {
-    onRefresh(fileId).then((fresh) => {
-      if (fresh) { setData(fresh); setResponses(fresh.clientResponse || null); }
-    });
+    const doRefresh = () =>
+      onRefresh(fileId).then((fresh) => {
+        if (fresh && !(fresh as any).error) { setData(fresh); setResponses(fresh.clientResponse || null); setLastRefreshed(new Date()); }
+      });
+
+    doRefresh();
     initializePrograms().then(() => getAllPrograms()).then((progs) => setMyPrograms(progs));
-  }, []);
+
+    pollRef.current = setInterval(doRefresh, 90 * 1000);
+
+    const handleVisibility = () => { if (document.visibilityState === 'visible') doRefresh(); };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, [fileId]);
 
   // Changes tab state — all edits happen here, pushed as one batch
   const [changeMacros, setChangeMacros] = useState(false);
@@ -206,8 +222,8 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
   async function handleRefresh() {
     setRefreshing(true);
     const fresh = await onRefresh(fileId);
-    if (fresh) { setData(fresh); setResponses(fresh.clientResponse || null); toast('Refreshed', 'success'); }
-    else toast('Failed to refresh', 'error');
+    if (fresh && !(fresh as any).error) { setData(fresh); setResponses(fresh.clientResponse || null); setLastRefreshed(new Date()); toast('Refreshed', 'success'); }
+    else toast((fresh as any)?.error || 'Failed to refresh', 'error');
     setRefreshing(false);
   }
 
@@ -307,9 +323,13 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
         <button onClick={onClose} className="p-1 -ml-1"><ArrowLeft size={18} /></button>
         <div className="flex-1 min-w-0">
           <div className="text-sm font-semibold truncate">Coach Mode — {data.profile.name || 'Client'}</div>
-          <div className="text-[10px] opacity-80">{readonly ? 'Read-only view' : 'Use Changes tab to push updates'}</div>
+          <div className="text-[10px] opacity-70">
+            {lastRefreshed
+              ? `Updated ${lastRefreshed.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+              : readonly ? 'Read-only view' : 'Use Changes tab to push updates'}
+          </div>
         </div>
-        <button onClick={handleRefresh} disabled={refreshing} className="p-1.5 rounded-lg bg-white/20">
+        <button onClick={handleRefresh} disabled={refreshing} className="p-1.5 rounded-lg bg-white/20" title="Refresh client data">
           <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
         </button>
       </div>
