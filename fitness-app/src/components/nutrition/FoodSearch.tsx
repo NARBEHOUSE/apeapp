@@ -50,6 +50,7 @@ interface FoodSearchProps {
   defaultTab?: SearchTab;
   saveOnly?: boolean;
   multiMode?: boolean;
+  startWithScan?: boolean;
 }
 
 function convertBuiltIn(food: BuiltInFood): LocalResult {
@@ -69,7 +70,7 @@ function convertBuiltIn(food: BuiltInFood): LocalResult {
   };
 }
 
-export function FoodSearch({ onAdd, onClose, profileId, defaultTab, saveOnly = false, multiMode = false }: FoodSearchProps) {
+export function FoodSearch({ onAdd, onClose, profileId, defaultTab, saveOnly = false, multiMode = false, startWithScan = false }: FoodSearchProps) {
 
   const [plate, setPlate] = useState<PlateItem[]>([]);
   const [tab, setTab] = useState<SearchTab>(defaultTab || 'search');
@@ -282,6 +283,9 @@ export function FoodSearch({ onAdd, onClose, profileId, defaultTab, saveOnly = f
   }, []);
 
   useEffect(() => { return () => { stopScanner(); }; }, [stopScanner]);
+
+  // Auto-start scanner when opened via scan shortcut
+  useEffect(() => { if (startWithScan) startScanner(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleAdd() {
     if (!selected) return;

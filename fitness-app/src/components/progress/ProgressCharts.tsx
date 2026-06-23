@@ -68,15 +68,12 @@ export function ProgressCharts({ measurements }: Props) {
 
   const weightData = useMemo(() => {
     return sorted
-      .filter((m) => (m.weight != null || m.bodyFatPercent != null) && (cutoff === '' || m.date >= cutoff))
+      .filter((m) => m.weight != null && (cutoff === '' || m.date >= cutoff))
       .map((m) => ({
         date: formatShortDate(m.date),
         weight: m.weight,
-        bodyFat: m.bodyFatPercent,
       }));
   }, [sorted, cutoff]);
-
-  const hasBodyFat = weightData.some((d) => d.bodyFat != null);
 
   const bodyKeys = useMemo(() => {
     const keys = new Set<string>();
@@ -136,7 +133,7 @@ export function ProgressCharts({ measurements }: Props) {
       {weightData.length > 0 && (
         <div className="card">
           <h4 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-4">
-            {hasBodyFat ? 'Weight & Body Fat Over Time' : 'Weight Over Time'}
+            Weight Over Time
           </h4>
           <div className="h-52">
             <ResponsiveContainer width="100%" height="100%">
@@ -155,17 +152,6 @@ export function ProgressCharts({ measurements }: Props) {
                   domain={['auto', 'auto']}
                   width={40}
                 />
-                {hasBodyFat && (
-                  <YAxis
-                    yAxisId="right"
-                    orientation="right"
-                    tick={{ fill: 'var(--color-text-muted)', fontSize: 10 }}
-                    axisLine={false}
-                    tickLine={false}
-                    domain={['auto', 'auto']}
-                    width={35}
-                  />
-                )}
                 <Tooltip content={<CustomTooltip />} />
                 <Line
                   type="monotone"
@@ -176,19 +162,6 @@ export function ProgressCharts({ measurements }: Props) {
                   dot={{ fill: '#e8572a', r: 3 }}
                   activeDot={{ r: 5 }}
                 />
-                {hasBodyFat && (
-                  <Line
-                    type="monotone"
-                    dataKey="bodyFat"
-                    name="Body Fat %"
-                    stroke="#5b6ef5"
-                    strokeWidth={2}
-                    dot={{ fill: '#5b6ef5', r: 3 }}
-                    activeDot={{ r: 5 }}
-                    yAxisId="right"
-                    connectNulls
-                  />
-                )}
               </LineChart>
             </ResponsiveContainer>
           </div>

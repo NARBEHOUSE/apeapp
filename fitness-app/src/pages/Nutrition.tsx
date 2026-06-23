@@ -599,6 +599,9 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
             <button type="button" onClick={openMealBuilder} className="flex-1 bg-surface rounded-xl py-2.5 flex items-center justify-center gap-1.5 active:scale-[0.98] transition-transform">
               <Search size={14} className="text-accent-blue" /><span className="text-xs font-medium">Meal</span>
             </button>
+            <button type="button" onClick={() => { setAddAtTime(null); setModal('barcode'); }} className="flex-1 bg-surface rounded-xl py-2.5 flex items-center justify-center gap-1.5 active:scale-[0.98] transition-transform">
+              <ScanBarcode size={14} className="text-accent-purple" /><span className="text-xs font-medium">Scan</span>
+            </button>
             <button type="button" onClick={() => setModal('ai')} className="flex-1 bg-surface rounded-xl py-2.5 flex items-center justify-center gap-1.5 active:scale-[0.98] transition-transform">
               <Camera size={14} className="text-nutrition" /><span className="text-xs font-medium">AI Scan</span>
             </button>
@@ -1233,6 +1236,10 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
 
       <Modal open={modal === 'ai'} onClose={() => setModal(null)} title="AI Food Scanner">
         <AIFoodScanner onAdd={addEntry} onClose={() => setModal(null)} />
+      </Modal>
+
+      <Modal open={modal === 'barcode'} onClose={() => { setModal(null); setAddAtTime(null); }} title="Scan Barcode">
+        <FoodSearch onAdd={addEntryWithTime} onClose={() => { setModal(null); setAddAtTime(null); }} profileId={profile.id} multiMode={true} startWithScan={true} />
       </Modal>
 
 
