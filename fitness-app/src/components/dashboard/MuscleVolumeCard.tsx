@@ -28,13 +28,13 @@ export function MuscleVolumeCard({ sessions, programs }: Props) {
 
   // Build exercise -> muscle group map from all programs
   const exerciseMuscleMap = useMemo(() => {
-    const map: Record<string, { primary: string; secondary: string[] }> = {};
+    const map: Record<string, { primaries: string[]; secondary: string[] }> = {};
     for (const prog of programs) {
       for (const day of prog.days) {
         for (const ex of day.exercises) {
           if (ex.muscle) {
-            const muscles = ex.muscle.split(',').map((m) => m.trim()).filter(Boolean);
-            map[ex.id] = { primary: muscles[0] || '', secondary: ex.secondaryMuscles || muscles.slice(1) };
+            const primaries = ex.muscle.split(',').map((m) => m.trim()).filter(Boolean);
+            map[ex.id] = { primaries, secondary: ex.secondaryMuscles || [] };
           }
         }
       }
@@ -53,18 +53,21 @@ export function MuscleVolumeCard({ sessions, programs }: Props) {
           const workingSets = sets.filter((st) => st.completed && !st.isWarmup);
           if (workingSets.length === 0) continue;
           const info = exerciseMuscleMap[exId];
-          const primary = info?.primary || '';
+          const primaries = info?.primaries || [];
           const secondary = info?.secondary || [];
-          if (!primary) continue;
+          if (primaries.length === 0) continue;
 
           const vol = workingSets.reduce((a, st) => a + st.weight * st.reps, 0);
           const top = Math.max(...workingSets.map((st) => st.weight));
 
-          // Primary: full credit
-          if (!muscles[primary]) muscles[primary] = { sets: 0, volume: 0, topWeight: 0 };
-          muscles[primary].sets += workingSets.length;
-          muscles[primary].volume += vol;
-          muscles[primary].topWeight = Math.max(muscles[primary].topWeight, top);
+          // All primary muscles: full credit each
+          for (const primary of primaries) {
+            if (!primary) continue;
+            if (!muscles[primary]) muscles[primary] = { sets: 0, volume: 0, topWeight: 0 };
+            muscles[primary].sets += workingSets.length;
+            muscles[primary].volume += vol;
+            muscles[primary].topWeight = Math.max(muscles[primary].topWeight, top);
+          }
 
           // Secondary: half credit
           for (const sec of secondary) {

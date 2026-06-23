@@ -48,9 +48,23 @@ function MuscleAutocomplete({ label, value, onChange, suggestions, placeholder }
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  const filtered = value.trim()
-    ? suggestions.filter((s) => s.toLowerCase().includes(value.toLowerCase()) && s.toLowerCase() !== value.toLowerCase())
-    : suggestions;
+
+  // Support comma-separated: filter on the last segment being typed
+  const parts = value.split(',').map((p) => p.trim());
+  const lastSegment = parts[parts.length - 1] ?? '';
+  const alreadySelected = parts.slice(0, -1).map((p) => p.toLowerCase());
+  const filtered = suggestions.filter((s) => {
+    const sl = s.toLowerCase();
+    if (alreadySelected.includes(sl)) return false;
+    if (!lastSegment) return true;
+    return sl.includes(lastSegment.toLowerCase()) && sl !== lastSegment.toLowerCase();
+  });
+
+  const handleSelect = (m: string) => {
+    const before = parts.slice(0, -1).filter(Boolean);
+    onChange([...before, m].join(', '));
+    setOpen(false);
+  };
 
   return (
     <div ref={ref} className="relative">
@@ -70,7 +84,7 @@ function MuscleAutocomplete({ label, value, onChange, suggestions, placeholder }
               key={m}
               type="button"
               onMouseDown={(e) => e.preventDefault()}
-              onClick={() => { onChange(m); setOpen(false); }}
+              onClick={() => handleSelect(m)}
               className="w-full text-left px-3 py-2 text-sm hover:bg-surface-raised transition-colors first:rounded-t-xl last:rounded-b-xl"
             >
               {m}
@@ -397,16 +411,16 @@ function SortableExercise({
             </div>
           </div>
           <MuscleAutocomplete
-            label="Primary Muscle"
+            label="Primary Muscles"
             value={exercise.muscle}
             onChange={(v) => onUpdate(exercise.id, { muscle: v })}
             suggestions={allMuscles}
-            placeholder="e.g. Chest"
+            placeholder="e.g. Quads, Hamstrings, Glutes"
           />
           <SecondaryMuscleInput
             value={exercise.secondaryMuscles || []}
             onChange={(muscles) => onUpdate(exercise.id, { secondaryMuscles: muscles })}
-            suggestions={allMuscles.filter((m) => m !== exercise.muscle)}
+            suggestions={allMuscles.filter((m) => !exercise.muscle.split(',').map((x) => x.trim()).includes(m))}
           />
           <AlternativesInput
             value={exercise.alternatives || []}
