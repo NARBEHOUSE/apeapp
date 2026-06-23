@@ -13,6 +13,7 @@ import {
   getOrCreateCoachShareFolder,
   findSharedClientFolders,
   findDataFileInFolder,
+  getFileParentFolder,
 } from '../utils/googleDrive';
 import { getDB } from '../db';
 import type {
@@ -378,24 +379,35 @@ export function useCoach() {
       return { error: 'Not signed in to Google. Sign in first.' };
     }
 
-    // If we have the folder ID stored, do a fresh file search so we always read
-    // the most recently modified file — this auto-heals stale cached fileIds
-    // caused by the client having duplicate share files in Drive.
+    // Always do a fresh folder search so we read the most recently modified file.
+    // This auto-heals stale cached fileIds (duplicates, re-shares, etc.).
     let actualFileId = fileId;
     const rel = relationships.find((r) => r.role === 'coach' && r.fileId === fileId);
-    if (rel?.shareFolderId) {
-      try {
-        const freshId = await findDataFileInFolder(token, rel.shareFolderId);
-        if (freshId && freshId !== fileId) {
-          actualFileId = freshId;
+    try {
+      // Get folder ID — stored in relationship, or fetch from Drive as fallback
+      let folderId = rel?.shareFolderId;
+      if (!folderId) {
+        folderId = await getFileParentFolder(token, fileId) ?? undefined;
+        if (folderId && rel) {
           const updatedRels = relationships.map((r) =>
-            r.role === 'coach' && r.fileId === fileId ? { ...r, fileId: freshId } : r
+            r.role === 'coach' && r.fileId === fileId ? { ...r, shareFolderId: folderId } : r
           );
           saveRelationships(updatedRels);
           setRelationships(updatedRels);
         }
-      } catch { /* non-fatal — fall back to cached fileId */ }
-    }
+      }
+      if (folderId) {
+        const freshId = await findDataFileInFolder(token, folderId);
+        if (freshId && freshId !== fileId) {
+          actualFileId = freshId;
+          const updatedRels = relationships.map((r) =>
+            r.role === 'coach' && r.fileId === fileId ? { ...r, fileId: freshId, shareFolderId: folderId } : r
+          );
+          saveRelationships(updatedRels);
+          setRelationships(updatedRels);
+        }
+      }
+    } catch { /* non-fatal — fall back to cached fileId */ }
 
     try {
       const raw = await readSharedFile(token, actualFileId);

@@ -343,6 +343,16 @@ export async function findSharedClientFolders(token: string): Promise<{ folderId
   }
 }
 
+export async function getFileParentFolder(token: string, fileId: string): Promise<string | null> {
+  try {
+    const res = await driveRequest(token, `https://www.googleapis.com/drive/v3/files/${fileId}?fields=parents`);
+    const data = await res.json();
+    return (data.parents as string[])?.[0] || null;
+  } catch {
+    return null;
+  }
+}
+
 export async function findDataFileInFolder(token: string, folderId: string): Promise<string | null> {
   try {
     // Sort by modifiedTime desc so we always read the most recently updated file
@@ -439,30 +449,38 @@ async function compressPhotosForSync(
 
 export async function gatherCoachData(profileId?: string): Promise<object> {
   const db = await getDB();
-  const [allWorkouts, allFood, allMeasurements, allPhotos, allPrograms, allCheckIns] = await Promise.all([
+  const [allWorkouts, allFood, allMeasurements, allPhotos, allPrograms, allCheckIns, allSteps] = await Promise.all([
     db.getAll('workoutSessions'),
     db.getAll('foodEntries'),
     db.getAll('measurements'),
     db.getAll('progressPhotos'),
     db.getAll('programs'),
     db.getAll('checkIns'),
+    db.getAll('steps'),
   ]);
 
   const profiles = JSON.parse(localStorage.getItem('fitos-profiles') || '[]');
-  const profile = profileId ? profiles.find((p: { id: string }) => p.id === profileId) : profiles[0];
+  // Use the explicitly passed profileId, then the active profile, then the first profile
+  const activeProfileId = localStorage.getItem('fitos-active-profile');
+  const profile = profileId
+    ? profiles.find((p: { id: string }) => p.id === profileId)
+    : (profiles.find((p: { id: string }) => p.id === activeProfileId) || profiles[0]);
   const pid = profile?.id;
+
+  const filter = <T extends { profileId: string }>(arr: T[]) => pid ? arr.filter((x) => x.profileId === pid) : arr;
 
   return {
     _apeCoachShare: true,
     version: 3,
     updatedAt: new Date().toISOString(),
     profile: profile || {},
-    workoutSessions: pid ? allWorkouts.filter((w: { profileId: string }) => w.profileId === pid) : allWorkouts,
-    foodEntries: pid ? allFood.filter((f: { profileId: string }) => f.profileId === pid) : allFood,
-    measurements: pid ? allMeasurements.filter((m: { profileId: string }) => m.profileId === pid) : allMeasurements,
-    checkIns: pid ? allCheckIns.filter((c: { profileId: string }) => c.profileId === pid) : allCheckIns,
+    workoutSessions: filter(allWorkouts as { profileId: string }[]),
+    foodEntries: filter(allFood as { profileId: string }[]),
+    measurements: filter(allMeasurements as { profileId: string }[]),
+    checkIns: filter(allCheckIns as { profileId: string }[]),
+    steps: filter(allSteps as { profileId: string }[]),
     progressPhotos: await compressPhotosForSync(
-      (pid ? allPhotos.filter((p: { profileId: string }) => p.profileId === pid) : []) as unknown as { imageData: string; [key: string]: unknown }[]
+      (filter(allPhotos as { profileId: string }[]) as unknown) as { imageData: string; [key: string]: unknown }[]
     ),
     programs: allPrograms,
     pendingChanges: null,
