@@ -162,7 +162,28 @@ export function useCoach() {
     const token = getAccessToken() || await requireAccessToken();
     const freshData = await gatherCoachData() as Record<string, unknown>;
 
+    // Deduplicate relationships — if shareWithCoach was called more than once for
+    // the same coach, keep only the most recently created entry and delete the old file
+    const seen = new Map<string, CoachRelationship>();
     for (const rel of myCoachRels) {
+      const key = (rel.coachEmail || rel.fileId).toLowerCase();
+      const prev = seen.get(key);
+      if (!prev || new Date(rel.createdAt) > new Date(prev.createdAt)) {
+        seen.set(key, rel);
+      }
+    }
+    const staleRels = myCoachRels.filter((r) => !seen.has((r.coachEmail || r.fileId).toLowerCase()) || seen.get((r.coachEmail || r.fileId).toLowerCase()) !== r);
+    if (staleRels.length > 0) {
+      for (const old of staleRels) {
+        try { await deleteFile(token, old.fileId); } catch { /* best-effort */ }
+      }
+      const cleaned = relationships.filter((r) => !staleRels.includes(r));
+      saveRelationships(cleaned);
+      setRelationships(cleaned);
+    }
+    const dedupedRels = [...seen.values()];
+
+    for (const rel of dedupedRels) {
       try {
         let existing: Record<string, unknown> = {};
         try {
