@@ -84,7 +84,21 @@ function MuscleAutocomplete({ label, value, onChange, suggestions, placeholder }
 
 function SecondaryMuscleInput({ value, onChange, suggestions }: { value: string[]; onChange: (muscles: string[]) => void; suggestions: string[] }) {
   const [text, setText] = useState(value.join(', '));
-  const available = suggestions.filter((s) => !value.map((v) => v.toLowerCase()).includes(s.toLowerCase()));
+
+  // Keep text in sync when value changes externally (e.g. chip click re-renders parent)
+  const prevValue = useRef(value);
+  if (prevValue.current !== value) {
+    prevValue.current = value;
+    // Only sync if the parsed text doesn't already match (avoids overwriting mid-type)
+    const parsed = text.split(',').map((m) => m.trim()).filter(Boolean);
+    const same = parsed.length === value.length && parsed.every((m, i) => m.toLowerCase() === value[i]?.toLowerCase());
+    if (!same) setText(value.join(', '));
+  }
+
+  // Compute available chips from current typed text so they update in real time
+  const typedValues = text.split(',').map((m) => m.trim().toLowerCase()).filter(Boolean);
+  const available = suggestions.filter((s) => !typedValues.includes(s.toLowerCase()));
+
   return (
     <div>
       <label className="label mb-1 block">Secondary Muscles</label>
@@ -102,9 +116,10 @@ function SecondaryMuscleInput({ value, onChange, suggestions }: { value: string[
               key={m}
               type="button"
               onClick={() => {
-                const updated = [...value, m];
-                onChange(updated);
+                const current = text.split(',').map((s) => s.trim()).filter(Boolean);
+                const updated = [...current, m];
                 setText(updated.join(', '));
+                onChange(updated);
               }}
               className="text-[10px] px-1.5 py-0.5 rounded-md bg-surface-raised text-text-muted hover:text-text-secondary transition-colors"
             >
