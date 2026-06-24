@@ -209,8 +209,10 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
   const [foodLibrary, setFoodLibrary] = useState<SavedFood[]>(() => getSavedFoods(profile.id));
   const [foodLibSearch, setFoodLibSearch] = useState('');
   const [favoritesOpen, setFavoritesOpen] = useState(true);
+  const [favSearch, setFavSearch] = useState('');
   const [myFoodsOpen, setMyFoodsOpen] = useState(true);
   const [savedMealsOpen, setSavedMealsOpen] = useState(true);
+  const [savedMealsSearch, setSavedMealsSearch] = useState('');
   const [mealPlansOpen, setMealPlansOpen] = useState(true);
   const [editingFood, setEditingFood] = useState<SavedFood | null>(null);
   const [editFoodCal, setEditFoodCal] = useState('');
@@ -737,18 +739,26 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
                 <h3 className="label flex items-center gap-1.5"><Star size={11} className="text-nutrition" /> Favorites <span className="text-text-muted font-normal">({favorites.length})</span></h3>
                 {favoritesOpen ? <ChevronUp size={14} className="text-text-muted" /> : <ChevronDown size={14} className="text-text-muted" />}
               </button>
-              {favoritesOpen && <div className="space-y-1.5 max-h-[300px] overflow-y-auto pr-0.5">
-                {favorites.map((entry) => (
-                  <div key={entry.id} className="bg-surface rounded-xl p-3 flex items-center gap-3">
-                    <span className="text-lg">{getFoodEmoji(entry.name)}</span>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium truncate">{entry.name}</div>
-                      <div className="text-[10px] text-text-muted">{Math.round(entry.calories)} cal · P{Math.round(entry.protein)}g · C{Math.round(entry.carbs)}g · F{Math.round(entry.fat)}g</div>
-                    </div>
-                    <button onClick={() => handleQuickAddFavorite(entry)} className="bg-surface-raised px-3 py-1.5 rounded-lg text-[10px] font-medium text-accent-blue">+ Add</button>
+              {favoritesOpen && (
+                <>
+                  {favorites.length > 10 && (
+                    <input type="text" className="input-field text-xs mb-2 w-full" placeholder="Search favorites..."
+                      value={favSearch} onChange={(e) => setFavSearch(e.target.value)} />
+                  )}
+                  <div className="space-y-1.5 max-h-[300px] overflow-y-auto pr-0.5">
+                    {favorites.filter((e) => !favSearch || e.name.toLowerCase().includes(favSearch.toLowerCase())).map((entry) => (
+                      <div key={entry.id} className="bg-surface rounded-xl p-3 flex items-center gap-3">
+                        <span className="text-lg">{getFoodEmoji(entry.name)}</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium truncate">{entry.name}</div>
+                          <div className="text-[10px] text-text-muted">{Math.round(entry.calories)} cal · P{Math.round(entry.protein)}g · C{Math.round(entry.carbs)}g · F{Math.round(entry.fat)}g</div>
+                        </div>
+                        <button onClick={() => handleQuickAddFavorite(entry)} className="bg-surface-raised px-3 py-1.5 rounded-lg text-[10px] font-medium text-accent-blue">+ Add</button>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>}
+                </>
+              )}
             </div>
           )}
 
@@ -966,26 +976,34 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
                 <h3 className="label flex items-center gap-1.5"><Bookmark size={11} /> Saved Meals <span className="text-text-muted font-normal">({savedMeals.length})</span></h3>
                 {savedMealsOpen ? <ChevronUp size={14} className="text-text-muted" /> : <ChevronDown size={14} className="text-text-muted" />}
               </button>
-              {savedMealsOpen && <div className="space-y-1.5 max-h-[340px] overflow-y-auto pr-0.5">
-                {savedMeals.map((meal) => (
-                  <div key={meal.id} className="bg-surface rounded-xl p-3 flex items-center gap-3">
-                    <span className="text-lg">{meal.emoji}</span>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium truncate">{meal.name}</div>
-                      <div className="text-[10px] text-text-muted">
-                        {Math.round(meal.calories)} cal · P{Math.round(meal.protein)}g · C{Math.round(meal.carbs)}g · F{Math.round(meal.fat)}g
-                        {meal.servingSize > 0 && <span className="text-text-muted/60"> · {meal.servingSize}{meal.servingUnit}</span>}
+              {savedMealsOpen && (
+                <>
+                  {savedMeals.length > 10 && (
+                    <input type="text" className="input-field text-xs mb-2 w-full" placeholder="Search saved meals..."
+                      value={savedMealsSearch} onChange={(e) => setSavedMealsSearch(e.target.value)} />
+                  )}
+                  <div className="space-y-1.5 max-h-[340px] overflow-y-auto pr-0.5">
+                    {savedMeals.filter((m) => !savedMealsSearch || m.name.toLowerCase().includes(savedMealsSearch.toLowerCase())).map((meal) => (
+                      <div key={meal.id} className="bg-surface rounded-xl p-3 flex items-center gap-3">
+                        <span className="text-lg">{meal.emoji}</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium truncate">{meal.name}</div>
+                          <div className="text-[10px] text-text-muted">
+                            {Math.round(meal.calories)} cal · P{Math.round(meal.protein)}g · C{Math.round(meal.carbs)}g · F{Math.round(meal.fat)}g
+                            {meal.servingSize > 0 && <span className="text-text-muted/60"> · {meal.servingSize}{meal.servingUnit}</span>}
+                          </div>
+                          {meal.ingredients && meal.ingredients.length > 0 && (
+                            <div className="text-[9px] text-text-muted/50 mt-0.5 truncate">{meal.ingredients.map((i) => i.name).join(', ')}</div>
+                          )}
+                        </div>
+                        <button onClick={() => { setEditingMeal(meal); setAddAtTime(null); setModal('meal-builder'); }} className="px-2 py-1.5 rounded-lg text-[10px] text-text-muted hover:text-accent-blue">Edit</button>
+                        <button onClick={() => handleQuickAdd(meal)} className="bg-surface-raised px-3 py-1.5 rounded-lg text-[10px] font-medium text-accent-blue">+ Add</button>
+                        <button onClick={() => handleDeleteSavedMeal(meal.id)} className="p-1.5"><Trash2 size={12} className="text-text-muted/40 hover:text-danger" /></button>
                       </div>
-                      {meal.ingredients && meal.ingredients.length > 0 && (
-                        <div className="text-[9px] text-text-muted/50 mt-0.5 truncate">{meal.ingredients.map((i) => i.name).join(', ')}</div>
-                      )}
-                    </div>
-                    <button onClick={() => { setEditingMeal(meal); setAddAtTime(null); setModal('meal-builder'); }} className="px-2 py-1.5 rounded-lg text-[10px] text-text-muted hover:text-accent-blue">Edit</button>
-                    <button onClick={() => handleQuickAdd(meal)} className="bg-surface-raised px-3 py-1.5 rounded-lg text-[10px] font-medium text-accent-blue">+ Add</button>
-                    <button onClick={() => handleDeleteSavedMeal(meal.id)} className="p-1.5"><Trash2 size={12} className="text-text-muted/40 hover:text-danger" /></button>
+                    ))}
                   </div>
-                ))}
-              </div>}
+                </>
+              )}
             </div>
           )}
 
