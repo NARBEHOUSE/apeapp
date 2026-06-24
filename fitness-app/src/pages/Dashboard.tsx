@@ -222,18 +222,29 @@ export default function Dashboard({ profile, onUpdateProfile }: DashboardProps) 
   const streak = useMemo(() => {
     const activityDates = new Set<string>();
     sessions.forEach((s) => activityDates.add(s.date));
-    if (foodEntries.length > 0) activityDates.add(today());
+    allFoodEntries.forEach((e) => activityDates.add(e.date));
+    water.forEach((w) => activityDates.add(w.date));
+    steps.forEach((s) => activityDates.add(s.date));
+    measurements.forEach((m) => activityDates.add(m.date));
+    checkIns.forEach((c) => activityDates.add(c.date));
+
+    // Start from today if anything was logged today, otherwise from yesterday
+    // (so a rest day doesn't break the streak until the day after)
+    const todayStr = today();
+    const d = new Date(todayStr + 'T00:00:00');
+    d.setDate(d.getDate() - 1);
+    const yesterdayStr = d.toISOString().split('T')[0];
+    let checkDate = activityDates.has(todayStr) ? todayStr : yesterdayStr;
 
     let count = 0;
-    let checkDate = today();
     while (activityDates.has(checkDate)) {
       count++;
-      const d = new Date(checkDate + 'T00:00:00');
-      d.setDate(d.getDate() - 1);
-      checkDate = d.toISOString().split('T')[0];
+      const cur = new Date(checkDate + 'T00:00:00');
+      cur.setDate(cur.getDate() - 1);
+      checkDate = cur.toISOString().split('T')[0];
     }
     return count;
-  }, [sessions, foodEntries]);
+  }, [sessions, allFoodEntries, water, steps, measurements, checkIns]);
 
   const prsThisWeek = useMemo(() => {
     const weekDates = new Set(getWeekDates(today()));
