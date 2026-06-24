@@ -326,7 +326,15 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 10 } }));
 
-  const sortedEntries = [...entries].sort((a, b) => a.loggedAt.localeCompare(b.loggedAt));
+  const favoriteKeys = new Set(
+    allFavorites.map((f) => f.fdcId ? `fdc:${f.fdcId}` : `${f.name}|${f.brand || ''}`)
+  );
+  const sortedEntries = [...entries]
+    .map((e) => ({
+      ...e,
+      isFavorite: e.isFavorite || favoriteKeys.has(e.fdcId ? `fdc:${e.fdcId}` : `${e.name}|${e.brand || ''}`),
+    }))
+    .sort((a, b) => a.loggedAt.localeCompare(b.loggedAt));
 
   const TIMELINE_START = 0;
   const TIMELINE_END = 23;
@@ -420,7 +428,7 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
 
   function addEntryWithTime(entry: Parameters<typeof addEntry>[0]) {
     const time = addAtTime || currentTimeRounded();
-    addEntry({ ...entry, loggedAt: buildLoggedAt(time) });
+    addEntry({ ...entry, date: selectedDate, loggedAt: buildLoggedAt(time) });
     setAddAtTime(null);
   }
 
