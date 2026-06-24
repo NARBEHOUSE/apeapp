@@ -442,6 +442,11 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
     toast(`Added ${entry.name} to today`, 'success');
   }
 
+  function handleAddFromLibrary(food: SavedFood) {
+    addEntry({ date: today(), name: food.name, brand: food.brand, servingSize: food.servingSize || 1, servingUnit: food.servingUnit || 'g', servingsConsumed: 1, calories: food.calories, protein: food.protein, carbs: food.carbs, fat: food.fat, fiber: food.fiber, source: food.source || 'manual', mealType: 'snack' });
+    toast(`Added ${food.name} to today`, 'success');
+  }
+
   async function openMealBuilder() {
     setAddAtTime(null);
     setModal('search');
@@ -740,38 +745,16 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
             </div>
           )}
 
+          {/* My Foods — individual foods saved from search or manual entry */}
           <div>
-            <h3 className="label mb-2 flex items-center gap-1.5"><Bookmark size={11} /> My Foods</h3>
-            {savedMeals.length === 0 ? (
-              <div className="text-center py-8"><div className="text-2xl mb-2">📋</div><p className="text-sm text-text-muted">No saved foods yet</p></div>
-            ) : (
-              <div className="space-y-1.5">
-                {savedMeals.map((meal) => (
-                  <div key={meal.id} className="bg-surface rounded-xl p-3 flex items-center gap-3">
-                    <span className="text-lg">{meal.emoji}</span>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium truncate">{meal.name}</div>
-                      <div className="text-[10px] text-text-muted">
-                        {Math.round(meal.calories)} cal · P{Math.round(meal.protein)}g · C{Math.round(meal.carbs)}g · F{Math.round(meal.fat)}g
-                        {meal.servingSize > 0 && <span className="text-text-muted/60"> · {meal.servingSize}{meal.servingUnit}</span>}
-                      </div>
-                      {meal.ingredients && meal.ingredients.length > 0 && (
-                        <div className="text-[9px] text-text-muted/50 mt-0.5 truncate">{meal.ingredients.map((i) => i.name).join(', ')}</div>
-                      )}
-                    </div>
-                    <button onClick={() => { setEditingMeal(meal); setAddAtTime(null); setModal('meal-builder'); }} className="px-2 py-1.5 rounded-lg text-[10px] text-text-muted hover:text-accent-blue">Edit</button>
-                    <button onClick={() => handleQuickAdd(meal)} className="bg-surface-raised px-3 py-1.5 rounded-lg text-[10px] font-medium text-accent-blue">+ Add</button>
-                    <button onClick={() => handleDeleteSavedMeal(meal.id)} className="p-1.5"><Trash2 size={12} className="text-text-muted/40 hover:text-danger" /></button>
-                  </div>
-                ))}
+            <h3 className="label mb-2">My Foods {foodLibrary.length > 0 && <span className="text-text-muted font-normal">({foodLibrary.length})</span>}</h3>
+            {foodLibrary.length === 0 ? (
+              <div className="text-center py-8">
+                <div className="text-2xl mb-2">🥗</div>
+                <p className="text-sm text-text-muted">No saved foods yet</p>
+                <p className="text-[10px] text-text-muted/70 mt-1">Use "Search & Save Food" or "Enter Manually" above to build your library</p>
               </div>
-            )}
-          </div>
-
-          {/* Food Library */}
-          <div>
-            <h3 className="label mb-2">Food Library ({foodLibrary.length})</h3>
-            {foodLibrary.length > 0 && (
+            ) : (
               <>
                 <input
                   type="text" className="input-field text-xs mb-2 w-full" placeholder="Search your food library..."
@@ -788,8 +771,8 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
                           {zeroCount} food{zeroCount !== 1 ? 's' : ''} missing macro data — tap to update
                         </div>
                       )}
-                      <div className="space-y-1 max-h-60 overflow-y-auto">
-                        {filtered.slice(0, 50).map((food) => {
+                      <div className="space-y-1">
+                        {filtered.slice(0, 100).map((food) => {
                           const hasMacros = food.calories > 0 || food.protein > 0;
                           const isEditing = editingFood?.name === food.name;
 
@@ -947,14 +930,17 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
                                   <div className="text-[10px] text-warning">Tap to add macros</div>
                                 )}
                               </button>
+                              {hasMacros && (
+                                <button onClick={() => handleAddFromLibrary(food)} className="bg-surface rounded-lg px-2.5 py-1.5 text-[10px] font-medium text-accent-blue shrink-0">+ Add</button>
+                              )}
                               <button onClick={() => {
                                 deleteSavedFood(profile.id, food.name);
                                 setFoodLibrary(getSavedFoods(profile.id));
-                              }} className="p-1"><Trash2 size={10} className="text-text-muted/30 hover:text-danger" /></button>
+                              }} className="p-1.5 shrink-0"><Trash2 size={12} className="text-text-muted/40 hover:text-danger" /></button>
                             </div>
                           );
                         })}
-                        {filtered.length > 50 && <p className="text-[10px] text-text-muted text-center py-1">Showing 50 of {filtered.length} — search to narrow down</p>}
+                        {filtered.length > 100 && <p className="text-[10px] text-text-muted text-center py-1">Showing 100 of {filtered.length} — search to narrow down</p>}
                       </div>
                     </>
                   );
@@ -962,6 +948,33 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
               </>
             )}
           </div>
+
+          {/* Saved Meals — multi-ingredient meals built with "Build a Meal" */}
+          {savedMeals.length > 0 && (
+            <div>
+              <h3 className="label mb-2 flex items-center gap-1.5"><Bookmark size={11} /> Saved Meals</h3>
+              <div className="space-y-1.5">
+                {savedMeals.map((meal) => (
+                  <div key={meal.id} className="bg-surface rounded-xl p-3 flex items-center gap-3">
+                    <span className="text-lg">{meal.emoji}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium truncate">{meal.name}</div>
+                      <div className="text-[10px] text-text-muted">
+                        {Math.round(meal.calories)} cal · P{Math.round(meal.protein)}g · C{Math.round(meal.carbs)}g · F{Math.round(meal.fat)}g
+                        {meal.servingSize > 0 && <span className="text-text-muted/60"> · {meal.servingSize}{meal.servingUnit}</span>}
+                      </div>
+                      {meal.ingredients && meal.ingredients.length > 0 && (
+                        <div className="text-[9px] text-text-muted/50 mt-0.5 truncate">{meal.ingredients.map((i) => i.name).join(', ')}</div>
+                      )}
+                    </div>
+                    <button onClick={() => { setEditingMeal(meal); setAddAtTime(null); setModal('meal-builder'); }} className="px-2 py-1.5 rounded-lg text-[10px] text-text-muted hover:text-accent-blue">Edit</button>
+                    <button onClick={() => handleQuickAdd(meal)} className="bg-surface-raised px-3 py-1.5 rounded-lg text-[10px] font-medium text-accent-blue">+ Add</button>
+                    <button onClick={() => handleDeleteSavedMeal(meal.id)} className="p-1.5"><Trash2 size={12} className="text-text-muted/40 hover:text-danger" /></button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Meal Plans */}
           <div>
