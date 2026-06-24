@@ -91,7 +91,8 @@ export function NutritionCharts({ profileId, targets, fiberTarget = 30 }: Nutrit
   const [range, setRange] = useState<Range>(14);
   const [metric, setMetric] = useState<Metric>('calories');
   const [chartType, setChartType] = useState<ChartType>('bar');
-  const [activeDonutIndex, setActiveDonutIndex] = useState<number | null>(null);
+  const [activeDonutIndex, setActiveDonutIndex] = useState<number | null>(null); // clicked = locked label
+  const [hoverDonutIndex, setHoverDonutIndex] = useState<number | null>(null);  // hover = temp label
 
   useEffect(() => {
     getFoodEntriesByProfile(profileId).then((entries) => {
@@ -216,7 +217,9 @@ export function NutritionCharts({ profileId, targets, fiberTarget = 30 }: Nutrit
     );
   }
 
-  const activeSlice = activeDonutIndex !== null ? donutData[activeDonutIndex] : null;
+  // Hover takes priority for the label; clicked index persists when not hovering
+  const labelIndex = hoverDonutIndex ?? activeDonutIndex;
+  const activeSlice = labelIndex !== null ? donutData[labelIndex] : null;
 
   return (
     <div className="space-y-3">
@@ -227,9 +230,7 @@ export function NutritionCharts({ profileId, targets, fiberTarget = 30 }: Nutrit
           <div className="relative">
             <ResponsiveContainer width="100%" height={200}>
               <PieChart>
-                {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                 <Pie
-                  {...({} as any)}
                   data={donutData}
                   cx="50%"
                   cy="50%"
@@ -237,8 +238,9 @@ export function NutritionCharts({ profileId, targets, fiberTarget = 30 }: Nutrit
                   outerRadius={85}
                   dataKey="value"
                   stroke="none"
-                  activeIndex={activeDonutIndex ?? undefined}
                   activeShape={(props: any) => <Sector {...props} outerRadius={props.outerRadius + 6} />}
+                  onMouseEnter={(_: any, index: number) => setHoverDonutIndex(index)}
+                  onMouseLeave={() => setHoverDonutIndex(null)}
                   onClick={(_: any, index: number) =>
                     setActiveDonutIndex((prev) => (prev === index ? null : index))
                   }
