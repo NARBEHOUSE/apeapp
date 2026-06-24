@@ -163,9 +163,12 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
   const [editFeet, setEditFeet] = useState(String(existingHeight.feet || ''));
   const [editInches, setEditInches] = useState(String(existingHeight.inches || ''));
   const [editWeight, setEditWeight] = useState(() => {
-    if (profile.lastKnownWeight) return String(Math.round(profile.lastKnownWeight));
-    if (existingStats?.weightKg) return String(Math.round(kgToLbs(existingStats.weightKg)));
-    return '';
+    let lbs: number | null = null;
+    if (profile.lastKnownWeight) lbs = profile.lastKnownWeight;
+    else if (existingStats?.weightKg) lbs = kgToLbs(existingStats.weightKg);
+    if (lbs == null) return '';
+    if (profile.units === 'metric') return String(Math.round(lbs * 0.453592 * 10) / 10);
+    return String(Math.round(lbs));
   });
   const [editBodyFatPercent, setEditBodyFatPercent] = useState(
     existingStats?.bodyFatPercent != null ? String(existingStats.bodyFatPercent) : ''
@@ -538,7 +541,7 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
       gender: editGender,
       age: ageNum,
       heightCm: heightToCm(feetNum, parseInt(editInches) || 0),
-      weightKg: lbsToKg(weightNum),
+      weightKg: editUnits === 'metric' ? weightNum : lbsToKg(weightNum),
       activityLevel: editActivityLevel,
       fitnessGoal: editFitnessGoal,
       bodyFatPercent: editBodyFatPercent ? parseFloat(editBodyFatPercent) : undefined,
@@ -575,13 +578,18 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
         gender: editGender,
         age: ageNum,
         heightCm: heightToCm(feetNum, parseInt(editInches) || 0),
-        weightKg: lbsToKg(weightNum),
+        weightKg: editUnits === 'metric' ? weightNum : lbsToKg(weightNum),
         activityLevel: editActivityLevel,
         fitnessGoal: editFitnessGoal,
         bodyFatPercent: editBodyFatPercent ? parseFloat(editBodyFatPercent) : undefined,
       };
       tdee = calculateTDEE(bodyStats);
     }
+
+    // lastKnownWeight is stored in lbs internally
+    const weightInLbs = weightNum
+      ? (editUnits === 'metric' ? Math.round(weightNum * 2.20462 * 10) / 10 : weightNum)
+      : undefined;
 
     onUpdateProfile(profile.id, {
       name: editName.trim() || profile.name,
@@ -595,8 +603,12 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
       tdee,
       fiberTarget: parseInt(editFiberTarget) || 30,
       stepGoal: parseInt(editStepGoal) || 10000,
-      lastKnownWeight: weightNum || profile.lastKnownWeight,
+      lastKnownWeight: weightInLbs || profile.lastKnownWeight,
     });
+
+    // Sync workout weight display unit with profile units
+    saveDashboardConfig({ ...getDashboardConfig(), weightUnit: editUnits === 'metric' ? 'kg' : 'lbs' });
+
     toast('Settings saved', 'success');
   };
 
@@ -1533,28 +1545,6 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
               </button>
             </div>
 
-            {/* Weight unit toggle */}
-            <div className="flex items-center justify-between py-2">
-              <div>
-                <div className="text-sm font-medium">Weight Unit</div>
-                <div className="text-[11px] text-text-muted">Used for workout weights and body weight</div>
-              </div>
-              <div className="flex gap-1 bg-surface-raised rounded-lg p-0.5">
-                <button
-                  onClick={() => updateDashCards({ weightUnit: 'lbs' })}
-                  className={`px-3 py-1 rounded-md text-xs font-semibold transition-colors ${dashCards.weightUnit !== 'kg' ? 'bg-bg text-text-primary shadow-sm' : 'text-text-muted'}`}
-                >
-                  lbs
-                </button>
-                <button
-                  onClick={() => updateDashCards({ weightUnit: 'kg' })}
-                  className={`px-3 py-1 rounded-md text-xs font-semibold transition-colors ${dashCards.weightUnit === 'kg' ? 'bg-bg text-text-primary shadow-sm' : 'text-text-muted'}`}
-                >
-                  kg
-                </button>
-              </div>
-            </div>
-
             {/* AI Voice toggle */}
             <div className="flex items-center justify-between py-2">
               <div>
@@ -1680,7 +1670,7 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
                   />
                 </div>
                 <div>
-                  <label className="text-[10px] text-text-muted font-semibold block mb-1">Weight (lbs)</label>
+                  <label className="text-[10px] text-text-muted font-semibold block mb-1">Weight ({editUnits === 'metric' ? 'kg' : 'lbs'})</label>
                   <input
                     type="number"
                     inputMode="decimal"
@@ -1872,7 +1862,15 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
                   {(['imperial', 'metric'] as const).map((u) => (
                     <button
                       key={u}
-                      onClick={() => setEditUnits(u)}
+                      onClick={() => {
+                        if (u === editUnits) return;
+                        const w = parseFloat(editWeight);
+                        if (!isNaN(w) && w > 0) {
+                          if (u === 'metric') setEditWeight(String(Math.round(w * 0.453592 * 10) / 10));
+                          else setEditWeight(String(Math.round(w * 2.20462)));
+                        }
+                        setEditUnits(u);
+                      }}
                       className={`flex-1 py-2.5 text-xs font-semibold rounded-lg transition-colors ${
                         editUnits === u
                           ? 'bg-accent-blue text-white'
