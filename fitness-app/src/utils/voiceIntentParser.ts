@@ -7,7 +7,7 @@ export interface WorkoutVoiceContext {
 }
 
 export type WorkoutIntent =
-  | { action: 'log_set'; exerciseId: string; exerciseName: string; weight: number; reps: number; rir?: number; rpe?: number }
+  | { action: 'log_set'; exerciseId: string; exerciseName: string; weight: number; reps: number; rir?: number; rpe?: number; isWarmup?: boolean }
   | { action: 'skip_exercise'; exerciseId: string; exerciseName: string; reason?: string }
   | { action: 'finish_workout' }
   | { action: 'unknown'; rawText: string };
@@ -45,14 +45,15 @@ Rules:
 - "finish", "end workout", "I'm done", "that's it" → finish_workout
 - "2 in the tank", "RIR 3" → include rir field
 - "RPE 8", "felt like an 8" → include rpe field
-- If user names a different exercise, match it from the exercise list
+- "warmup", "warm up", "warm-up set" → set isWarmup: true
+- If user names a different exercise, match it from the exercise list by name (fuzzy ok)
 - Default to the current exercise if no exercise is named
 
-Respond ONLY with valid JSON. Include rir or rpe when mentioned, omit them otherwise:
-{"action":"log_set","exerciseId":"...","exerciseName":"...","weight":185,"reps":8,"rir":2}
-or {"action":"log_set","exerciseId":"...","exerciseName":"...","weight":185,"reps":8,"rpe":8}
-or {"action":"log_set","exerciseId":"...","exerciseName":"...","weight":185,"reps":8}
-or {"action":"skip_exercise","exerciseId":"...","exerciseName":"..."}
+Respond ONLY with valid JSON. Include rir, rpe, isWarmup only when mentioned:
+{"action":"log_set","exerciseName":"...","weight":185,"reps":8,"rir":2}
+or {"action":"log_set","exerciseName":"...","weight":185,"reps":8,"isWarmup":true}
+or {"action":"log_set","exerciseName":"...","weight":185,"reps":8}
+or {"action":"skip_exercise","exerciseName":"..."}
 or {"action":"finish_workout"}
 or {"action":"unknown","rawText":"..."}`;
 
@@ -121,27 +122,37 @@ export async function parseWorkoutIntent(transcript: string, context: WorkoutVoi
     const text = await callClaude(prompt, transcript);
     const parsed = JSON.parse(text);
 
+    // Fuzzy exercise name match — normalize spaces/case/punctuation
+    const normalize = (s: string) => s.toLowerCase().replace(/[\s\-_]+/g, '');
+    const findExercise = (name?: string) => {
+      if (!name) return null;
+      const n = normalize(name);
+      return context.exerciseList.find((e) => {
+        const en = normalize(e.name);
+        return en === n || en.includes(n) || n.includes(en);
+      }) || null;
+    };
+
     if (parsed.action === 'log_set') {
-      const exerciseId = parsed.exerciseId || context.currentExercise.id;
-      const match = context.exerciseList.find((e) =>
-        e.name.toLowerCase() === (parsed.exerciseName || '').toLowerCase()
-      );
+      const match = findExercise(parsed.exerciseName) || { id: context.currentExercise.id, name: context.currentExercise.name };
       return {
         action: 'log_set',
-        exerciseId: match?.id || exerciseId,
-        exerciseName: match?.name || parsed.exerciseName || context.currentExercise.name,
+        exerciseId: match.id,
+        exerciseName: match.name,
         weight: parsed.weight || context.preFilledWeight,
         reps: parsed.reps || 0,
         rir: parsed.rir,
         rpe: parsed.rpe,
+        isWarmup: parsed.isWarmup || false,
       };
     }
 
     if (parsed.action === 'skip_exercise') {
+      const match = findExercise(parsed.exerciseName) || { id: context.currentExercise.id, name: context.currentExercise.name };
       return {
         action: 'skip_exercise',
-        exerciseId: parsed.exerciseId || context.currentExercise.id,
-        exerciseName: parsed.exerciseName || context.currentExercise.name,
+        exerciseId: match.id,
+        exerciseName: match.name,
         reason: parsed.reason,
       };
     }

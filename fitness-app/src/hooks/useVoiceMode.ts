@@ -24,7 +24,7 @@ interface UseVoiceModeOptions {
   mode: 'workout' | 'food';
   enabled: boolean;
   workoutContext?: WorkoutVoiceContext;
-  onLogSet?: (exerciseId: string, weight: number, reps: number, rir?: number, rpe?: number) => void;
+  onLogSet?: (exerciseId: string, weight: number, reps: number, rir?: number, rpe?: number, isWarmup?: boolean) => void;
   onSkipExercise?: (exerciseId: string, reason?: string) => void;
   onFinishWorkout?: () => void;
   onAddFoodEntry?: (entry: Omit<FoodEntry, 'id' | 'profileId' | 'loggedAt'>) => void;
@@ -135,7 +135,7 @@ export function useVoiceMode({
     if (pendingAction.type === 'workout') {
       const intent = pendingAction.intent;
       if (intent.action === 'log_set') {
-        onLogSet?.(intent.exerciseId, intent.weight, intent.reps, intent.rir, intent.rpe);
+        onLogSet?.(intent.exerciseId, intent.weight, intent.reps, intent.rir, intent.rpe, intent.isWarmup);
         speak(`Set logged. ${intent.weight} times ${intent.reps}.`);
       } else if (intent.action === 'skip_exercise') {
         onSkipExercise?.(intent.exerciseId, intent.reason);

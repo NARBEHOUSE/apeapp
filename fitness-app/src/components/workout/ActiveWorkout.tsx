@@ -652,7 +652,7 @@ export function ActiveWorkout({
       completedSets: (session.sets[currentExercise.id] || []).filter((s) => s.completed).map((s) => ({ weight: s.weight, reps: s.reps })),
       exerciseList: activeExercises.map((e) => ({ id: e.id, name: e.name })),
     } : undefined,
-    onLogSet: (exId, weight, reps, rir, rpe) => handleComplete(exId, weight, reps, rir, rpe),
+    onLogSet: (exId, weight, reps, rir, rpe, isWarmup) => handleComplete(exId, weight, reps, rir, rpe, isWarmup),
     onSkipExercise: (exId, reason) => {
       setSkippedExercises((prev) => [...prev, { exerciseId: exId, reason: reason || '' }]);
       toast(`Skipped ${activeExercises.find((e) => e.id === exId)?.name || 'exercise'}`, 'success');
