@@ -1,9 +1,6 @@
 import { useState, useMemo } from 'react';
 import { Footprints, Check, ChevronDown, ChevronUp } from 'lucide-react';
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, ReferenceLine,
-} from 'recharts';
+import { SVGBarChart } from '../shared/SVGBarChart';
 import type { StepEntry } from '../../types';
 import { today, formatShortDate } from '../../utils/dateHelpers';
 import { saveStepEntry } from '../../db/steps';
@@ -193,48 +190,17 @@ export function StepsCard({ steps, profileId, stepGoal = DEFAULT_GOAL, onStepSav
           </div>
 
           {/* Bar chart */}
-          <ResponsiveContainer width="100%" height={140}>
-            <BarChart data={chartData.data} barSize={chartData.barSize} margin={{ top: 4, right: 4, left: -10, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
-              <XAxis
-                dataKey="label"
-                tick={{ fill: 'var(--color-text-muted)', fontSize: 9 }}
-                axisLine={false}
-                tickLine={false}
-                interval={chartData.xInterval}
-              />
-              <YAxis
-                tick={{ fill: 'var(--color-text-muted)', fontSize: 9 }}
-                axisLine={false}
-                tickLine={false}
-                tickFormatter={(v) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v)}
-                width={28}
-              />
-              <Tooltip
-                cursor={{ fill: 'transparent' }}
-                content={({ active, payload, label }) => {
-                  if (!active || !payload?.length) return null;
-                  return (
-                    <div className="rounded-lg px-3 py-2 text-xs border shadow-lg bg-surface border-border-light">
-                      <p className="text-text-secondary mb-0.5">{label}</p>
-                      <p className="text-accent-blue font-semibold">{(payload[0].value as number).toLocaleString()} steps</p>
-                    </div>
-                  );
-                }}
-              />
-              <ReferenceLine
-                y={stepGoal}
-                stroke="var(--color-text-muted)"
-                strokeDasharray="5 5"
-                label={{ value: 'Goal', fill: 'var(--color-text-muted)', fontSize: 9, position: 'insideTopRight' }}
-              />
-              <Bar
-                dataKey="steps"
-                radius={[3, 3, 0, 0]}
-                fill="#5b6ef5"
-              />
-            </BarChart>
-          </ResponsiveContainer>
+          <SVGBarChart
+            key={range}
+            data={chartData.data.map((d) => ({ label: d.label, value: d.steps }))}
+            color="#5b6ef5"
+            targetValue={stepGoal}
+            targetLabel="Goal"
+            height={140}
+            yAxisWidth={28}
+            formatY={(v) => v >= 1000 ? `${Math.round(v / 1000)}k` : String(v)}
+            formatValue={(v) => `${v.toLocaleString()} steps`}
+          />
         </div>
       )}
 

@@ -1,8 +1,9 @@
 import { useState, useMemo } from 'react';
 import {
-  LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
+  LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, ReferenceLine,
 } from 'recharts';
+import { SVGBarChart } from '../shared/SVGBarChart';
 import { X, ChevronLeft, ChevronRight } from 'lucide-react';
 import type { Measurement, WorkoutSession } from '../../types';
 import { daysAgo, formatShortDate, getWeekDates, today } from '../../utils/dateHelpers';
@@ -337,37 +338,19 @@ export default function TrendSnapshotCard({
         {/* Full chart */}
         {chartData.length >= 2 ? (
           <div className="bg-surface rounded-2xl p-3">
-            <div style={{ width: '100%', height: 280 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                {metric === 'calories' && calViewMode === 'bar' ? (
-                  <BarChart data={chartData} margin={{ top: 5, right: 5, bottom: 5, left: -10 }}>
-                    <CartesianGrid stroke="var(--color-border)" strokeDasharray="3 3" vertical={false} />
-                    <XAxis
-                      dataKey="date"
-                      tick={{ fontSize: 9, fill: 'var(--color-text-muted)' }}
-                      axisLine={false}
-                      tickLine={false}
-                      tickFormatter={(d) => formatShortDate(d)}
-                      interval="preserveStartEnd"
-                    />
-                    <YAxis tick={{ fontSize: 9, fill: 'var(--color-text-muted)' }} axisLine={false} tickLine={false} />
-                    <Tooltip
-                      contentStyle={{ backgroundColor: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '10px', fontSize: '11px', color: 'var(--color-text-primary)' }}
-                      formatter={(value: unknown) => [`${Math.round(Number(value))} kcal`, 'Calories']}
-                      labelFormatter={(l) => formatShortDate(l as string)}
-                    />
-                    {calorieTarget && (
-                      <ReferenceLine y={calorieTarget} stroke="#2e9e6b" strokeDasharray="4 4" strokeOpacity={0.5} />
-                    )}
-                    <Bar
-                      dataKey="value"
-                      radius={[3, 3, 0, 0]}
-                      maxBarSize={16}
-                      fill="#e8572a"
-                      opacity={0.8}
-                    />
-                  </BarChart>
-                ) : (
+            {metric === 'calories' && calViewMode === 'bar' ? (
+              <SVGBarChart
+                key={range}
+                data={chartData.map((d) => ({ label: formatShortDate(d.date), value: d.value }))}
+                color="#e8572a"
+                targetValue={calorieTarget}
+                targetLabel="Target"
+                height={260}
+                formatValue={(v) => `${Math.round(v)} kcal`}
+              />
+            ) : (
+              <div style={{ width: '100%', height: 280 }}>
+                <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={chartData} margin={{ top: 5, right: 5, bottom: 5, left: -10 }}>
                     <CartesianGrid stroke="var(--color-border)" strokeDasharray="3 3" vertical={false} />
                     <XAxis
@@ -404,9 +387,9 @@ export default function TrendSnapshotCard({
                       activeDot={{ r: 4, fill: '#5b6ef5', strokeWidth: 0 }}
                     />
                   </LineChart>
-                )}
-              </ResponsiveContainer>
-            </div>
+                </ResponsiveContainer>
+              </div>
+            )}
           </div>
         ) : (
           <div className="bg-surface rounded-2xl p-8 flex items-center justify-center">
