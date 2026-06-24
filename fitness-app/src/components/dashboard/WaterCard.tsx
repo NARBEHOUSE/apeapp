@@ -29,6 +29,8 @@ function getLastNDays(n: number): string[] {
   return dates;
 }
 
+const WATER_UNIT_KEY = 'fitos-water-unit';
+
 export function WaterCard({ water, profileId, units, onUpdate }: Props) {
   const [showCustom, setShowCustom] = useState(false);
   const [customAmount, setCustomAmount] = useState('');
@@ -36,11 +38,21 @@ export function WaterCard({ water, profileId, units, onUpdate }: Props) {
   const [range, setRange] = useState<number>(30);
   const [customInput, setCustomInput] = useState('');
   const [showCustomInput, setShowCustomInput] = useState(false);
+  const [waterUnit, setWaterUnit] = useState<'oz' | 'ml'>(() => {
+    const saved = localStorage.getItem(WATER_UNIT_KEY);
+    if (saved === 'oz' || saved === 'ml') return saved;
+    return units === 'metric' ? 'ml' : 'oz';
+  });
 
-  const isMetric = units === 'metric';
-  const unitLabel = isMetric ? 'ml' : 'oz';
+  const unitLabel = waterUnit;
+  const isMetric = waterUnit === 'ml';
   const goal = isMetric ? GOAL_ML : GOAL_OZ;
   const quickAdds = isMetric ? QUICK_ADD_ML : QUICK_ADD_OZ;
+
+  const handleUnitToggle = (u: 'oz' | 'ml') => {
+    setWaterUnit(u);
+    localStorage.setItem(WATER_UNIT_KEY, u);
+  };
 
   const todayEntries = useMemo(() => water.filter((w) => w.date === today()), [water]);
   const todayTotal = todayEntries.reduce((s, w) => {
@@ -127,6 +139,17 @@ export function WaterCard({ water, profileId, units, onUpdate }: Props) {
         <div className="flex items-center gap-2">
           <Droplets size={14} className="text-accent-blue" />
           <h2 className="label">Water</h2>
+          <div className="flex gap-0.5 bg-surface-raised rounded-md p-0.5 ml-1">
+            {(['oz', 'ml'] as const).map((u) => (
+              <button
+                key={u}
+                onClick={() => handleUnitToggle(u)}
+                className={`px-1.5 py-0.5 rounded text-[10px] font-semibold transition-colors ${waterUnit === u ? 'bg-accent-blue text-white' : 'text-text-muted'}`}
+              >
+                {u}
+              </button>
+            ))}
+          </div>
         </div>
         <div className="flex items-center gap-2">
           {!expanded && <span className="text-[10px] text-text-muted">Goal: {goal} {unitLabel}</span>}
