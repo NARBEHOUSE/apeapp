@@ -15,6 +15,8 @@ export interface DashboardCardConfig {
   calendar: boolean;
   aiVoice: boolean;
   weightUnit: 'lbs' | 'kg';
+  muscleVolume: boolean;
+  weeklyInsights: boolean;
   cardOrder?: string[];
 }
 
@@ -37,6 +39,8 @@ const DEFAULTS: DashboardCardConfig = {
   calendar: false,
   aiVoice: false,
   weightUnit: 'lbs',
+  muscleVolume: true,
+  weeklyInsights: true,
 };
 
 export function getDashboardConfig(): DashboardCardConfig {

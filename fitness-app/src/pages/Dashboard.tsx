@@ -82,6 +82,8 @@ export default function Dashboard({ profile, onUpdateProfile }: DashboardProps) 
   const [draggingId, setDraggingId] = useState<CardId | null>(null);
   const dragIdRef = useRef<CardId | null>(null);
   const cardRefMap = useRef(new Map<CardId, HTMLElement>());
+  // Snapshot of card midpoints taken at drag-start; used throughout the drag so stale DOM doesn't affect results
+  const dragSnapshotRef = useRef<{ id: CardId; midY: number }[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -300,43 +302,43 @@ export default function Dashboard({ profile, onUpdateProfile }: DashboardProps) 
     e.currentTarget.setPointerCapture(e.pointerId);
     dragIdRef.current = id;
     setDraggingId(id);
+    // Snapshot midpoints of all OTHER visible cards at drag start.
+    // We use these static positions throughout the drag so re-renders don't cause stale positions.
+    const snapshot: { id: CardId; midY: number }[] = [];
+    for (const cid of cardOrder) {
+      if (cid === id) continue;
+      const el = cardRefMap.current.get(cid);
+      if (el) {
+        const r = el.getBoundingClientRect();
+        snapshot.push({ id: cid, midY: r.top + r.height / 2 });
+      }
+    }
+    dragSnapshotRef.current = snapshot;
   };
 
   const handleDragMove = (e: React.PointerEvent) => {
-    if (!dragIdRef.current) return;
     const id = dragIdRef.current;
+    if (!id) return;
     const y = e.clientY;
+    const others = dragSnapshotRef.current;
+
+    // Find insertion index in the list of other cards using snapshot positions
+    let insertIdx = others.findIndex((c) => y < c.midY);
+    if (insertIdx === -1) insertIdx = others.length;
+
+    // Build new order: insert dragged card at insertIdx within the others list
+    const newOrder = others.map((c) => c.id);
+    newOrder.splice(insertIdx, 0, id);
+
     setCardOrder((prev) => {
-      const idx = prev.indexOf(id);
-      if (idx === -1) return prev;
-      if (idx > 0) {
-        const aboveEl = cardRefMap.current.get(prev[idx - 1]);
-        if (aboveEl) {
-          const r = aboveEl.getBoundingClientRect();
-          if (y < r.top + r.height / 2) {
-            const next = [...prev];
-            [next[idx], next[idx - 1]] = [next[idx - 1], next[idx]];
-            return next;
-          }
-        }
-      }
-      if (idx < prev.length - 1) {
-        const belowEl = cardRefMap.current.get(prev[idx + 1]);
-        if (belowEl) {
-          const r = belowEl.getBoundingClientRect();
-          if (y > r.top + r.height / 2) {
-            const next = [...prev];
-            [next[idx], next[idx + 1]] = [next[idx + 1], next[idx]];
-            return next;
-          }
-        }
-      }
-      return prev;
+      if (newOrder.length === prev.length && newOrder.every((cid, i) => cid === prev[i])) return prev;
+      return newOrder;
     });
   };
 
   const handleDragEnd = () => {
     dragIdRef.current = null;
+    dragSnapshotRef.current = [];
     setDraggingId(null);
   };
 
@@ -598,7 +600,7 @@ export default function Dashboard({ profile, onUpdateProfile }: DashboardProps) 
               setWater(await db.getAllFromIndex('water', 'by-profile', profile.id));
             }} />
           );
-        } else if (id === 'weeklyInsights') {
+        } else if (id === 'weeklyInsights' && dashConfig.weeklyInsights) {
           content = (
             <WeeklyInsights
               sessions={sessions}
@@ -609,7 +611,7 @@ export default function Dashboard({ profile, onUpdateProfile }: DashboardProps) 
               units={profile.units}
             />
           );
-        } else if (id === 'muscleVolume') {
+        } else if (id === 'muscleVolume' && dashConfig.muscleVolume) {
           content = <MuscleVolumeCard sessions={sessions} programs={programs} />;
         } else if (id === 'steps' && dashConfig.steps) {
           content = (
