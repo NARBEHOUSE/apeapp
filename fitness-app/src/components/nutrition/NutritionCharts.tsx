@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type ReactNode } from 'react';
+import { ChevronDown, ChevronUp } from 'lucide-react';
 import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -74,16 +75,35 @@ function CustomTooltip({ active, payload, label }: { active?: boolean; payload?:
       <p className="text-text-secondary mb-1">{label}</p>
       {payload.map((p, i) => (
         <p key={i} style={{ color: p.color }}>
-          {p.name}: {Math.round(p.value)}{p.name === 'Calories' ? '' : 'g'}
+          {p.name}: {Math.round(p.value)}{p.name === 'Calories' ? ' cal' : 'g'}
         </p>
       ))}
     </div>
   );
 }
 
+function Section({ title, defaultOpen = true, children }: { title: string; defaultOpen?: boolean; children: ReactNode }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="card overflow-hidden">
+      <button
+        className="w-full flex items-center justify-between px-4 py-3 text-left"
+        onClick={() => setOpen((o) => !o)}
+      >
+        <span className="text-sm font-semibold text-text-secondary">{title}</span>
+        {open ? <ChevronUp size={15} className="text-text-muted" /> : <ChevronDown size={15} className="text-text-muted" />}
+      </button>
+      {open && <div className="px-4 pb-4">{children}</div>}
+    </div>
+  );
+}
+
+type Range = 7 | 14 | 30;
+
 export function NutritionCharts({ profileId, targets }: NutritionChartsProps) {
   const [allEntries, setAllEntries] = useState<FoodEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [range, setRange] = useState<Range>(14);
 
   useEffect(() => {
     async function load() {
@@ -95,212 +115,179 @@ export function NutritionCharts({ profileId, targets }: NutritionChartsProps) {
   }, [profileId]);
 
   if (loading) {
-    return (
-      <div className="text-center py-8 text-text-muted text-sm">Loading charts...</div>
-    );
+    return <div className="text-center py-8 text-text-muted text-sm">Loading charts...</div>;
   }
 
   if (allEntries.length === 0) {
-    return (
-      <div className="text-center py-8 text-text-muted text-sm">
-        Start logging food to see nutrition charts
-      </div>
-    );
+    return <div className="text-center py-8 text-text-muted text-sm">Start logging food to see nutrition charts</div>;
   }
 
-  const dataMap = aggregateByDate(allEntries);
+  const todayStr = new Date().toISOString().split('T')[0];
+  const dataMap = aggregateByDate(allEntries.filter((e) => e.date < todayStr));
 
-  // --- Stacked Bar: Last 7 days macro breakdown ---
-  const last7 = getLastNDays(7).map((date) => ({
-    label: formatShortDate(date),
-    ...(dataMap.get(date) || { protein: 0, carbs: 0, fat: 0, calories: 0 }),
-  }));
+  const rangedDays = getLastNDays(range + 1).slice(0, range); // exclude today
+  const barSize = range <= 7 ? 22 : range <= 14 ? 14 : 8;
+  const xInterval = range <= 7 ? 0 : range <= 14 ? 1 : 4;
 
-  // --- Line: Calorie trend last 30 days ---
-  const last30 = getLastNDays(30).map((date) => {
+  const rangeData = rangedDays.map((date) => {
     const day = dataMap.get(date);
     return {
       label: formatShortDate(date),
-      calories: day?.calories || 0,
+      calories: day?.calories ?? 0,
+      protein: day?.protein ?? 0,
+      carbs: day?.carbs ?? 0,
+      fat: day?.fat ?? 0,
     };
   });
 
-  // --- Bar: Protein vs target last 14 days ---
-  const last14 = getLastNDays(14).map((date) => ({
-    label: formatShortDate(date),
-    protein: dataMap.get(date)?.protein || 0,
-    target: targets.protein,
-  }));
-
-  // --- Donut: Today's macro split ---
-  const todayStr = new Date().toISOString().split('T')[0];
-  const todayData = dataMap.get(todayStr);
-  const donutData = todayData
-    ? [
-        { name: 'Protein', value: todayData.protein, color: COLORS.protein },
-        { name: 'Carbs', value: todayData.carbs, color: COLORS.carbs },
-        { name: 'Fat', value: todayData.fat, color: COLORS.fat },
-      ]
-    : [
-        { name: 'Protein', value: 0, color: COLORS.protein },
-        { name: 'Carbs', value: 0, color: COLORS.carbs },
-        { name: 'Fat', value: 0, color: COLORS.fat },
-      ];
+  // Today's macro split
+  const todayEntries = allEntries.filter((e) => e.date === todayStr);
+  const todayTotals = todayEntries.reduce(
+    (acc, e) => ({
+      protein: acc.protein + e.protein * e.servingsConsumed,
+      carbs: acc.carbs + e.carbs * e.servingsConsumed,
+      fat: acc.fat + e.fat * e.servingsConsumed,
+      calories: acc.calories + e.calories * e.servingsConsumed,
+    }),
+    { protein: 0, carbs: 0, fat: 0, calories: 0 }
+  );
+  const donutData = [
+    { name: 'Protein', value: Math.round(todayTotals.protein), color: COLORS.protein },
+    { name: 'Carbs', value: Math.round(todayTotals.carbs), color: COLORS.carbs },
+    { name: 'Fat', value: Math.round(todayTotals.fat), color: COLORS.fat },
+  ];
   const donutTotal = donutData.reduce((s, d) => s + d.value, 0);
 
   return (
-    <div className="space-y-6">
-      {/* Today's Macro Split (Donut) */}
-      <div className="card p-4">
-        <h4 className="text-sm font-semibold text-text-secondary mb-3">Today's Macro Split</h4>
+    <div className="space-y-3">
+      {/* Today's Macro Split */}
+      <Section title="Today's Macro Split">
         {donutTotal > 0 ? (
-          <div className="flex items-center justify-center">
-            <ResponsiveContainer width="100%" height={200}>
-              <PieChart>
-                <Pie
-                  data={donutData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={55}
-                  outerRadius={85}
-                  dataKey="value"
-                  stroke="none"
-                >
-                  {donutData.map((d, i) => (
-                    <Cell key={i} fill={d.color} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  content={({ active, payload }) => {
-                    if (!active || !payload?.length) return null;
-                    const d = payload[0];
-                    return (
-                      <div
-                        className="rounded-lg px-3 py-2 text-xs border shadow-lg"
-                        style={{ backgroundColor: COLORS.tooltipBg, borderColor: COLORS.tooltipBorder }}
-                      >
-                        <p style={{ color: d.payload.color }}>
-                          {d.name}: {Math.round(d.value as number)}g
-                        </p>
-                      </div>
-                    );
-                  }}
-                />
-                <Legend
-                  formatter={(value) => (
-                    <span className="text-xs text-text-secondary">{value}</span>
-                  )}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
+          <ResponsiveContainer width="100%" height={200}>
+            <PieChart>
+              <Pie data={donutData} cx="50%" cy="50%" innerRadius={55} outerRadius={85} dataKey="value" stroke="none">
+                {donutData.map((d, i) => <Cell key={i} fill={d.color} />)}
+              </Pie>
+              <Tooltip
+                content={({ active, payload }) => {
+                  if (!active || !payload?.length) return null;
+                  const d = payload[0];
+                  return (
+                    <div className="rounded-lg px-3 py-2 text-xs border shadow-lg" style={{ backgroundColor: COLORS.tooltipBg, borderColor: COLORS.tooltipBorder }}>
+                      <p style={{ color: d.payload.color }}>{d.name}: {Math.round(d.value as number)}g</p>
+                    </div>
+                  );
+                }}
+              />
+              <Legend formatter={(value) => <span className="text-xs text-text-secondary">{value}</span>} />
+            </PieChart>
+          </ResponsiveContainer>
         ) : (
-          <p className="text-text-muted text-xs text-center py-8">No data for today</p>
+          <p className="text-text-muted text-xs text-center py-6">No food logged today yet</p>
         )}
+      </Section>
+
+      {/* Time range picker — applies to all trend charts below */}
+      <div className="flex items-center gap-1 px-1">
+        <span className="text-xs text-text-muted mr-1">Range:</span>
+        {([7, 14, 30] as Range[]).map((r) => (
+          <button
+            key={r}
+            onClick={() => setRange(r)}
+            className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${range === r ? 'bg-accent-orange text-white' : 'bg-surface-raised text-text-muted'}`}
+          >
+            {r}d
+          </button>
+        ))}
       </div>
 
-      {/* Weekly Macro Breakdown (Stacked Bar) */}
-      <div className="card p-4">
-        <h4 className="text-sm font-semibold text-text-secondary mb-3">Weekly Macro Breakdown</h4>
-        <ResponsiveContainer width="100%" height={220}>
-          <BarChart data={last7} barSize={20}>
+      {/* Calories vs Target */}
+      <Section title="Calories vs Target">
+        <ResponsiveContainer width="100%" height={180}>
+          <BarChart data={rangeData} barSize={barSize}>
             <CartesianGrid strokeDasharray="3 3" stroke={COLORS.grid} vertical={false} />
-            <XAxis
-              dataKey="label"
-              tick={{ fill: COLORS.text, fontSize: 10 }}
-              axisLine={false}
-              tickLine={false}
-            />
-            <YAxis
-              tick={{ fill: COLORS.text, fontSize: 10 }}
-              axisLine={false}
-              tickLine={false}
-              width={35}
-              unit="g"
-            />
+            <XAxis dataKey="label" tick={{ fill: COLORS.text, fontSize: 10 }} axisLine={false} tickLine={false} interval={xInterval} />
+            <YAxis tick={{ fill: COLORS.text, fontSize: 10 }} axisLine={false} tickLine={false} width={38} />
             <Tooltip content={<CustomTooltip />} />
-            <Legend
-              formatter={(value) => (
-                <span className="text-xs text-text-secondary">{value}</span>
-              )}
-            />
-            <Bar dataKey="protein" name="Protein" stackId="macros" fill={COLORS.protein} radius={[0, 0, 0, 0]} />
-            <Bar dataKey="carbs" name="Carbs" stackId="macros" fill={COLORS.carbs} radius={[0, 0, 0, 0]} />
-            <Bar dataKey="fat" name="Fat" stackId="macros" fill={COLORS.fat} radius={[4, 4, 0, 0]} />
+            <ReferenceLine y={targets.calories} stroke={COLORS.target} strokeDasharray="5 5" label={{ value: 'Target', fill: COLORS.text, fontSize: 10, position: 'insideTopRight' }} />
+            <Bar dataKey="calories" name="Calories" fill={COLORS.calories} radius={[3, 3, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
-      </div>
+      </Section>
 
-      {/* Calorie Trend (Line Chart - 30 days) */}
-      <div className="card p-4">
-        <h4 className="text-sm font-semibold text-text-secondary mb-3">Calorie Trend (30 Days)</h4>
-        <ResponsiveContainer width="100%" height={220}>
-          <LineChart data={last30}>
+      {/* Daily Protein */}
+      <Section title="Protein vs Target">
+        <ResponsiveContainer width="100%" height={160}>
+          <BarChart data={rangeData} barSize={barSize}>
             <CartesianGrid strokeDasharray="3 3" stroke={COLORS.grid} vertical={false} />
-            <XAxis
-              dataKey="label"
-              tick={{ fill: COLORS.text, fontSize: 10 }}
-              axisLine={false}
-              tickLine={false}
-              interval={4}
-            />
-            <YAxis
-              tick={{ fill: COLORS.text, fontSize: 10 }}
-              axisLine={false}
-              tickLine={false}
-              width={40}
-            />
+            <XAxis dataKey="label" tick={{ fill: COLORS.text, fontSize: 10 }} axisLine={false} tickLine={false} interval={xInterval} />
+            <YAxis tick={{ fill: COLORS.text, fontSize: 10 }} axisLine={false} tickLine={false} width={30} unit="g" />
             <Tooltip content={<CustomTooltip />} />
-            <ReferenceLine
-              y={targets.calories}
-              stroke={COLORS.target}
-              strokeDasharray="5 5"
-              label={{ value: 'Target', fill: COLORS.text, fontSize: 10, position: 'right' }}
-            />
-            <Line
-              type="monotone"
-              dataKey="calories"
-              name="Calories"
-              stroke={COLORS.calories}
-              strokeWidth={2}
-              dot={false}
-              activeDot={{ r: 4, fill: COLORS.calories }}
-            />
+            <ReferenceLine y={targets.protein} stroke={COLORS.target} strokeDasharray="5 5" label={{ value: 'Target', fill: COLORS.text, fontSize: 10, position: 'insideTopRight' }} />
+            <Bar dataKey="protein" name="Protein" fill={COLORS.protein} radius={[3, 3, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </Section>
+
+      {/* Daily Carbs */}
+      <Section title="Carbs vs Target" defaultOpen={false}>
+        <ResponsiveContainer width="100%" height={160}>
+          <BarChart data={rangeData} barSize={barSize}>
+            <CartesianGrid strokeDasharray="3 3" stroke={COLORS.grid} vertical={false} />
+            <XAxis dataKey="label" tick={{ fill: COLORS.text, fontSize: 10 }} axisLine={false} tickLine={false} interval={xInterval} />
+            <YAxis tick={{ fill: COLORS.text, fontSize: 10 }} axisLine={false} tickLine={false} width={30} unit="g" />
+            <Tooltip content={<CustomTooltip />} />
+            <ReferenceLine y={targets.carbs} stroke={COLORS.target} strokeDasharray="5 5" label={{ value: 'Target', fill: COLORS.text, fontSize: 10, position: 'insideTopRight' }} />
+            <Bar dataKey="carbs" name="Carbs" fill={COLORS.carbs} radius={[3, 3, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </Section>
+
+      {/* Daily Fat */}
+      <Section title="Fat vs Target" defaultOpen={false}>
+        <ResponsiveContainer width="100%" height={160}>
+          <BarChart data={rangeData} barSize={barSize}>
+            <CartesianGrid strokeDasharray="3 3" stroke={COLORS.grid} vertical={false} />
+            <XAxis dataKey="label" tick={{ fill: COLORS.text, fontSize: 10 }} axisLine={false} tickLine={false} interval={xInterval} />
+            <YAxis tick={{ fill: COLORS.text, fontSize: 10 }} axisLine={false} tickLine={false} width={30} unit="g" />
+            <Tooltip content={<CustomTooltip />} />
+            <ReferenceLine y={targets.fat} stroke={COLORS.target} strokeDasharray="5 5" label={{ value: 'Target', fill: COLORS.text, fontSize: 10, position: 'insideTopRight' }} />
+            <Bar dataKey="fat" name="Fat" fill={COLORS.fat} radius={[3, 3, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </Section>
+
+      {/* Stacked Macro Breakdown */}
+      <Section title="Macro Breakdown" defaultOpen={false}>
+        <ResponsiveContainer width="100%" height={200}>
+          <BarChart data={rangeData} barSize={barSize}>
+            <CartesianGrid strokeDasharray="3 3" stroke={COLORS.grid} vertical={false} />
+            <XAxis dataKey="label" tick={{ fill: COLORS.text, fontSize: 10 }} axisLine={false} tickLine={false} interval={xInterval} />
+            <YAxis tick={{ fill: COLORS.text, fontSize: 10 }} axisLine={false} tickLine={false} width={30} unit="g" />
+            <Tooltip content={<CustomTooltip />} />
+            <Legend formatter={(value) => <span className="text-xs text-text-secondary">{value}</span>} />
+            <Bar dataKey="protein" name="Protein" stackId="m" fill={COLORS.protein} radius={[0, 0, 0, 0]} />
+            <Bar dataKey="carbs" name="Carbs" stackId="m" fill={COLORS.carbs} radius={[0, 0, 0, 0]} />
+            <Bar dataKey="fat" name="Fat" stackId="m" fill={COLORS.fat} radius={[3, 3, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </Section>
+
+      {/* Line chart: all macros trend */}
+      <Section title="Macro Trends (Line)" defaultOpen={false}>
+        <ResponsiveContainer width="100%" height={200}>
+          <LineChart data={rangeData}>
+            <CartesianGrid strokeDasharray="3 3" stroke={COLORS.grid} vertical={false} />
+            <XAxis dataKey="label" tick={{ fill: COLORS.text, fontSize: 10 }} axisLine={false} tickLine={false} interval={xInterval} />
+            <YAxis tick={{ fill: COLORS.text, fontSize: 10 }} axisLine={false} tickLine={false} width={30} unit="g" />
+            <Tooltip content={<CustomTooltip />} />
+            <Legend formatter={(value) => <span className="text-xs text-text-secondary">{value}</span>} />
+            <Line type="monotone" dataKey="protein" name="Protein" stroke={COLORS.protein} strokeWidth={2} dot={false} connectNulls />
+            <Line type="monotone" dataKey="carbs" name="Carbs" stroke={COLORS.carbs} strokeWidth={2} dot={false} connectNulls />
+            <Line type="monotone" dataKey="fat" name="Fat" stroke={COLORS.fat} strokeWidth={2} dot={false} connectNulls />
           </LineChart>
         </ResponsiveContainer>
-      </div>
-
-      {/* Protein vs Target (Bar - 14 days) */}
-      <div className="card p-4">
-        <h4 className="text-sm font-semibold text-text-secondary mb-3">Protein vs Target (14 Days)</h4>
-        <ResponsiveContainer width="100%" height={220}>
-          <BarChart data={last14} barSize={14}>
-            <CartesianGrid strokeDasharray="3 3" stroke={COLORS.grid} vertical={false} />
-            <XAxis
-              dataKey="label"
-              tick={{ fill: COLORS.text, fontSize: 10 }}
-              axisLine={false}
-              tickLine={false}
-              interval={1}
-            />
-            <YAxis
-              tick={{ fill: COLORS.text, fontSize: 10 }}
-              axisLine={false}
-              tickLine={false}
-              width={35}
-              unit="g"
-            />
-            <Tooltip content={<CustomTooltip />} />
-            <ReferenceLine
-              y={targets.protein}
-              stroke={COLORS.target}
-              strokeDasharray="5 5"
-              label={{ value: 'Target', fill: COLORS.text, fontSize: 10, position: 'right' }}
-            />
-            <Bar dataKey="protein" name="Protein" fill={COLORS.protein} radius={[4, 4, 0, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
+      </Section>
     </div>
   );
 }

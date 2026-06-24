@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Flame, Trophy, Loader2, Zap, ChevronRight, Dumbbell, HardDrive, ClipboardCheck, Check } from 'lucide-react';
+import { Flame, Trophy, Loader2, Zap, ChevronRight, Dumbbell, HardDrive, ClipboardCheck, Check, GripVertical, Pencil } from 'lucide-react';
 
 import type { Profile, WorkoutSession, FoodEntry, Measurement, Program, CheckInEntry, StepEntry, WaterEntry } from '../types';
 import { getGreeting, today, getWeekDates } from '../utils/dateHelpers';
@@ -10,7 +10,7 @@ import { getMeasurementsByProfile } from '../db/progress';
 import { getAllPrograms, initializePrograms } from '../db/programs';
 import { getDB } from '../db';
 import { calculateAutoAdjustment, type AutoAdjustResult } from '../utils/tdee';
-import { getDashboardConfig } from '../utils/dashboardConfig';
+import { getDashboardConfig, saveDashboardConfig } from '../utils/dashboardConfig';
 import { daysSinceBackup } from '../utils/backupReminder';
 import { useGoogleAuth } from '../contexts/GoogleAuthContext';
 import { useCoach } from '../hooks/useCoach';
@@ -26,6 +26,25 @@ import { WaterCard } from '../components/dashboard/WaterCard';
 import { CalendarHeatmap } from '../components/dashboard/CalendarHeatmap';
 import { MuscleVolumeCard } from '../components/dashboard/MuscleVolumeCard';
 import { ZeroMacroWarning } from '../components/dashboard/ZeroMacroWarning';
+
+type CardId =
+  | 'nutrition' | 'aiCoach' | 'water' | 'weeklyInsights' | 'muscleVolume'
+  | 'steps' | 'calendar' | 'calories' | 'weight' | 'measurements' | 'lifts';
+
+const DEFAULT_CARD_ORDER: CardId[] = [
+  'nutrition', 'aiCoach', 'water', 'weeklyInsights', 'muscleVolume',
+  'steps', 'calendar', 'calories', 'weight', 'measurements', 'lifts',
+];
+
+function mergeCardOrder(saved: string[] | undefined): CardId[] {
+  if (!saved) return DEFAULT_CARD_ORDER;
+  const valid = saved.filter((id): id is CardId => DEFAULT_CARD_ORDER.includes(id as CardId));
+  const merged = [...valid];
+  for (const id of DEFAULT_CARD_ORDER) {
+    if (!merged.includes(id)) merged.push(id);
+  }
+  return merged;
+}
 
 interface DashboardProps {
   profile: Profile;
@@ -57,6 +76,12 @@ export default function Dashboard({ profile, onUpdateProfile }: DashboardProps) 
   const [autoAdjustDismissed, setAutoAdjustDismissed] = useState(() => localStorage.getItem('fitos-dismiss-auto-adjust') === today());
 
   const dashConfig = getDashboardConfig();
+
+  const [editingLayout, setEditingLayout] = useState(false);
+  const [cardOrder, setCardOrder] = useState<CardId[]>(() => mergeCardOrder(getDashboardConfig().cardOrder));
+  const [draggingId, setDraggingId] = useState<CardId | null>(null);
+  const dragIdRef = useRef<CardId | null>(null);
+  const cardRefMap = useRef(new Map<CardId, HTMLElement>());
 
   useEffect(() => {
     let cancelled = false;
@@ -271,6 +296,58 @@ export default function Dashboard({ profile, onUpdateProfile }: DashboardProps) 
     navigate('/workout', { state: { programId, dayId } });
   };
 
+  const handleDragStart = (e: React.PointerEvent, id: CardId) => {
+    e.currentTarget.setPointerCapture(e.pointerId);
+    dragIdRef.current = id;
+    setDraggingId(id);
+  };
+
+  const handleDragMove = (e: React.PointerEvent) => {
+    if (!dragIdRef.current) return;
+    const id = dragIdRef.current;
+    const y = e.clientY;
+    setCardOrder((prev) => {
+      const idx = prev.indexOf(id);
+      if (idx === -1) return prev;
+      if (idx > 0) {
+        const aboveEl = cardRefMap.current.get(prev[idx - 1]);
+        if (aboveEl) {
+          const r = aboveEl.getBoundingClientRect();
+          if (y < r.top + r.height / 2) {
+            const next = [...prev];
+            [next[idx], next[idx - 1]] = [next[idx - 1], next[idx]];
+            return next;
+          }
+        }
+      }
+      if (idx < prev.length - 1) {
+        const belowEl = cardRefMap.current.get(prev[idx + 1]);
+        if (belowEl) {
+          const r = belowEl.getBoundingClientRect();
+          if (y > r.top + r.height / 2) {
+            const next = [...prev];
+            [next[idx], next[idx + 1]] = [next[idx + 1], next[idx]];
+            return next;
+          }
+        }
+      }
+      return prev;
+    });
+  };
+
+  const handleDragEnd = () => {
+    dragIdRef.current = null;
+    setDraggingId(null);
+  };
+
+  const exitEditMode = () => {
+    setEditingLayout(false);
+    setDraggingId(null);
+    dragIdRef.current = null;
+    const cfg = getDashboardConfig();
+    saveDashboardConfig({ ...cfg, cardOrder });
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -470,110 +547,155 @@ export default function Dashboard({ profile, onUpdateProfile }: DashboardProps) 
         </button>
       )}
 
-      {/* Today's Nutrition */}
-      <div className="card">
-        <h2 className="label mb-3">Today's Nutrition</h2>
-        <MacroSummary totals={macroTotals} targets={profile.macroTargets} />
+      {/* Draggable card section */}
+      <div className="flex items-center justify-between -mb-2">
+        <span className="text-[10px] text-text-muted/50 uppercase tracking-widest font-semibold select-none">Dashboard</span>
+        {editingLayout ? (
+          <button
+            onClick={exitEditMode}
+            className="text-xs font-semibold text-white bg-accent-blue px-3 py-1 rounded-lg active:scale-95 transition-transform"
+          >
+            Done
+          </button>
+        ) : (
+          <button
+            onClick={() => setEditingLayout(true)}
+            className="flex items-center gap-1 text-[11px] text-text-muted active:scale-95 transition-transform"
+          >
+            <Pencil size={11} />
+            Edit Layout
+          </button>
+        )}
       </div>
 
-      {/* Water */}
-      {dashConfig.water && (
-        <WaterCard water={water} profileId={profile.id} units={profile.units} onUpdate={async () => {
-          const db = await getDB();
-          setWater(await db.getAllFromIndex('water', 'by-profile', profile.id));
-        }} />
-      )}
+      {cardOrder.map((id) => {
+        let content: React.ReactNode = null;
 
-      {/* Week in Review */}
-      <WeeklyInsights
-        sessions={sessions}
-        allFoodEntries={allFoodEntries}
-        measurements={measurements}
-        checkIns={checkIns}
-        macroTargets={profile.macroTargets}
-        units={profile.units}
-      />
+        if (id === 'nutrition') {
+          content = (
+            <div className="card">
+              <h2 className="label mb-3">Today's Nutrition</h2>
+              <MacroSummary totals={macroTotals} targets={profile.macroTargets} />
+            </div>
+          );
+        } else if (id === 'aiCoach' && dashConfig.aiCoach && localStorage.getItem('fitos-claude-key')) {
+          content = (
+            <AICoachCard
+              profile={profile}
+              sessions={sessions}
+              allFoodEntries={allFoodEntries}
+              measurements={measurements}
+              checkIns={checkIns}
+              steps={steps}
+              programs={programs}
+              onUpdateProfile={onUpdateProfile}
+            />
+          );
+        } else if (id === 'water' && dashConfig.water) {
+          content = (
+            <WaterCard water={water} profileId={profile.id} units={profile.units} onUpdate={async () => {
+              const db = await getDB();
+              setWater(await db.getAllFromIndex('water', 'by-profile', profile.id));
+            }} />
+          );
+        } else if (id === 'weeklyInsights') {
+          content = (
+            <WeeklyInsights
+              sessions={sessions}
+              allFoodEntries={allFoodEntries}
+              measurements={measurements}
+              checkIns={checkIns}
+              macroTargets={profile.macroTargets}
+              units={profile.units}
+            />
+          );
+        } else if (id === 'muscleVolume') {
+          content = <MuscleVolumeCard sessions={sessions} programs={programs} />;
+        } else if (id === 'steps' && dashConfig.steps) {
+          content = (
+            <StepsCard steps={steps} profileId={profile.id} onStepSaved={async () => {
+              const db = await getDB();
+              setSteps(await db.getAllFromIndex('steps', 'by-profile', profile.id));
+            }} />
+          );
+        } else if (id === 'calendar' && dashConfig.calendar) {
+          content = <CalendarHeatmap sessions={sessions} foodEntries={allFoodEntries} checkIns={checkIns} />;
+        } else if (id === 'calories' && dashConfig.calories) {
+          content = (
+            <TrendSnapshotCard
+              title="Weekly Intake"
+              metric="calories"
+              measurements={measurements}
+              sessions={sessions}
+              units={profile.units}
+              measurementUnit={profile.measurementUnit}
+              calorieData={caloriesByDate}
+              calorieTarget={profile.macroTargets.calories}
+              onDayClick={(date) => navigate('/nutrition', { state: { date } })}
+            />
+          );
+        } else if (id === 'weight' && dashConfig.weight) {
+          content = (
+            <TrendSnapshotCard
+              title="Body Weight"
+              metric="weight"
+              measurements={measurements}
+              sessions={sessions}
+              units={profile.units}
+              measurementUnit={profile.measurementUnit}
+            />
+          );
+        } else if (id === 'measurements' && dashConfig.measurements && dashConfig.selectedMeasurement) {
+          content = (
+            <TrendSnapshotCard
+              title={MEASUREMENT_LABELS[dashConfig.selectedMeasurement] || dashConfig.selectedMeasurement}
+              metric="measurement"
+              measurements={measurements}
+              sessions={sessions}
+              units={profile.units}
+              measurementUnit={profile.measurementUnit}
+              measurementKey={dashConfig.selectedMeasurement}
+            />
+          );
+        } else if (id === 'lifts' && dashConfig.lifts && dashConfig.selectedLift && liftExerciseIds.length > 0) {
+          content = (
+            <TrendSnapshotCard
+              title={dashConfig.selectedLift}
+              metric="lift"
+              measurements={measurements}
+              sessions={sessions}
+              units={profile.units}
+              measurementUnit={profile.measurementUnit}
+              liftExerciseIds={liftExerciseIds}
+            />
+          );
+        }
 
-      {/* Muscle Volume */}
-      <MuscleVolumeCard sessions={sessions} programs={programs} />
+        if (!content) return null;
 
-      {/* AI Coach */}
-      {dashConfig.aiCoach && localStorage.getItem('fitos-claude-key') && (
-        <AICoachCard
-          profile={profile}
-          sessions={sessions}
-          allFoodEntries={allFoodEntries}
-          measurements={measurements}
-          checkIns={checkIns}
-          steps={steps}
-          programs={programs}
-          onUpdateProfile={onUpdateProfile}
-        />
-      )}
-
-      {/* Steps */}
-      {dashConfig.steps && (
-        <StepsCard steps={steps} profileId={profile.id} onStepSaved={async () => {
-          const db = await getDB();
-          setSteps(await db.getAllFromIndex('steps', 'by-profile', profile.id));
-        }} />
-      )}
-
-      {/* Calendar */}
-      {dashConfig.calendar && (
-        <CalendarHeatmap sessions={sessions} foodEntries={allFoodEntries} checkIns={checkIns} />
-      )}
-
-      {/* Snapshot Cards — driven by dashboard config */}
-
-      {dashConfig.calories && (
-        <TrendSnapshotCard
-          title="Weekly Intake"
-          metric="calories"
-          measurements={measurements}
-          sessions={sessions}
-          units={profile.units}
-          measurementUnit={profile.measurementUnit}
-          calorieData={caloriesByDate}
-          calorieTarget={profile.macroTargets.calories}
-          onDayClick={(date) => navigate('/nutrition', { state: { date } })}
-        />
-      )}
-
-      {dashConfig.weight && (
-        <TrendSnapshotCard
-          title="Body Weight"
-          metric="weight"
-          measurements={measurements}
-          sessions={sessions}
-          units={profile.units}
-          measurementUnit={profile.measurementUnit}
-        />
-      )}
-
-      {dashConfig.measurements && dashConfig.selectedMeasurement && (
-        <TrendSnapshotCard
-          title={MEASUREMENT_LABELS[dashConfig.selectedMeasurement] || dashConfig.selectedMeasurement}
-          metric="measurement"
-          measurements={measurements}
-          sessions={sessions}
-          units={profile.units}
-          measurementUnit={profile.measurementUnit}
-          measurementKey={dashConfig.selectedMeasurement}
-        />
-      )}
-
-      {dashConfig.lifts && dashConfig.selectedLift && liftExerciseIds.length > 0 && (
-        <TrendSnapshotCard
-          title={dashConfig.selectedLift}
-          metric="lift"
-          measurements={measurements}
-          sessions={sessions}
-          units={profile.units}
-          measurementUnit={profile.measurementUnit}
-          liftExerciseIds={liftExerciseIds}
-        />
-      )}
+        return (
+          <div
+            key={id}
+            ref={(el) => { if (el) cardRefMap.current.set(id, el); else cardRefMap.current.delete(id); }}
+            className={`relative transition-all duration-150 ${editingLayout ? 'pl-8' : ''}`}
+          >
+            {editingLayout && (
+              <div
+                className="absolute left-0 top-0 bottom-0 w-8 flex items-center justify-center touch-none cursor-grab active:cursor-grabbing z-10"
+                onPointerDown={(e) => handleDragStart(e, id)}
+                onPointerMove={handleDragMove}
+                onPointerUp={handleDragEnd}
+                onPointerCancel={handleDragEnd}
+              >
+                <GripVertical size={15} className={draggingId === id ? 'text-accent-blue' : 'text-text-muted/40'} />
+              </div>
+            )}
+            <div className={`transition-all duration-150 ${draggingId === id ? 'opacity-80 scale-[0.99] shadow-xl ring-2 ring-accent-blue/25 rounded-2xl' : ''}`}>
+              {content}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }

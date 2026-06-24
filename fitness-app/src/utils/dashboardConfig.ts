@@ -15,6 +15,7 @@ export interface DashboardCardConfig {
   calendar: boolean;
   aiVoice: boolean;
   weightUnit: 'lbs' | 'kg';
+  cardOrder?: string[];
 }
 
 const STORAGE_KEY = 'fitos-dashboard-cards';
