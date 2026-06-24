@@ -470,7 +470,6 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
   function addEntryWithTime(entry: Parameters<typeof addEntry>[0]) {
     const time = addAtTime || currentTimeRounded();
     addEntry({ ...entry, date: selectedDate, loggedAt: buildLoggedAt(time) });
-    setAddAtTime(null);
   }
 
   function handleDragEnd(event: DragEndEvent) {
