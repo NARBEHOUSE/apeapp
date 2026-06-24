@@ -13,6 +13,7 @@ import { SVGBarChart } from '../shared/SVGBarChart';
 import type { WorkoutSession, Program } from '../../types';
 import { buildWorkoutCardData, renderWorkoutCard, shareOrDownload } from '../../utils/shareCards';
 import { ConfirmDialog } from '../shared/ConfirmDialog';
+import { getWeightUnit, toDisplayWeight, fromDisplayWeight, type WeightUnit } from '../../utils/units';
 
 interface Props {
   sessions: WorkoutSession[];
@@ -26,11 +27,13 @@ function SessionCard({
   program,
   onDelete,
   onUpdate,
+  weightUnit,
 }: {
   session: WorkoutSession;
   program: Program | undefined;
   onDelete?: (sessionId: string) => void;
   onUpdate?: (session: WorkoutSession) => void;
+  weightUnit: WeightUnit;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -88,7 +91,7 @@ function SessionCard({
         <div className="text-right flex-shrink-0">
           <div className="text-sm font-bold text-accent-orange">
             {totalVolume > 0
-              ? `${totalVolume.toLocaleString()} lbs`
+              ? `${toDisplayWeight(totalVolume, weightUnit).toLocaleString()} ${weightUnit}`
               : `${totalSets} sets`}
           </div>
           {expanded ? (
@@ -118,9 +121,9 @@ function SessionCard({
                       const edits = editSets[exerciseId]?.[i];
                       return (
                         <div key={i} className="flex gap-1 items-center">
-                          <input type="text" inputMode="decimal" className="w-14 text-xs text-center bg-surface-raised border border-accent-blue/30 rounded-md px-1 py-1" value={edits?.weight ?? String(set.weight)} onChange={(e) => {
+                          <input type="text" inputMode="decimal" className="w-14 text-xs text-center bg-surface-raised border border-accent-blue/30 rounded-md px-1 py-1" value={edits?.weight ?? String(toDisplayWeight(set.weight, weightUnit))} onChange={(e) => {
                             const updated = { ...editSets };
-                            if (!updated[exerciseId]) updated[exerciseId] = completedSets.map((s) => ({ weight: String(s.weight), reps: String(s.reps) }));
+                            if (!updated[exerciseId]) updated[exerciseId] = completedSets.map((s) => ({ weight: String(toDisplayWeight(s.weight, weightUnit)), reps: String(s.reps) }));
                             updated[exerciseId][i] = { ...updated[exerciseId][i], weight: e.target.value };
                             setEditSets(updated);
                           }} />
@@ -154,7 +157,7 @@ function SessionCard({
                   <div className="flex flex-wrap gap-1.5">
                     {completedSets.map((set, i) => (
                       <span key={i} className="text-xs bg-surface-raised border border-border-light rounded-md px-2 py-1 tabular-nums">
-                        {set.weight > 0 ? `${set.weight}x${set.reps}` : `${set.reps} reps`}
+                        {set.weight > 0 ? `${toDisplayWeight(set.weight, weightUnit)}x${set.reps}` : `${set.reps} reps`}
                       </span>
                     ))}
                   </div>
@@ -194,7 +197,7 @@ function SessionCard({
                         if (delIndices.has(i)) continue;
                         const edit = edits[editIdx++];
                         if (edit) {
-                          result.push({ ...completedOnly[i], weight: parseFloat(edit.weight) || completedOnly[i].weight, reps: parseInt(edit.reps) || completedOnly[i].reps });
+                          result.push({ ...completedOnly[i], weight: fromDisplayWeight(parseFloat(edit.weight) || toDisplayWeight(completedOnly[i].weight, weightUnit), weightUnit), reps: parseInt(edit.reps) || completedOnly[i].reps });
                         } else {
                           result.push(completedOnly[i]);
                         }
@@ -203,7 +206,7 @@ function SessionCard({
                       // Add new sets (edits beyond original length)
                       while (editIdx < edits.length) {
                         const edit = edits[editIdx++];
-                        result.push({ weight: parseFloat(edit.weight) || 0, reps: parseInt(edit.reps) || 0, completed: true, timestamp: Date.now() });
+                        result.push({ weight: fromDisplayWeight(parseFloat(edit.weight) || 0, weightUnit), reps: parseInt(edit.reps) || 0, completed: true, timestamp: Date.now() });
                       }
 
                       updatedSets[exId] = result;
@@ -313,10 +316,11 @@ const StrengthTooltip = ({
   label?: string;
 }) => {
   if (!active || !payload?.length) return null;
+  const wu = getWeightUnit();
   return (
     <div className="bg-surface-raised border border-border-light rounded-lg px-3 py-2 text-xs shadow-lg">
       <p className="text-text-secondary">{label}</p>
-      <p className="font-bold text-accent-blue">{payload[0].value.toLocaleString()} lbs</p>
+      <p className="font-bold text-accent-blue">{Number(payload[0].value).toLocaleString()} {wu}</p>
     </div>
   );
 };
@@ -332,6 +336,7 @@ const VOLUME_METRIC_META: Record<VolumeMetric, { label: string; unit: string; co
 
 
 export function WorkoutHistory({ sessions, programs, onDeleteSession, onUpdateSession }: Props) {
+  const weightUnit = getWeightUnit();
   const [activeTab, setActiveTab] = useState<'history' | 'volume' | 'strength'>('history');
   const [volumeMetric, setVolumeMetric] = useState<VolumeMetric>('volume');
   const [volumeGranularity, setVolumeGranularity] = useState<'session' | 'weekly'>('session');
@@ -560,6 +565,12 @@ export function WorkoutHistory({ sessions, programs, onDeleteSession, onUpdateSe
   const lastChange = strengthData.length >= 2
     ? strengthData[strengthData.length - 1][displayKey] - strengthData[strengthData.length - 2][displayKey]
     : null;
+  // Convert strength data from stored lbs to display unit for correct chart scaling
+  const displayStrengthData = strengthData.map((d) => ({
+    date: d.date,
+    maxWeight: toDisplayWeight(d.maxWeight, weightUnit),
+    est1RM: toDisplayWeight(d.est1RM, weightUnit),
+  }));
 
   const programMap = useMemo(() => {
     const map: Record<string, Program> = {};
@@ -612,6 +623,7 @@ export function WorkoutHistory({ sessions, programs, onDeleteSession, onUpdateSe
               program={programMap[session.programId]}
               onDelete={onDeleteSession}
               onUpdate={onUpdateSession}
+              weightUnit={weightUnit}
             />
           ))}
         </div>
@@ -647,7 +659,7 @@ export function WorkoutHistory({ sessions, programs, onDeleteSession, onUpdateSe
                   <div>
                     <h4 className="label leading-none">
                       {effectiveMuscle} Volume
-                      <span className="text-[10px] font-normal text-text-muted ml-1.5">(lbs)</span>
+                      <span className="text-[10px] font-normal text-text-muted ml-1.5">({weightUnit})</span>
                     </h4>
                     <p className="text-[10px] text-text-muted mt-0.5">Weight × reps per {volumeGranularity === 'session' ? 'session' : 'week'}</p>
                   </div>
@@ -671,12 +683,12 @@ export function WorkoutHistory({ sessions, programs, onDeleteSession, onUpdateSe
                   volumeGranularity === 'weekly' ? (
                     <SVGBarChart
                       key={`${effectiveMuscle}-weekly`}
-                      data={muscleChartData.map((d) => ({ label: d.label, value: d.volume }))}
+                      data={muscleChartData.map((d) => ({ label: d.label, value: toDisplayWeight(d.volume, weightUnit) }))}
                       color="#e8572a"
                       height={208}
                       yAxisWidth={50}
                       formatY={(v) => v >= 1000 ? `${Math.round(v / 1000)}k` : String(v)}
-                      formatValue={(v) => `${v.toLocaleString()} lbs`}
+                      formatValue={(v) => `${v.toLocaleString()} ${weightUnit}`}
                     />
                   ) : (
                     <div className="h-52">
@@ -687,7 +699,7 @@ export function WorkoutHistory({ sessions, programs, onDeleteSession, onUpdateSe
                           <YAxis tick={{ fill: 'var(--color-text-muted)', fontSize: 10 }} axisLine={false} tickLine={false} width={50} domain={['auto', 'auto']} />
                           <Tooltip content={({ active, payload, label }) => {
                             if (!active || !payload?.length) return null;
-                            return <div className="bg-surface-raised border border-border-light rounded-lg px-3 py-2 text-xs shadow-lg"><p className="text-text-secondary mb-0.5">{label as string}</p><p className="font-bold text-accent-orange">{Number(payload[0].value).toLocaleString()} lbs</p></div>;
+                            return <div className="bg-surface-raised border border-border-light rounded-lg px-3 py-2 text-xs shadow-lg"><p className="text-text-secondary mb-0.5">{label as string}</p><p className="font-bold text-accent-orange">{toDisplayWeight(Number(payload[0].value), weightUnit).toLocaleString()} {weightUnit}</p></div>;
                           }} />
                           <Line type="monotone" dataKey="volume" stroke="#e8572a" strokeWidth={2} dot={{ fill: '#e8572a', r: 3 }} activeDot={{ fill: '#e8572a', r: 5 }} connectNulls={false} />
                         </LineChart>
@@ -718,7 +730,7 @@ export function WorkoutHistory({ sessions, programs, onDeleteSession, onUpdateSe
                             {m.muscle}
                           </button>
                           <span className="text-text-muted tabular-nums">
-                            {m.volume.toLocaleString()} lbs
+                            {toDisplayWeight(m.volume, weightUnit).toLocaleString()} {weightUnit}
                             {trend != null && (
                               <span className={`ml-1.5 ${trend > 0 ? 'text-green-500' : trend < 0 ? 'text-danger' : 'text-text-muted'}`}>
                                 {trend > 0 ? '+' : ''}{trend}%
@@ -774,12 +786,12 @@ export function WorkoutHistory({ sessions, programs, onDeleteSession, onUpdateSe
                   <div>
                     <p className="text-[10px] text-text-muted uppercase tracking-wide">All-Time PR</p>
                     <p className="text-2xl font-bold text-accent-blue">
-                      {pr} <span className="text-sm font-normal text-text-muted">lbs</span>
+                      {toDisplayWeight(pr!, weightUnit)} <span className="text-sm font-normal text-text-muted">{weightUnit}</span>
                     </p>
                   </div>
                   {lastChange != null && lastChange !== 0 && (
                     <div className={`text-right text-sm font-semibold ${lastChange > 0 ? 'text-success' : 'text-danger'}`}>
-                      {lastChange > 0 ? '+' : ''}{lastChange} lbs
+                      {lastChange > 0 ? '+' : ''}{toDisplayWeight(lastChange, weightUnit)} {weightUnit}
                       <p className="text-[10px] font-normal text-text-muted">vs last session</p>
                     </div>
                   )}
@@ -808,7 +820,7 @@ export function WorkoutHistory({ sessions, programs, onDeleteSession, onUpdateSe
                 {strengthData.length > 1 ? (
                   <div className="h-52">
                     <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={strengthData}>
+                      <LineChart data={displayStrengthData}>
                         <CartesianGrid stroke="var(--color-border)" strokeDasharray="3 3" />
                         <XAxis
                           dataKey="date"
