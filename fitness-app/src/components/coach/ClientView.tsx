@@ -72,7 +72,7 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
   const [myPrograms, setMyPrograms] = useState<Program[]>([]);
   const [chartRange, setChartRange] = useState<7 | 30 | 60 | 90>(30);
   const [weighInsOpen, setWeighInsOpen] = useState(false);
-  const [photosOpen, setPhotosOpen] = useState(false);
+  const [photosOpen, setPhotosOpen] = useState(true);
 
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
