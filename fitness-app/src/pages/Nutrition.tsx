@@ -16,7 +16,8 @@ import { getFoodEntriesByDate } from '../db/nutrition';
 import { formatDate, today } from '../utils/dateHelpers';
 import { getFoodEmoji } from '../utils/foodEmoji';
 import { getSavedMeals, addSavedMeal, deleteSavedMeal, updateSavedMeal, type SavedMeal, type MealIngredient } from '../db/savedMeals';
-import { getSavedFoods, updateSavedFood, deleteSavedFood, type SavedFood } from '../db/foodHistory';
+import { getSavedFoods, updateSavedFood, updateSavedFoodLibraryOnly, saveAsNewFood, countFoodLogEntries, deleteSavedFood, type SavedFood } from '../db/foodHistory';
+import { FoodEditWarningModal } from '../components/shared/FoodEditWarningModal';
 import { FOOD_DATABASE } from '../data/foods';
 import { searchFoods as searchUSDA } from '../utils/usda';
 // USDA proxy — no API key needed
@@ -158,8 +159,9 @@ function DraggableEntry({ entry, onDelete, onToggleFavorite, onEditTime, onEdit 
 }
 
 // Droppable hour slot
-function HourSlot({ hour, children, onAddAtHour, isOver }: {
+function HourSlot({ hour, children, onAddAtHour, isOver, summary }: {
   hour: number; children: React.ReactNode; onAddAtHour: (hour: number) => void; isOver: boolean;
+  summary?: { cals: number; protein: number; carbs: number; fat: number; count: number };
 }) {
   const { setNodeRef } = useDroppable({ id: `hour-${hour}` });
   const hasChildren = Array.isArray(children) ? children.length > 0 : !!children;
@@ -186,6 +188,17 @@ function HourSlot({ hour, children, onAddAtHour, isOver }: {
       <div className="flex-1 min-w-0 pb-1">
         {hasChildren ? (
           <div className="space-y-1 pt-0.5">
+            {summary && (
+              <div className="flex items-center gap-2.5 px-1 pb-1 border-b border-border/30">
+                <span className="text-[10px] font-semibold text-accent-orange">{summary.cals} cal</span>
+                <span className="text-[10px] text-text-muted">P{summary.protein}</span>
+                <span className="text-[10px] text-text-muted">C{summary.carbs}</span>
+                <span className="text-[10px] text-text-muted">F{summary.fat}</span>
+                {summary.count > 1 && (
+                  <span className="text-[9px] text-text-muted/50 ml-auto">{summary.count} items</span>
+                )}
+              </div>
+            )}
             {children}
           </div>
         ) : (
@@ -240,6 +253,12 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
   const [editFoodEmoji, setEditFoodEmoji] = useState('');
   const [usdaFoodResults, setUsdaFoodResults] = useState<{ name: string; brand?: string; cal: number; p: number; c: number; f: number; fiber: number; source: string }[]>([]);
   const [usdaFoodSearching, setUsdaFoodSearching] = useState(false);
+  const [pendingFoodEdit, setPendingFoodEdit] = useState<{
+    foodName: string;
+    updates: Partial<Omit<SavedFood, 'frequency' | 'lastUsed'>>;
+  } | null>(null);
+  const [foodEditAffectedCount, setFoodEditAffectedCount] = useState(0);
+  const [showFoodEditWarning, setShowFoodEditWarning] = useState(false);
 
   // Voice mode
   const voiceEnabled = getVoiceConfig().aiVoice && !!localStorage.getItem('fitos-claude-key');
@@ -375,6 +394,28 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
     updateEntryTime(editingEntry.id, d.toISOString());
     setModal(null);
     setEditingEntry(null);
+  }
+
+  async function handleFoodEditChoice(choice: 'all' | 'library' | 'copy') {
+    if (!pendingFoodEdit) return;
+    const { foodName, updates } = pendingFoodEdit;
+    if (choice === 'all') {
+      await updateSavedFood(profile.id, foodName, updates);
+      toast('Food updated! All tracked entries synced.', 'success');
+    } else if (choice === 'library') {
+      updateSavedFoodLibraryOnly(profile.id, foodName, updates);
+      toast('Library updated. Past entries unchanged.', 'success');
+    } else {
+      const newName = saveAsNewFood(profile.id, foodName, updates);
+      toast(`Saved as "${newName}". History unchanged.`, 'success');
+    }
+    setFoodLibrary(getSavedFoods(profile.id));
+    setEditingFood(null);
+    setUsdaFoodResults([]);
+    setEditFoodQuery('');
+    await refreshEntries();
+    setShowFoodEditWarning(false);
+    setPendingFoodEdit(null);
   }
 
   function handleEditEntry(entry: FoodEntry) {
@@ -572,6 +613,16 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
 
   return (
     <div className="space-y-4 pb-24">
+      {showFoodEditWarning && pendingFoodEdit && (
+        <FoodEditWarningModal
+          foodName={pendingFoodEdit.foodName}
+          affectedCount={foodEditAffectedCount}
+          onUpdateAll={() => handleFoodEditChoice('all')}
+          onLibraryOnly={() => handleFoodEditChoice('library')}
+          onSaveAsCopy={() => handleFoodEditChoice('copy')}
+          onCancel={() => { setShowFoodEditWarning(false); setPendingFoodEdit(null); }}
+        />
+      )}
       {/* Date Picker */}
       <div className="flex items-center justify-between">
         <button type="button" onClick={() => changeDate(-1)} className="p-2 rounded-lg hover:bg-surface-raised">
@@ -657,8 +708,15 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
                   .filter((hour) => showAllHours || (hour >= visibleStart && hour <= visibleEnd))
                   .map((hour) => {
                     const hourEntries = entriesByHour[hour];
+                    const slotSummary = hourEntries.length > 0 ? {
+                      cals: hourEntries.reduce((s, e) => s + Math.round(e.calories * e.servingsConsumed), 0),
+                      protein: Math.round(hourEntries.reduce((s, e) => s + e.protein * e.servingsConsumed, 0)),
+                      carbs: Math.round(hourEntries.reduce((s, e) => s + e.carbs * e.servingsConsumed, 0)),
+                      fat: Math.round(hourEntries.reduce((s, e) => s + e.fat * e.servingsConsumed, 0)),
+                      count: hourEntries.length,
+                    } : undefined;
                     return (
-                      <HourSlot key={hour} hour={hour} onAddAtHour={handleAddAtHour} isOver={overHour === `hour-${hour}`}>
+                      <HourSlot key={hour} hour={hour} onAddAtHour={handleAddAtHour} isOver={overHour === `hour-${hour}`} summary={slotSummary}>
                         {hourEntries.map((entry) => (
                           <DraggableEntry
                             key={entry.id}
@@ -924,7 +982,7 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
                                 <div className="flex gap-2">
                                   <button onClick={() => { setEditingFood(null); setUsdaFoodResults([]); setEditFoodQuery(''); }} className="btn-secondary flex-1 text-xs">Cancel</button>
                                   <button onClick={async () => {
-                                    await updateSavedFood(profile.id, food.name, {
+                                    const updates: Partial<Omit<SavedFood, 'frequency' | 'lastUsed'>> = {
                                       calories: parseFloat(editFoodCal) || 0, protein: parseFloat(editFoodP) || 0,
                                       carbs: parseFloat(editFoodC) || 0, fat: parseFloat(editFoodF) || 0,
                                       fiber: parseFloat(editFoodFiber) || undefined,
@@ -933,13 +991,21 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
                                       brand: editFoodBrand.trim() || undefined,
                                       barcode: editFoodBarcode.trim() || undefined,
                                       emoji: editFoodEmoji.trim() || undefined,
-                                    });
-                                    setFoodLibrary(getSavedFoods(profile.id));
-                                    setEditingFood(null);
-                                    setUsdaFoodResults([]);
-                                    setEditFoodQuery('');
-                                    await refreshEntries();
-                                    toast('Food updated! All tracked entries synced.', 'success');
+                                    };
+                                    const count = await countFoodLogEntries(profile.id, food.name);
+                                    if (count > 0) {
+                                      setPendingFoodEdit({ foodName: food.name, updates });
+                                      setFoodEditAffectedCount(count);
+                                      setShowFoodEditWarning(true);
+                                    } else {
+                                      await updateSavedFood(profile.id, food.name, updates);
+                                      setFoodLibrary(getSavedFoods(profile.id));
+                                      setEditingFood(null);
+                                      setUsdaFoodResults([]);
+                                      setEditFoodQuery('');
+                                      await refreshEntries();
+                                      toast('Food updated!', 'success');
+                                    }
                                   }} className="btn-primary flex-1 text-xs">Save</button>
                                 </div>
                               </div>

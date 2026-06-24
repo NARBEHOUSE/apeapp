@@ -76,6 +76,26 @@ export function saveFoodToHistory(
     if (food.barcode) foods[existingIndex].barcode = food.barcode;
     if (food.emoji) foods[existingIndex].emoji = food.emoji;
   } else {
+    // Before creating a new entry, check if a food with the same barcode already exists
+    if (food.barcode) {
+      const barcodeIdx = foods.findIndex((f) => f.barcode === food.barcode);
+      if (barcodeIdx >= 0) {
+        foods[barcodeIdx].frequency += 1;
+        foods[barcodeIdx].lastUsed = new Date().toISOString();
+        const hasNewMacros = food.calories > 0 || food.protein > 0 || food.carbs > 0 || food.fat > 0;
+        if (hasNewMacros) {
+          foods[barcodeIdx].calories = food.calories;
+          foods[barcodeIdx].protein = food.protein;
+          foods[barcodeIdx].carbs = food.carbs;
+          foods[barcodeIdx].fat = food.fat;
+          foods[barcodeIdx].fiber = food.fiber;
+          foods[barcodeIdx].servingSize = food.servingSize;
+          foods[barcodeIdx].servingUnit = food.servingUnit;
+        }
+        persistFoods(profileId, foods);
+        return;
+      }
+    }
     foods.push({
       ...food,
       frequency: 1,
@@ -129,6 +149,48 @@ export async function updateSavedFood(profileId: string, name: string, updates: 
 export function deleteSavedFood(profileId: string, name: string): void {
   const foods = loadFoods(profileId).filter((f) => f.name.toLowerCase() !== name.toLowerCase());
   persistFoods(profileId, foods);
+}
+
+export async function countFoodLogEntries(profileId: string, foodName: string): Promise<number> {
+  const { getDB } = await import('./index');
+  const db = await getDB();
+  const allEntries = await db.getAllFromIndex('foodEntries', 'by-profile', profileId);
+  const nameLower = foodName.toLowerCase();
+  return allEntries.filter((e) => e.name.toLowerCase() === nameLower).length;
+}
+
+export function updateSavedFoodLibraryOnly(
+  profileId: string,
+  name: string,
+  updates: Partial<Omit<SavedFood, 'frequency' | 'lastUsed'>>
+): void {
+  const foods = loadFoods(profileId);
+  const idx = foods.findIndex((f) => f.name.toLowerCase() === name.toLowerCase());
+  if (idx >= 0) {
+    foods[idx] = { ...foods[idx], ...updates };
+    persistFoods(profileId, foods);
+  }
+}
+
+export function saveAsNewFood(
+  profileId: string,
+  originalName: string,
+  updates: Partial<Omit<SavedFood, 'frequency' | 'lastUsed'>>
+): string {
+  const foods = loadFoods(profileId);
+  const original = foods.find((f) => f.name.toLowerCase() === originalName.toLowerCase());
+  if (!original) return originalName;
+
+  let newName = `${originalName} (2)`;
+  let counter = 2;
+  while (foods.some((f) => f.name.toLowerCase() === newName.toLowerCase())) {
+    counter++;
+    newName = `${originalName} (${counter})`;
+  }
+
+  foods.push({ ...original, ...updates, name: newName, frequency: 1, lastUsed: new Date().toISOString() });
+  persistFoods(profileId, foods);
+  return newName;
 }
 
 export function searchSavedFoods(

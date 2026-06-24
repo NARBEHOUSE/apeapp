@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Clock, Database, Search, X, Pencil, Check, AlertCircle } from 'lucide-react';
-import { searchSavedFoods, getFrequentFoods, updateSavedFood } from '../../db/foodHistory';
+import { searchSavedFoods, getFrequentFoods, updateSavedFood, updateSavedFoodLibraryOnly, saveAsNewFood, countFoodLogEntries } from '../../db/foodHistory';
+import { FoodEditWarningModal } from '../shared/FoodEditWarningModal';
 import { FOOD_DATABASE, type BuiltInFood } from '../../data/foods';
 import { searchFoodsWithFallback as searchUSDA } from '../../utils/usda';
 
@@ -73,9 +74,16 @@ export function FoodAutocomplete({ profileId, onSelect, onQueryChange, placehold
   const [editC, setEditC] = useState('');
   const [editF, setEditF] = useState('');
 
+  const [pendingEdit, setPendingEdit] = useState<{
+    cal: number; p: number; c: number; f: number; idx: number; item: ResultItem;
+  } | null>(null);
+  const [affectedCount, setAffectedCount] = useState(0);
+  const [showEditWarning, setShowEditWarning] = useState(false);
+
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const justSelectedRef = useRef(false);
 
   const usdaAbortRef = useRef<AbortController | null>(null);
 
@@ -182,6 +190,11 @@ export function FoodAutocomplete({ profileId, onSelect, onQueryChange, placehold
   }, [profileId]);
 
   useEffect(() => {
+    if (justSelectedRef.current) {
+      justSelectedRef.current = false;
+      return;
+    }
+
     if (debounceRef.current) clearTimeout(debounceRef.current);
 
     if (!query.trim()) {
@@ -239,6 +252,7 @@ export function FoodAutocomplete({ profileId, onSelect, onQueryChange, placehold
       source: item.source === 'off' ? 'usda' : item.source,
       isFromHistory: item.isFromHistory,
     };
+    justSelectedRef.current = true;
     setQuery(item.name);
     setIsOpen(false);
     onSelect(food);
@@ -258,6 +272,25 @@ export function FoodAutocomplete({ profileId, onSelect, onQueryChange, placehold
     setResults([]);
     setIsOpen(false);
     inputRef.current?.focus();
+  }
+
+  function applyEdit(mode: 'all' | 'library' | 'copy') {
+    if (!pendingEdit) return;
+    const { cal, p, c, f, idx, item } = pendingEdit;
+    const updates = { calories: cal, protein: p, carbs: c, fat: f };
+    if (mode === 'all') {
+      updateSavedFood(profileId, item.name, updates);
+    } else if (mode === 'library') {
+      updateSavedFoodLibraryOnly(profileId, item.name, updates);
+    } else {
+      saveAsNewFood(profileId, item.name, updates);
+    }
+    const updated = [...results];
+    updated[idx] = { ...item, ...updates };
+    setResults(updated);
+    setEditingIdx(null);
+    setShowEditWarning(false);
+    setPendingEdit(null);
   }
 
   return (
@@ -292,6 +325,17 @@ export function FoodAutocomplete({ profileId, onSelect, onQueryChange, placehold
         )}
       </div>
 
+      {showEditWarning && pendingEdit && (
+        <FoodEditWarningModal
+          foodName={pendingEdit.item.name}
+          affectedCount={affectedCount}
+          onUpdateAll={() => applyEdit('all')}
+          onLibraryOnly={() => applyEdit('library')}
+          onSaveAsCopy={() => applyEdit('copy')}
+          onCancel={() => { setShowEditWarning(false); setPendingEdit(null); }}
+        />
+      )}
+
       {isOpen && (
         <div className="absolute z-50 left-0 right-0 mt-1 bg-surface-raised rounded-xl shadow-lg max-h-64 overflow-y-auto border border-border">
           {showFrequent && results.length > 0 && (
@@ -324,16 +368,23 @@ export function FoodAutocomplete({ profileId, onSelect, onQueryChange, placehold
                   </div>
                   <div className="flex gap-2">
                     <button type="button" onClick={() => setEditingIdx(null)} className="flex-1 py-1 rounded-md bg-surface-raised text-[10px] text-text-muted font-medium">Cancel</button>
-                    <button type="button" onClick={() => {
+                    <button type="button" onClick={async () => {
                       const cal = parseFloat(editCal) || 0;
                       const p = parseFloat(editP) || 0;
                       const c = parseFloat(editC) || 0;
                       const f = parseFloat(editF) || 0;
-                      updateSavedFood(profileId, item.name, { calories: cal, protein: p, carbs: c, fat: f });
-                      const updated = [...results];
-                      updated[i] = { ...item, calories: cal, protein: p, carbs: c, fat: f };
-                      setResults(updated);
-                      setEditingIdx(null);
+                      const count = await countFoodLogEntries(profileId, item.name);
+                      if (count > 0) {
+                        setPendingEdit({ cal, p, c, f, idx: i, item });
+                        setAffectedCount(count);
+                        setShowEditWarning(true);
+                      } else {
+                        updateSavedFood(profileId, item.name, { calories: cal, protein: p, carbs: c, fat: f });
+                        const updated = [...results];
+                        updated[i] = { ...item, calories: cal, protein: p, carbs: c, fat: f };
+                        setResults(updated);
+                        setEditingIdx(null);
+                      }
                     }} className="flex-1 py-1 rounded-md bg-accent-blue text-white text-[10px] font-semibold flex items-center justify-center gap-1">
                       <Check size={10} /> Save
                     </button>
