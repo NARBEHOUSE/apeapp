@@ -78,7 +78,7 @@ function CustomTooltip({ active, payload, label, isCalories }: {
       <p className="text-text-secondary mb-1">{label}</p>
       {payload.map((p, i) => (
         <p key={i} style={{ color: p.color }}>
-          {p.name}: {Math.round(p.value)}{p.name === 'Calories' && isCalories ? ' cal' : 'g'}
+          {p.name}: {Math.round(p.value)}{isCalories ? ' cal' : 'g'}
         </p>
       ))}
     </div>
@@ -130,12 +130,15 @@ export function NutritionCharts({ profileId, targets, fiberTarget = 30 }: Nutrit
   const rangeData = rangedDays.map((date) => {
     const day = dataMap.get(date);
     return {
-      label:    formatShortDate(date),
-      calories: Math.round(day?.calories ?? 0),
-      protein:  Math.round(day?.protein  ?? 0),
-      carbs:    Math.round(day?.carbs    ?? 0),
-      fat:      Math.round(day?.fat      ?? 0),
-      fiber:    Math.round(day?.fiber    ?? 0),
+      label:      formatShortDate(date),
+      calories:   Math.round(day?.calories ?? 0),
+      protein:    Math.round(day?.protein  ?? 0),
+      carbs:      Math.round(day?.carbs    ?? 0),
+      fat:        Math.round(day?.fat      ?? 0),
+      fiber:      Math.round(day?.fiber    ?? 0),
+      proteinCal: Math.round((day?.protein ?? 0) * 4),
+      carbsCal:   Math.round((day?.carbs   ?? 0) * 4),
+      fatCal:     Math.round((day?.fat     ?? 0) * 9),
     };
   });
 
@@ -171,15 +174,16 @@ export function NutritionCharts({ profileId, targets, fiberTarget = 30 }: Nutrit
   function renderTrendChart() {
     if (chartType === 'bar') {
       if (isCaloriesView) {
-        // Stacked macro breakdown
+        // Stacked macro breakdown in calories (protein*4, carbs*4, fat*9)
         return (
           <BarChart data={rangeData} barSize={barSize}>
             {commonAxis}
-            <Tooltip content={<CustomTooltip />} cursor={{ fill: 'transparent' }} />
+            <Tooltip content={(p: any) => <CustomTooltip {...p} isCalories />} cursor={{ fill: 'transparent' }} />
             <Legend formatter={(v) => <span className="text-xs text-text-secondary">{v}</span>} />
-            <Bar dataKey="protein" name="Protein" stackId="m" fill={COLORS.protein} radius={[0,0,0,0]} />
-            <Bar dataKey="carbs"   name="Carbs"   stackId="m" fill={COLORS.carbs}   radius={[0,0,0,0]} />
-            <Bar dataKey="fat"     name="Fat"     stackId="m" fill={COLORS.fat}     radius={[3,3,0,0]} />
+            <ReferenceLine y={targets.calories} stroke={COLORS.target} strokeDasharray="5 5" label={{ value: 'Target', fill: COLORS.text, fontSize: 9, position: 'insideTopRight' }} />
+            <Bar dataKey="proteinCal" name="Protein" stackId="m" fill={COLORS.protein} radius={[0,0,0,0]} />
+            <Bar dataKey="carbsCal"   name="Carbs"   stackId="m" fill={COLORS.carbs}   radius={[0,0,0,0]} />
+            <Bar dataKey="fatCal"     name="Fat"     stackId="m" fill={COLORS.fat}     radius={[3,3,0,0]} />
           </BarChart>
         );
       }
