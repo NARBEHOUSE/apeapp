@@ -91,6 +91,7 @@ export function NutritionCharts({ profileId, targets, fiberTarget = 30 }: Nutrit
   const [range, setRange] = useState<Range>(14);
   const [metric, setMetric] = useState<Metric>('calories');
   const [chartType, setChartType] = useState<ChartType>('bar');
+  const [activeDonutIndex, setActiveDonutIndex] = useState<number | null>(null);
 
   useEffect(() => {
     getFoodEntriesByProfile(profileId).then((entries) => {
@@ -224,35 +225,44 @@ export function NutritionCharts({ profileId, targets, fiberTarget = 30 }: Nutrit
       <div className="card p-4">
         <h4 className="text-sm font-semibold text-text-secondary mb-3">Today's Macro Split</h4>
         {donutTotal > 0 ? (
-          <ResponsiveContainer width="100%" height={200}>
-            <PieChart>
-              <Pie
-                data={donutData}
-                cx="50%"
-                cy="50%"
-                innerRadius={55}
-                outerRadius={85}
-                dataKey="value"
-                stroke="none"
-                activeShape={(props: any) => <Sector {...props} outerRadius={props.outerRadius + 5} />}
-              >
-                {donutData.map((d, i) => <Cell key={i} fill={d.color} />)}
-              </Pie>
-              <Tooltip
-                cursor={false}
-                content={({ active, payload }) => {
-                  if (!active || !payload?.length) return null;
-                  const d = payload[0];
-                  return (
-                    <div className="rounded-lg px-3 py-2 text-xs border shadow-lg" style={{ backgroundColor: COLORS.tooltipBg, borderColor: COLORS.tooltipBorder }}>
-                      <p style={{ color: d.payload.color }}>{d.name}: {Math.round(d.value as number)}g</p>
-                    </div>
-                  );
-                }}
-              />
-              <Legend formatter={(value) => <span className="text-xs text-text-secondary">{value}</span>} />
-            </PieChart>
-          </ResponsiveContainer>
+          <div className="relative">
+            <ResponsiveContainer width="100%" height={200}>
+              <PieChart>
+                {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                <Pie
+                  {...({} as any)}
+                  data={donutData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={55}
+                  outerRadius={85}
+                  dataKey="value"
+                  stroke="none"
+                  activeIndex={activeDonutIndex ?? undefined}
+                  activeShape={(props: any) => <Sector {...props} outerRadius={props.outerRadius + 6} />}
+                  onClick={(_: any, index: number) =>
+                    setActiveDonutIndex((prev) => (prev === index ? null : index))
+                  }
+                  style={{ cursor: 'pointer' }}
+                >
+                  {donutData.map((d, i) => <Cell key={i} fill={d.color} />)}
+                </Pie>
+                <Legend formatter={(value) => <span className="text-xs text-text-secondary">{value}</span>} />
+              </PieChart>
+            </ResponsiveContainer>
+            {activeDonutIndex !== null && (
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none pb-6">
+                <div className="text-center">
+                  <p className="text-[11px] font-semibold leading-tight" style={{ color: donutData[activeDonutIndex].color }}>
+                    {donutData[activeDonutIndex].name}
+                  </p>
+                  <p className="text-base font-bold text-text-primary leading-tight">
+                    {donutData[activeDonutIndex].value}g
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
         ) : (
           <p className="text-text-muted text-xs text-center py-8">No food logged today yet</p>
         )}
