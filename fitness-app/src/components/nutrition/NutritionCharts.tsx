@@ -7,7 +7,7 @@ import {
 } from 'recharts';
 import type { FoodEntry, MacroTargets } from '../../types';
 import { getFoodEntriesByProfile } from '../../db/nutrition';
-import { formatShortDate } from '../../utils/dateHelpers';
+import { today, daysAgo, formatShortDate } from '../../utils/dateHelpers';
 
 interface NutritionChartsProps {
   profileId: string;
@@ -56,13 +56,7 @@ function aggregateByDate(entries: FoodEntry[]): Map<string, DayData> {
 }
 
 function getLastNDays(n: number): string[] {
-  const days: string[] = [];
-  for (let i = n - 1; i >= 0; i--) {
-    const d = new Date();
-    d.setDate(d.getDate() - i);
-    days.push(d.toISOString().split('T')[0]);
-  }
-  return days;
+  return Array.from({ length: n }, (_, i) => daysAgo(n - 1 - i));
 }
 
 function CustomTooltip({ active, payload, label }: { active?: boolean; payload?: { name: string; value: number; color: string }[]; label?: string }) {
@@ -122,10 +116,12 @@ export function NutritionCharts({ profileId, targets }: NutritionChartsProps) {
     return <div className="text-center py-8 text-text-muted text-sm">Start logging food to see nutrition charts</div>;
   }
 
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = today();
+  // Trend charts only use completed past days (exclude today so partial data doesn't skew charts)
   const dataMap = aggregateByDate(allEntries.filter((e) => e.date < todayStr));
 
-  const rangedDays = getLastNDays(range + 1).slice(0, range); // exclude today
+  // range days = last N completed days, today excluded
+  const rangedDays = getLastNDays(range + 1).filter((d) => d < todayStr).slice(-range);
   const barSize = range <= 7 ? 22 : range <= 14 ? 14 : 8;
   const xInterval = range <= 7 ? 0 : range <= 14 ? 1 : 4;
 
@@ -140,7 +136,7 @@ export function NutritionCharts({ profileId, targets }: NutritionChartsProps) {
     };
   });
 
-  // Today's macro split
+  // Today's macro split — uses all entries including today (not the trend dataMap)
   const todayEntries = allEntries.filter((e) => e.date === todayStr);
   const todayTotals = todayEntries.reduce(
     (acc, e) => ({
@@ -208,7 +204,7 @@ export function NutritionCharts({ profileId, targets }: NutritionChartsProps) {
             <CartesianGrid strokeDasharray="3 3" stroke={COLORS.grid} vertical={false} />
             <XAxis dataKey="label" tick={{ fill: COLORS.text, fontSize: 10 }} axisLine={false} tickLine={false} interval={xInterval} />
             <YAxis tick={{ fill: COLORS.text, fontSize: 10 }} axisLine={false} tickLine={false} width={38} />
-            <Tooltip content={<CustomTooltip />} />
+            <Tooltip content={<CustomTooltip />} cursor={{ fill: 'transparent' }} />
             <ReferenceLine y={targets.calories} stroke={COLORS.target} strokeDasharray="5 5" label={{ value: 'Target', fill: COLORS.text, fontSize: 10, position: 'insideTopRight' }} />
             <Bar dataKey="calories" name="Calories" fill={COLORS.calories} radius={[3, 3, 0, 0]} />
           </BarChart>
@@ -222,7 +218,7 @@ export function NutritionCharts({ profileId, targets }: NutritionChartsProps) {
             <CartesianGrid strokeDasharray="3 3" stroke={COLORS.grid} vertical={false} />
             <XAxis dataKey="label" tick={{ fill: COLORS.text, fontSize: 10 }} axisLine={false} tickLine={false} interval={xInterval} />
             <YAxis tick={{ fill: COLORS.text, fontSize: 10 }} axisLine={false} tickLine={false} width={30} unit="g" />
-            <Tooltip content={<CustomTooltip />} />
+            <Tooltip content={<CustomTooltip />} cursor={{ fill: 'transparent' }} />
             <ReferenceLine y={targets.protein} stroke={COLORS.target} strokeDasharray="5 5" label={{ value: 'Target', fill: COLORS.text, fontSize: 10, position: 'insideTopRight' }} />
             <Bar dataKey="protein" name="Protein" fill={COLORS.protein} radius={[3, 3, 0, 0]} />
           </BarChart>
@@ -236,7 +232,7 @@ export function NutritionCharts({ profileId, targets }: NutritionChartsProps) {
             <CartesianGrid strokeDasharray="3 3" stroke={COLORS.grid} vertical={false} />
             <XAxis dataKey="label" tick={{ fill: COLORS.text, fontSize: 10 }} axisLine={false} tickLine={false} interval={xInterval} />
             <YAxis tick={{ fill: COLORS.text, fontSize: 10 }} axisLine={false} tickLine={false} width={30} unit="g" />
-            <Tooltip content={<CustomTooltip />} />
+            <Tooltip content={<CustomTooltip />} cursor={{ fill: 'transparent' }} />
             <ReferenceLine y={targets.carbs} stroke={COLORS.target} strokeDasharray="5 5" label={{ value: 'Target', fill: COLORS.text, fontSize: 10, position: 'insideTopRight' }} />
             <Bar dataKey="carbs" name="Carbs" fill={COLORS.carbs} radius={[3, 3, 0, 0]} />
           </BarChart>
@@ -250,7 +246,7 @@ export function NutritionCharts({ profileId, targets }: NutritionChartsProps) {
             <CartesianGrid strokeDasharray="3 3" stroke={COLORS.grid} vertical={false} />
             <XAxis dataKey="label" tick={{ fill: COLORS.text, fontSize: 10 }} axisLine={false} tickLine={false} interval={xInterval} />
             <YAxis tick={{ fill: COLORS.text, fontSize: 10 }} axisLine={false} tickLine={false} width={30} unit="g" />
-            <Tooltip content={<CustomTooltip />} />
+            <Tooltip content={<CustomTooltip />} cursor={{ fill: 'transparent' }} />
             <ReferenceLine y={targets.fat} stroke={COLORS.target} strokeDasharray="5 5" label={{ value: 'Target', fill: COLORS.text, fontSize: 10, position: 'insideTopRight' }} />
             <Bar dataKey="fat" name="Fat" fill={COLORS.fat} radius={[3, 3, 0, 0]} />
           </BarChart>
@@ -264,7 +260,7 @@ export function NutritionCharts({ profileId, targets }: NutritionChartsProps) {
             <CartesianGrid strokeDasharray="3 3" stroke={COLORS.grid} vertical={false} />
             <XAxis dataKey="label" tick={{ fill: COLORS.text, fontSize: 10 }} axisLine={false} tickLine={false} interval={xInterval} />
             <YAxis tick={{ fill: COLORS.text, fontSize: 10 }} axisLine={false} tickLine={false} width={30} unit="g" />
-            <Tooltip content={<CustomTooltip />} />
+            <Tooltip content={<CustomTooltip />} cursor={{ fill: 'transparent' }} />
             <Legend formatter={(value) => <span className="text-xs text-text-secondary">{value}</span>} />
             <Bar dataKey="protein" name="Protein" stackId="m" fill={COLORS.protein} radius={[0, 0, 0, 0]} />
             <Bar dataKey="carbs" name="Carbs" stackId="m" fill={COLORS.carbs} radius={[0, 0, 0, 0]} />
@@ -280,7 +276,7 @@ export function NutritionCharts({ profileId, targets }: NutritionChartsProps) {
             <CartesianGrid strokeDasharray="3 3" stroke={COLORS.grid} vertical={false} />
             <XAxis dataKey="label" tick={{ fill: COLORS.text, fontSize: 10 }} axisLine={false} tickLine={false} interval={xInterval} />
             <YAxis tick={{ fill: COLORS.text, fontSize: 10 }} axisLine={false} tickLine={false} width={30} unit="g" />
-            <Tooltip content={<CustomTooltip />} />
+            <Tooltip content={<CustomTooltip />} cursor={{ fill: 'transparent' }} />
             <Legend formatter={(value) => <span className="text-xs text-text-secondary">{value}</span>} />
             <Line type="monotone" dataKey="protein" name="Protein" stroke={COLORS.protein} strokeWidth={2} dot={false} connectNulls />
             <Line type="monotone" dataKey="carbs" name="Carbs" stroke={COLORS.carbs} strokeWidth={2} dot={false} connectNulls />

@@ -211,6 +211,7 @@ export function StepsCard({ steps, profileId, stepGoal = DEFAULT_GOAL, onStepSav
                 width={28}
               />
               <Tooltip
+                cursor={{ fill: 'transparent' }}
                 content={({ active, payload, label }) => {
                   if (!active || !payload?.length) return null;
                   return (

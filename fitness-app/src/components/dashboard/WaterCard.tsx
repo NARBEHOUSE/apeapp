@@ -228,6 +228,7 @@ export function WaterCard({ water, profileId, units, onUpdate }: Props) {
                 width={30}
               />
               <Tooltip
+                cursor={{ fill: 'transparent' }}
                 content={({ active, payload, label }) => {
                   if (!active || !payload?.length) return null;
                   return (
