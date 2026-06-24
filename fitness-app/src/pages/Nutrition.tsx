@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import {
-  ChevronLeft, ChevronRight, Plus, Search, Camera,
+  ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Plus, Search, Camera,
   Loader2, Star, Trash2, BookmarkPlus, Bookmark, GripVertical, Clock, Pencil, AlertCircle, ScanBarcode,
 } from 'lucide-react';
 import {
@@ -208,6 +208,10 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
   const [mealPlans, setMealPlans] = useState<MealPlan[]>(() => getMealPlans(profile.id));
   const [foodLibrary, setFoodLibrary] = useState<SavedFood[]>(() => getSavedFoods(profile.id));
   const [foodLibSearch, setFoodLibSearch] = useState('');
+  const [favoritesOpen, setFavoritesOpen] = useState(true);
+  const [myFoodsOpen, setMyFoodsOpen] = useState(true);
+  const [savedMealsOpen, setSavedMealsOpen] = useState(true);
+  const [mealPlansOpen, setMealPlansOpen] = useState(true);
   const [editingFood, setEditingFood] = useState<SavedFood | null>(null);
   const [editFoodCal, setEditFoodCal] = useState('');
   const [editFoodP, setEditFoodP] = useState('');
@@ -729,8 +733,11 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
 
           {favorites.length > 0 && (
             <div>
-              <h3 className="label mb-2 flex items-center gap-1.5"><Star size={11} className="text-nutrition" /> Favorites</h3>
-              <div className="space-y-1.5">
+              <button onClick={() => setFavoritesOpen((o) => !o)} className="w-full flex items-center justify-between mb-2">
+                <h3 className="label flex items-center gap-1.5"><Star size={11} className="text-nutrition" /> Favorites <span className="text-text-muted font-normal">({favorites.length})</span></h3>
+                {favoritesOpen ? <ChevronUp size={14} className="text-text-muted" /> : <ChevronDown size={14} className="text-text-muted" />}
+              </button>
+              {favoritesOpen && <div className="space-y-1.5 max-h-[300px] overflow-y-auto pr-0.5">
                 {favorites.map((entry) => (
                   <div key={entry.id} className="bg-surface rounded-xl p-3 flex items-center gap-3">
                     <span className="text-lg">{getFoodEmoji(entry.name)}</span>
@@ -741,14 +748,17 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
                     <button onClick={() => handleQuickAddFavorite(entry)} className="bg-surface-raised px-3 py-1.5 rounded-lg text-[10px] font-medium text-accent-blue">+ Add</button>
                   </div>
                 ))}
-              </div>
+              </div>}
             </div>
           )}
 
           {/* My Foods — individual foods saved from search or manual entry */}
           <div>
-            <h3 className="label mb-2">My Foods {foodLibrary.length > 0 && <span className="text-text-muted font-normal">({foodLibrary.length})</span>}</h3>
-            {foodLibrary.length === 0 ? (
+            <button onClick={() => setMyFoodsOpen((o) => !o)} className="w-full flex items-center justify-between mb-2">
+              <h3 className="label">My Foods {foodLibrary.length > 0 && <span className="text-text-muted font-normal">({foodLibrary.length})</span>}</h3>
+              {myFoodsOpen ? <ChevronUp size={14} className="text-text-muted" /> : <ChevronDown size={14} className="text-text-muted" />}
+            </button>
+            {myFoodsOpen && (foodLibrary.length === 0 ? (
               <div className="text-center py-8">
                 <div className="text-2xl mb-2">🥗</div>
                 <p className="text-sm text-text-muted">No saved foods yet</p>
@@ -771,7 +781,7 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
                           {zeroCount} food{zeroCount !== 1 ? 's' : ''} missing macro data — tap to update
                         </div>
                       )}
-                      <div className="space-y-1">
+                      <div className="space-y-1 max-h-[300px] overflow-y-auto pr-0.5">
                         {filtered.slice(0, 100).map((food) => {
                           const hasMacros = food.calories > 0 || food.protein > 0;
                           const isEditing = editingFood?.name === food.name;
@@ -946,14 +956,17 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
                   );
                 })()}
               </>
-            )}
+            ))}
           </div>
 
           {/* Saved Meals — multi-ingredient meals built with "Build a Meal" */}
           {savedMeals.length > 0 && (
             <div>
-              <h3 className="label mb-2 flex items-center gap-1.5"><Bookmark size={11} /> Saved Meals</h3>
-              <div className="space-y-1.5">
+              <button onClick={() => setSavedMealsOpen((o) => !o)} className="w-full flex items-center justify-between mb-2">
+                <h3 className="label flex items-center gap-1.5"><Bookmark size={11} /> Saved Meals <span className="text-text-muted font-normal">({savedMeals.length})</span></h3>
+                {savedMealsOpen ? <ChevronUp size={14} className="text-text-muted" /> : <ChevronDown size={14} className="text-text-muted" />}
+              </button>
+              {savedMealsOpen && <div className="space-y-1.5 max-h-[340px] overflow-y-auto pr-0.5">
                 {savedMeals.map((meal) => (
                   <div key={meal.id} className="bg-surface rounded-xl p-3 flex items-center gap-3">
                     <span className="text-lg">{meal.emoji}</span>
@@ -972,15 +985,18 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
                     <button onClick={() => handleDeleteSavedMeal(meal.id)} className="p-1.5"><Trash2 size={12} className="text-text-muted/40 hover:text-danger" /></button>
                   </div>
                 ))}
-              </div>
+              </div>}
             </div>
           )}
 
           {/* Meal Plans */}
           <div>
-            <h3 className="label mb-2 flex items-center gap-1.5"><Clock size={11} /> Meal Plans</h3>
+            <button onClick={() => setMealPlansOpen((o) => !o)} className="w-full flex items-center justify-between mb-2">
+              <h3 className="label flex items-center gap-1.5"><Clock size={11} /> Meal Plans {mealPlans.length > 0 && <span className="text-text-muted font-normal">({mealPlans.length})</span>}</h3>
+              {mealPlansOpen ? <ChevronUp size={14} className="text-text-muted" /> : <ChevronDown size={14} className="text-text-muted" />}
+            </button>
 
-            {entries.length > 0 && (
+            {mealPlansOpen && entries.length > 0 && (
               <button
                 onClick={() => {
                   const planEntries = entries.map((e) => ({
@@ -1011,10 +1027,10 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
               </button>
             )}
 
-            {mealPlans.length === 0 ? (
+            {mealPlansOpen && (mealPlans.length === 0 ? (
               <p className="text-xs text-text-muted text-center py-4">No meal plans saved yet. Log a day of food, then save it here.</p>
             ) : (
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 max-h-[300px] overflow-y-auto pr-0.5">
                 {mealPlans.map((plan) => (
                   <div key={plan.id} className="bg-surface rounded-xl p-3">
                     <div className="flex items-center gap-3">
@@ -1055,7 +1071,7 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
                   </div>
                 ))}
               </div>
-            )}
+            ))}
           </div>
         </div>
       )}
