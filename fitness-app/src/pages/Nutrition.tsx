@@ -1139,7 +1139,7 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
       )}
 
       {/* ===== CHARTS ===== */}
-      {tab === 'charts' && <NutritionCharts profileId={profile.id} targets={targets} />}
+      {tab === 'charts' && <NutritionCharts profileId={profile.id} targets={targets} fiberTarget={profile.fiberTarget ?? 30} />}
 
       {/* Modals */}
       <Modal open={modal === 'manual'} onClose={() => { setModal(null); setAddAtTime(null); }} title="Add Food">
