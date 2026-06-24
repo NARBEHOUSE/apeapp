@@ -37,7 +37,7 @@ export function VoiceMicButton({ onTranscript, position = 'nutrition', disabled,
         if (!disabled && !isProcessing) startListening();
       }}
       disabled={disabled && !isListening}
-      className={`fixed ${posClass} z-35 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-all active:scale-90 ${
+      className={`fixed ${posClass} z-[110] w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-all active:scale-90 ${
         isListening ? 'bg-danger animate-pulse' :
         isProcessing ? 'bg-surface-raised' :
         'bg-accent-blue'
