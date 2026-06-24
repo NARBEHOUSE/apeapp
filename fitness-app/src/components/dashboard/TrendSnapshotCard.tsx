@@ -61,8 +61,9 @@ export default function TrendSnapshotCard({
           return { date: d, value: entry?.total || 0 };
         });
       }
+      const todayStr = today();
       return calorieData
-        .filter((d) => d.date >= cutoffDate)
+        .filter((d) => d.date >= cutoffDate && d.date < todayStr)
         .sort((a, b) => a.date.localeCompare(b.date))
         .map((d) => ({ date: d.date, value: d.total }));
     }
