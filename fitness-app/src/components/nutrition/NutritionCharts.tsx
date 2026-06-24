@@ -116,9 +116,9 @@ export function NutritionCharts({ profileId, targets, fiberTarget = 30 }: Nutrit
     }), { protein: 0, carbs: 0, fat: 0, calories: 0 });
 
   const donutData = [
-    { name: 'Protein', value: Math.round(todayTotals.protein), color: COLORS.protein },
-    { name: 'Carbs',   value: Math.round(todayTotals.carbs),   color: COLORS.carbs   },
-    { name: 'Fat',     value: Math.round(todayTotals.fat),     color: COLORS.fat     },
+    { name: 'Protein', value: Math.round(todayTotals.protein), color: COLORS.protein, target: targets.protein },
+    { name: 'Carbs',   value: Math.round(todayTotals.carbs),   color: COLORS.carbs,   target: targets.carbs   },
+    { name: 'Fat',     value: Math.round(todayTotals.fat),     color: COLORS.fat,     target: targets.fat     },
   ];
   const donutTotal = donutData.reduce((s, d) => s + d.value, 0);
 
@@ -152,7 +152,6 @@ export function NutritionCharts({ profileId, targets, fiberTarget = 30 }: Nutrit
   };
 
   const activeColor = METRICS.find((m) => m.id === metric)!.color;
-  const unit = metric === 'calories' ? ' cal' : 'g';
   const isCaloriesView = metric === 'calories';
 
   const commonAxis = (
@@ -175,7 +174,6 @@ export function NutritionCharts({ profileId, targets, fiberTarget = 30 }: Nutrit
   function renderTrendChart() {
     if (chartType === 'bar') {
       if (isCaloriesView) {
-        // Stacked macro breakdown in calories (protein*4, carbs*4, fat*9)
         return (
           <BarChart data={rangeData} barSize={barSize}>
             {commonAxis}
@@ -198,7 +196,6 @@ export function NutritionCharts({ profileId, targets, fiberTarget = 30 }: Nutrit
       );
     }
 
-    // Line mode
     if (isCaloriesView) {
       return (
         <LineChart data={rangeData}>
@@ -218,6 +215,8 @@ export function NutritionCharts({ profileId, targets, fiberTarget = 30 }: Nutrit
       </LineChart>
     );
   }
+
+  const activeSlice = activeDonutIndex !== null ? donutData[activeDonutIndex] : null;
 
   return (
     <div className="space-y-3">
@@ -250,18 +249,31 @@ export function NutritionCharts({ profileId, targets, fiberTarget = 30 }: Nutrit
                 <Legend formatter={(value) => <span className="text-xs text-text-secondary">{value}</span>} />
               </PieChart>
             </ResponsiveContainer>
-            {activeDonutIndex !== null && (
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none pb-6">
+            {/* Center label — always visible */}
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none pb-6">
+              {activeSlice ? (
                 <div className="text-center">
-                  <p className="text-[11px] font-semibold leading-tight" style={{ color: donutData[activeDonutIndex].color }}>
-                    {donutData[activeDonutIndex].name}
+                  <p className="text-[11px] font-semibold leading-tight" style={{ color: activeSlice.color }}>
+                    {activeSlice.name}
                   </p>
                   <p className="text-base font-bold text-text-primary leading-tight">
-                    {donutData[activeDonutIndex].value}g
+                    {activeSlice.value}g
+                  </p>
+                  <p className="text-[10px] text-text-muted leading-none mt-0.5">
+                    / {activeSlice.target}g target
                   </p>
                 </div>
-              </div>
-            )}
+              ) : (
+                <div className="text-center">
+                  <p className="text-base font-bold text-text-primary leading-tight">
+                    {Math.round(todayTotals.calories).toLocaleString()}
+                  </p>
+                  <p className="text-[10px] text-text-muted leading-none mt-0.5">
+                    / {targets.calories.toLocaleString()} cal
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
         ) : (
           <p className="text-text-muted text-xs text-center py-8">No food logged today yet</p>
@@ -272,7 +284,6 @@ export function NutritionCharts({ profileId, targets, fiberTarget = 30 }: Nutrit
       <div className="card p-4">
         {/* Controls row */}
         <div className="flex items-center justify-between mb-4">
-          {/* Range picker */}
           <div className="flex gap-1">
             {([7, 14, 30] as Range[]).map((r) => (
               <button
@@ -284,7 +295,6 @@ export function NutritionCharts({ profileId, targets, fiberTarget = 30 }: Nutrit
               </button>
             ))}
           </div>
-          {/* Bar / Line toggle */}
           <div className="flex gap-1 bg-surface-raised rounded-lg p-0.5">
             <button
               onClick={() => setChartType('bar')}
@@ -306,8 +316,13 @@ export function NutritionCharts({ profileId, targets, fiberTarget = 30 }: Nutrit
           {renderTrendChart()}
         </ResponsiveContainer>
 
-        {/* Metric chips */}
-        <div className="flex gap-2 mt-4 flex-wrap">
+        {/* Legend note */}
+        <p className="text-[10px] text-text-muted mt-1 mb-3">
+          Bars = actual eaten · Dashed line = your target
+        </p>
+
+        {/* Metric chips — no target values shown, just labels */}
+        <div className="flex gap-2 flex-wrap">
           {METRICS.map((m) => (
             <button
               key={m.id}
@@ -324,9 +339,6 @@ export function NutritionCharts({ profileId, targets, fiberTarget = 30 }: Nutrit
                 style={{ backgroundColor: m.color, opacity: metric === m.id ? 1 : 0.4 }}
               />
               {m.label}
-              {metric !== m.id && (m.id as string) !== 'calories' && (
-                <span className="opacity-50 text-[10px]">{Math.round(getTarget(m.id))}g</span>
-              )}
             </button>
           ))}
         </div>
