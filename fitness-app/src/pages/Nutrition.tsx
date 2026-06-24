@@ -192,7 +192,7 @@ function HourSlot({ hour, children, onAddAtHour, isOver }: {
 export default function Nutrition({ profile, onUpdateProfile }: NutritionPageProps) {
   const location = useLocation();
   const {
-    entries, selectedDate, setSelectedDate, loading,
+    entries, allFavorites, selectedDate, setSelectedDate, loading,
     addEntry, deleteEntry, updateEntry, updateEntryTime, toggleFavorite, getTodayTotals, refreshEntries,
   } = useNutrition(profile.id);
 
@@ -304,7 +304,7 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
   const totals = getTodayTotals();
   const targets = profile.macroTargets;
   const isToday = selectedDate === today();
-  const favorites = entries.filter((e) => e.isFavorite);
+  const favorites = allFavorites;
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 10 } }));
 
@@ -438,8 +438,8 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
   }
 
   function handleQuickAddFavorite(entry: FoodEntry) {
-    addEntry({ date: selectedDate, name: entry.name, brand: entry.brand, servingSize: entry.servingSize, servingUnit: entry.servingUnit, servingsConsumed: entry.servingsConsumed, calories: entry.calories, protein: entry.protein, carbs: entry.carbs, fat: entry.fat, fiber: entry.fiber, source: entry.source, fdcId: entry.fdcId, mealType: entry.mealType });
-    toast(`Added ${entry.name}`, 'success');
+    addEntry({ date: today(), name: entry.name, brand: entry.brand, servingSize: entry.servingSize, servingUnit: entry.servingUnit, servingsConsumed: entry.servingsConsumed, calories: entry.calories, protein: entry.protein, carbs: entry.carbs, fat: entry.fat, fiber: entry.fiber, source: entry.source, fdcId: entry.fdcId, mealType: entry.mealType });
+    toast(`Added ${entry.name} to today`, 'success');
   }
 
   async function openMealBuilder() {

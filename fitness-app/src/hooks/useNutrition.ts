@@ -6,6 +6,7 @@ import { today } from '../utils/dateHelpers';
 
 export function useNutrition(profileId: string | null) {
   const [entries, setEntries] = useState<FoodEntry[]>([]);
+  const [allFavorites, setAllFavorites] = useState<FoodEntry[]>([]);
   const [selectedDate, setSelectedDate] = useState(today());
   const [loading, setLoading] = useState(true);
 
@@ -17,9 +18,26 @@ export function useNutrition(profileId: string | null) {
     setLoading(false);
   }, [profileId, selectedDate]);
 
+  const loadFavorites = useCallback(async () => {
+    if (!profileId) return;
+    const all = await getFoodEntriesByProfile(profileId);
+    const favs = all.filter((e) => e.isFavorite).sort((a, b) => b.loggedAt.localeCompare(a.loggedAt));
+    // Deduplicate: one entry per unique food (fdcId wins, then name+brand)
+    const seen = new Map<string, FoodEntry>();
+    for (const f of favs) {
+      const key = f.fdcId ? `fdc:${f.fdcId}` : `${f.name}|${f.brand || ''}`;
+      if (!seen.has(key)) seen.set(key, f);
+    }
+    setAllFavorites([...seen.values()]);
+  }, [profileId]);
+
   useEffect(() => {
     loadEntries();
   }, [loadEntries]);
+
+  useEffect(() => {
+    loadFavorites();
+  }, [loadFavorites]);
 
   const addEntry = useCallback(
     async (entry: Omit<FoodEntry, 'id' | 'profileId' | 'loggedAt'> & { loggedAt?: string }) => {
@@ -28,7 +46,6 @@ export function useNutrition(profileId: string | null) {
         ...entry,
         id: crypto.randomUUID(),
         profileId,
-        date: selectedDate,
         loggedAt: entry.loggedAt || new Date().toISOString(),
       };
       await saveFoodEntry(full);
@@ -84,8 +101,9 @@ export function useNutrition(profileId: string | null) {
       if (!entry) return;
       await saveFoodEntry({ ...entry, isFavorite: !entry.isFavorite });
       await loadEntries();
+      await loadFavorites();
     },
-    [entries, loadEntries]
+    [entries, loadEntries, loadFavorites]
   );
 
   const copyYesterday = useCallback(async () => {
@@ -126,6 +144,7 @@ export function useNutrition(profileId: string | null) {
 
   return {
     entries,
+    allFavorites,
     selectedDate,
     setSelectedDate,
     loading,
