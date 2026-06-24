@@ -56,6 +56,7 @@ export interface Profile {
   programHistory?: ProgramCompletion[];
   profilePhoto?: string;
   fiberTarget?: number;
+  stepGoal?: number;
   lastKnownWeight?: number;
   googleEmail?: string;
   birthday?: string;

@@ -177,6 +177,7 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
     existingStats?.fitnessGoal || 'maintain'
   );
   const [editFiberTarget, setEditFiberTarget] = useState(String(profile.fiberTarget ?? 30));
+  const [editStepGoal, setEditStepGoal] = useState(String(profile.stepGoal ?? 10000));
 
   // Auto-adjustment
   const [autoAdjustResult, setAutoAdjustResult] = useState<AutoAdjustResult | null>(null);
@@ -593,6 +594,7 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
       bodyStats,
       tdee,
       fiberTarget: parseInt(editFiberTarget) || 30,
+      stepGoal: parseInt(editStepGoal) || 10000,
       lastKnownWeight: weightNum || profile.lastKnownWeight,
     });
     toast('Settings saved', 'success');
@@ -1769,6 +1771,19 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
                 <p className="text-[10px] text-text-muted mt-1">
                   {GOAL_DESCRIPTIONS[editFitnessGoal]}
                 </p>
+              </div>
+
+              {/* Daily Step Goal */}
+              <div className="mb-3">
+                <label className="text-[10px] text-text-muted font-semibold block mb-1">Daily Step Goal</label>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  className="input-field text-sm py-2.5"
+                  placeholder="10000"
+                  value={editStepGoal}
+                  onChange={(e) => setEditStepGoal(e.target.value)}
+                />
               </div>
 
               {/* Recalculate button */}

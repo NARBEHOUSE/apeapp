@@ -623,7 +623,7 @@ export default function Dashboard({ profile, onUpdateProfile }: DashboardProps) 
           );
         } else if (id === 'steps' && dashConfig.steps) {
           content = (
-            <StepsCard steps={steps} profileId={profile.id} onStepSaved={async () => {
+            <StepsCard steps={steps} profileId={profile.id} stepGoal={profile.stepGoal} onStepSaved={async () => {
               const db = await getDB();
               setSteps(await db.getAllFromIndex('steps', 'by-profile', profile.id));
             }} />
