@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import {
-  BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, Sector,
+  BarChart, Bar, LineChart, Line,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer, ReferenceLine,
 } from 'recharts';
@@ -48,6 +48,20 @@ const METRICS: { id: Metric; label: string; color: string }[] = [
   { id: 'fiber',    label: 'Fiber',    color: COLORS.fiber    },
 ];
 
+// Pure SVG donut helpers — no recharts, no activeShape conflicts
+function polarXY(cx: number, cy: number, r: number, deg: number) {
+  const rad = (deg - 90) * Math.PI / 180;
+  return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
+}
+function donutArcPath(cx: number, cy: number, r1: number, r2: number, a1: number, a2: number) {
+  const s  = polarXY(cx, cy, r2, a1);
+  const e  = polarXY(cx, cy, r2, a2);
+  const s2 = polarXY(cx, cy, r1, a2);
+  const e2 = polarXY(cx, cy, r1, a1);
+  const large = a2 - a1 > 180 ? 1 : 0;
+  return `M ${s.x.toFixed(2)} ${s.y.toFixed(2)} A ${r2} ${r2} 0 ${large} 1 ${e.x.toFixed(2)} ${e.y.toFixed(2)} L ${s2.x.toFixed(2)} ${s2.y.toFixed(2)} A ${r1} ${r1} 0 ${large} 0 ${e2.x.toFixed(2)} ${e2.y.toFixed(2)} Z`;
+}
+
 function getLastNDays(n: number): string[] {
   return Array.from({ length: n }, (_, i) => daysAgo(n - 1 - i));
 }
@@ -91,8 +105,7 @@ export function NutritionCharts({ profileId, targets, fiberTarget = 30 }: Nutrit
   const [range, setRange] = useState<Range>(14);
   const [metric, setMetric] = useState<Metric>('calories');
   const [chartType, setChartType] = useState<ChartType>('bar');
-  const [activeDonutIndex, setActiveDonutIndex] = useState<number | null>(null); // clicked = locked label
-  const [hoverDonutIndex, setHoverDonutIndex] = useState<number | null>(null);  // hover = temp label
+  const [activeDonutIndex, setActiveDonutIndex] = useState<number | null>(null);
 
   useEffect(() => {
     getFoodEntriesByProfile(profileId).then((entries) => {
@@ -106,7 +119,6 @@ export function NutritionCharts({ profileId, targets, fiberTarget = 30 }: Nutrit
 
   const todayStr = today();
 
-  // Today's donut — includes today's entries
   const todayTotals = allEntries
     .filter((e) => e.date === todayStr)
     .reduce((acc, e) => ({
@@ -123,7 +135,9 @@ export function NutritionCharts({ profileId, targets, fiberTarget = 30 }: Nutrit
   ];
   const donutTotal = donutData.reduce((s, d) => s + d.value, 0);
 
-  // Trend chart — completed days only (exclude today)
+  const activeSlice = activeDonutIndex !== null ? donutData[activeDonutIndex] : null;
+
+  // Trend chart — completed days only
   const dataMap = aggregateByDate(allEntries.filter((e) => e.date < todayStr));
   const rangedDays = getLastNDays(range + 1).filter((d) => d < todayStr).slice(-range);
   const barSize = range <= 7 ? 22 : range <= 14 ? 14 : 8;
@@ -217,9 +231,8 @@ export function NutritionCharts({ profileId, targets, fiberTarget = 30 }: Nutrit
     );
   }
 
-  // Hover takes priority for the label; clicked index persists when not hovering
-  const labelIndex = hoverDonutIndex ?? activeDonutIndex;
-  const activeSlice = labelIndex !== null ? donutData[labelIndex] : null;
+  const CX = 100, CY = 100, INNER_R = 55, OUTER_R = 85;
+  const SVG_H = 190;
 
   return (
     <div className="space-y-3">
@@ -227,56 +240,75 @@ export function NutritionCharts({ profileId, targets, fiberTarget = 30 }: Nutrit
       <div className="card p-4">
         <h4 className="text-sm font-semibold text-text-secondary mb-3">Today's Macro Split</h4>
         {donutTotal > 0 ? (
-          <div className="relative">
-            <ResponsiveContainer width="100%" height={200}>
-              <PieChart>
-                <Pie
-                  data={donutData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={55}
-                  outerRadius={85}
-                  dataKey="value"
-                  stroke="none"
-                  activeShape={(props: any) => <Sector {...props} outerRadius={props.outerRadius + 6} />}
-                  onMouseEnter={(_: any, index: number) => setHoverDonutIndex(index)}
-                  onMouseLeave={() => setHoverDonutIndex(null)}
-                  onClick={(_: any, index: number) =>
-                    setActiveDonutIndex((prev) => (prev === index ? null : index))
-                  }
-                  style={{ cursor: 'pointer' }}
-                >
-                  {donutData.map((d, i) => <Cell key={i} fill={d.color} />)}
-                </Pie>
-                <Legend formatter={(value) => <span className="text-xs text-text-secondary">{value}</span>} />
-              </PieChart>
-            </ResponsiveContainer>
-            {/* Center label — always visible */}
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none pb-6">
-              {activeSlice ? (
-                <div className="text-center">
-                  <p className="text-[11px] font-semibold leading-tight" style={{ color: activeSlice.color }}>
-                    {activeSlice.name}
-                  </p>
-                  <p className="text-base font-bold text-text-primary leading-tight">
-                    {activeSlice.value}g
-                  </p>
-                  <p className="text-[10px] text-text-muted leading-none mt-0.5">
-                    / {activeSlice.target}g target
-                  </p>
-                </div>
-              ) : (
-                <div className="text-center">
-                  <p className="text-base font-bold text-text-primary leading-tight">
-                    {Math.round(todayTotals.calories).toLocaleString()}
-                  </p>
-                  <p className="text-[10px] text-text-muted leading-none mt-0.5">
-                    / {targets.calories.toLocaleString()} cal
-                  </p>
-                </div>
-              )}
+          <>
+            {/* Pure SVG donut — click from slice to slice seamlessly */}
+            <div className="relative" style={{ height: SVG_H }}>
+              <svg
+                viewBox="-10 -10 220 220"
+                width="100%"
+                height={SVG_H}
+                style={{ display: 'block' }}
+              >
+                {(() => {
+                  let cum = 0;
+                  return donutData.map((d, i) => {
+                    const a1 = cum;
+                    const span = (d.value / donutTotal) * 360;
+                    const a2 = a1 + (span < 0.1 ? 0 : span); // skip zero-value slices
+                    cum = a2;
+                    if (a2 - a1 < 0.1) return null;
+                    return (
+                      <path
+                        key={i}
+                        d={donutArcPath(CX, CY, INNER_R, OUTER_R, a1, a2)}
+                        fill={d.color}
+                        style={{ cursor: 'pointer', opacity: activeDonutIndex === null || activeDonutIndex === i ? 1 : 0.6 }}
+                        onClick={() => setActiveDonutIndex(prev => prev === i ? null : i)}
+                      />
+                    );
+                  });
+                })()}
+              </svg>
+              {/* Center label */}
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                {activeSlice ? (
+                  <div className="text-center">
+                    <p className="text-[11px] font-semibold leading-tight" style={{ color: activeSlice.color }}>
+                      {activeSlice.name}
+                    </p>
+                    <p className="text-base font-bold text-text-primary leading-tight">
+                      {activeSlice.value}g
+                    </p>
+                    <p className="text-[10px] text-text-muted leading-none mt-0.5">
+                      / {activeSlice.target}g target
+                    </p>
+                  </div>
+                ) : (
+                  <div className="text-center">
+                    <p className="text-base font-bold text-text-primary leading-tight">
+                      {Math.round(todayTotals.calories).toLocaleString()}
+                    </p>
+                    <p className="text-[10px] text-text-muted leading-none mt-0.5">
+                      / {targets.calories.toLocaleString()} cal
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
+            {/* Legend */}
+            <div className="flex justify-center gap-5 mt-1">
+              {donutData.map((d, i) => (
+                <button
+                  key={i}
+                  onClick={() => setActiveDonutIndex(prev => prev === i ? null : i)}
+                  className="flex items-center gap-1.5 text-xs text-text-secondary active:opacity-70"
+                >
+                  <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: d.color }} />
+                  {d.name}
+                </button>
+              ))}
+            </div>
+          </>
         ) : (
           <p className="text-text-muted text-xs text-center py-8">No food logged today yet</p>
         )}
@@ -284,7 +316,6 @@ export function NutritionCharts({ profileId, targets, fiberTarget = 30 }: Nutrit
 
       {/* Unified trend chart */}
       <div className="card p-4">
-        {/* Controls row */}
         <div className="flex items-center justify-between mb-4">
           <div className="flex gap-1">
             {([7, 14, 30] as Range[]).map((r) => (
@@ -313,17 +344,14 @@ export function NutritionCharts({ profileId, targets, fiberTarget = 30 }: Nutrit
           </div>
         </div>
 
-        {/* Chart */}
         <ResponsiveContainer width="100%" height={200}>
           {renderTrendChart()}
         </ResponsiveContainer>
 
-        {/* Legend note */}
         <p className="text-[10px] text-text-muted mt-1 mb-3">
           Bars = actual eaten · Dashed line = your target
         </p>
 
-        {/* Metric chips — no target values shown, just labels */}
         <div className="flex gap-2 flex-wrap">
           {METRICS.map((m) => (
             <button
