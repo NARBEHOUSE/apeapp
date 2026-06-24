@@ -23,6 +23,7 @@ interface SwipeableEntryProps {
 
 function SwipeableEntry({ entry, onDelete, onToggleFavorite }: SwipeableEntryProps) {
   const [swiped, setSwiped] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const touchStartX = useRef(0);
   const touchCurrentX = useRef(0);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -79,7 +80,7 @@ function SwipeableEntry({ entry, onDelete, onToggleFavorite }: SwipeableEntryPro
       <div className="absolute right-0 top-0 bottom-0 w-20 flex items-center justify-center bg-danger">
         <button
           type="button"
-          onClick={() => onDelete(entry.id)}
+          onClick={() => { setConfirming(true); setSwiped(false); if (containerRef.current) containerRef.current.style.transform = 'translateX(0)'; }}
           className="p-2"
         >
           <Trash2 size={18} className="text-white" />
@@ -131,13 +132,32 @@ function SwipeableEntry({ entry, onDelete, onToggleFavorite }: SwipeableEntryPro
           </div>
 
           {/* Desktop delete */}
-          <button
-            type="button"
-            onClick={() => onDelete(entry.id)}
-            className="hidden sm:block flex-shrink-0 p-1.5 rounded-lg hover:bg-surface text-text-muted hover:text-danger transition-colors"
-          >
-            <Trash2 size={15} />
-          </button>
+          {confirming ? (
+            <div className="flex-shrink-0 flex items-center gap-1">
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setConfirming(false); }}
+                className="text-[11px] px-2 py-0.5 rounded bg-surface text-text-muted hover:text-text-primary transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onDelete(entry.id); }}
+                className="text-[11px] px-2 py-0.5 rounded bg-danger text-white hover:bg-danger/80 transition-colors"
+              >
+                Delete
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setConfirming(true); }}
+              className="flex-shrink-0 p-1.5 rounded-lg hover:bg-surface text-text-muted hover:text-danger transition-colors"
+            >
+              <Trash2 size={15} />
+            </button>
+          )}
         </div>
       </div>
     </div>

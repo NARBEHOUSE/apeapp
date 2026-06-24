@@ -102,6 +102,7 @@ function DraggableEntry({ entry, onDelete, onToggleFavorite, onEditTime, onEdit 
   onEditTime: (entry: FoodEntry) => void;
   onEdit: (entry: FoodEntry) => void;
 }) {
+  const [confirming, setConfirming] = useState(false);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: entry.id });
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -137,9 +138,20 @@ function DraggableEntry({ entry, onDelete, onToggleFavorite, onEditTime, onEdit 
         <button onClick={() => onToggleFavorite(entry.id)} className="p-0.5">
           <Star size={10} className={entry.isFavorite ? 'text-nutrition fill-nutrition' : 'text-text-muted/20'} />
         </button>
-        <button onClick={() => onDelete(entry.id)} className="p-0.5">
-          <Trash2 size={10} className="text-text-muted/20 hover:text-danger" />
-        </button>
+        {confirming ? (
+          <>
+            <button onClick={() => setConfirming(false)} className="text-[9px] px-1 py-0.5 rounded bg-surface text-text-muted hover:text-text-primary transition-colors">
+              Cancel
+            </button>
+            <button onClick={() => onDelete(entry.id)} className="text-[9px] px-1 py-0.5 rounded bg-danger text-white transition-colors">
+              Delete
+            </button>
+          </>
+        ) : (
+          <button onClick={() => setConfirming(true)} className="p-0.5">
+            <Trash2 size={10} className="text-text-muted/20 hover:text-danger" />
+          </button>
+        )}
       </div>
     </div>
   );
@@ -444,13 +456,13 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
   }
 
   function handleQuickAddFavorite(entry: FoodEntry) {
-    addEntry({ date: today(), name: entry.name, brand: entry.brand, servingSize: entry.servingSize, servingUnit: entry.servingUnit, servingsConsumed: entry.servingsConsumed, calories: entry.calories, protein: entry.protein, carbs: entry.carbs, fat: entry.fat, fiber: entry.fiber, source: entry.source, fdcId: entry.fdcId, mealType: entry.mealType });
-    toast(`Added ${entry.name} to today`, 'success');
+    addEntry({ date: selectedDate, name: entry.name, brand: entry.brand, servingSize: entry.servingSize, servingUnit: entry.servingUnit, servingsConsumed: entry.servingsConsumed, calories: entry.calories, protein: entry.protein, carbs: entry.carbs, fat: entry.fat, fiber: entry.fiber, source: entry.source, fdcId: entry.fdcId, mealType: entry.mealType });
+    toast(`Added ${entry.name}`, 'success');
   }
 
   function handleAddFromLibrary(food: SavedFood) {
-    addEntry({ date: today(), name: food.name, brand: food.brand, servingSize: food.servingSize || 1, servingUnit: food.servingUnit || 'g', servingsConsumed: 1, calories: food.calories, protein: food.protein, carbs: food.carbs, fat: food.fat, fiber: food.fiber, source: food.source || 'manual', mealType: 'snack' });
-    toast(`Added ${food.name} to today`, 'success');
+    addEntry({ date: selectedDate, name: food.name, brand: food.brand, servingSize: food.servingSize || 1, servingUnit: food.servingUnit || 'g', servingsConsumed: 1, calories: food.calories, protein: food.protein, carbs: food.carbs, fat: food.fat, fiber: food.fiber, source: food.source || 'manual', mealType: 'snack' });
+    toast(`Added ${food.name}`, 'success');
   }
 
   async function openMealBuilder() {

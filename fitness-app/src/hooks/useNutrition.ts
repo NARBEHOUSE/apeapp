@@ -104,12 +104,20 @@ export function useNutrition(profileId: string | null) {
   const toggleFavorite = useCallback(
     async (id: string) => {
       const entry = entries.find((e) => e.id === id);
-      if (!entry) return;
-      await saveFoodEntry({ ...entry, isFavorite: !entry.isFavorite });
+      if (!entry || !profileId) return;
+      const newValue = !entry.isFavorite;
+      const entryKey = entry.fdcId ? `fdc:${entry.fdcId}` : `${entry.name}|${entry.brand || ''}`;
+      const all = await getFoodEntriesByProfile(profileId);
+      for (const e of all) {
+        const eKey = e.fdcId ? `fdc:${e.fdcId}` : `${e.name}|${e.brand || ''}`;
+        if (eKey === entryKey) {
+          await saveFoodEntry({ ...e, isFavorite: newValue });
+        }
+      }
       await loadEntries();
       await loadFavorites();
     },
-    [entries, loadEntries, loadFavorites]
+    [entries, loadEntries, loadFavorites, profileId]
   );
 
   const copyYesterday = useCallback(async () => {
