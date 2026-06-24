@@ -198,7 +198,7 @@ export function NutritionCharts({ profileId, targets, fiberTarget = 30 }: Nutrit
       return (
         <LineChart data={rangeData}>
           {commonAxis}
-          <Tooltip content={(p) => <CustomTooltip {...p} isCalories />} cursor={{ fill: 'transparent' }} />
+          <Tooltip content={(p: any) => <CustomTooltip {...p} isCalories />} cursor={{ fill: 'transparent' }} />
           <ReferenceLine y={targets.calories} stroke={COLORS.target} strokeDasharray="5 5" label={{ value: 'Target', fill: COLORS.text, fontSize: 9, position: 'insideTopRight' }} />
           <Line type="monotone" dataKey="calories" name="Calories" stroke={COLORS.calories} strokeWidth={2} dot={false} connectNulls />
         </LineChart>
@@ -310,8 +310,8 @@ export function NutritionCharts({ profileId, targets, fiberTarget = 30 }: Nutrit
                 style={{ backgroundColor: m.color, opacity: metric === m.id ? 1 : 0.4 }}
               />
               {m.label}
-              {metric !== m.id && m.id !== 'calories' && (
-                <span className="opacity-50 text-[10px]">{Math.round(getTarget(m.id))}{m.id === 'calories' ? '' : 'g'}</span>
+              {metric !== m.id && (m.id as string) !== 'calories' && (
+                <span className="opacity-50 text-[10px]">{Math.round(getTarget(m.id))}g</span>
               )}
             </button>
           ))}
