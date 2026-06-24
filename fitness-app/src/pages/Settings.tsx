@@ -1511,26 +1511,6 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
               </button>
             </div>
 
-            {/* Muscle Volume toggle */}
-            <div className="flex items-center justify-between py-2">
-              <div>
-                <div className="text-sm font-medium">Muscle Volume</div>
-                <div className="text-[11px] text-text-muted">Weekly sets per muscle group from your workouts</div>
-              </div>
-              <button
-                onClick={() => updateDashCards({ muscleVolume: !(dashCards.muscleVolume ?? true) })}
-                className={`w-11 h-6 rounded-full transition-colors relative ${
-                  (dashCards.muscleVolume ?? true) ? 'bg-accent-blue' : 'bg-surface-raised'
-                }`}
-              >
-                <div
-                  className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform ${
-                    (dashCards.muscleVolume ?? true) ? 'translate-x-5' : 'translate-x-0.5'
-                  }`}
-                />
-              </button>
-            </div>
-
             {/* Week in Review toggle */}
             <div className="flex items-center justify-between py-2">
               <div>

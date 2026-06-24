@@ -499,7 +499,7 @@ export function NutritionCharts({ profileId, targets, fiberTarget = 30 }: Nutrit
               </div>
             ) : (
               <span style={{ color: activeColor }}>
-                {METRICS.find(m => m.id === metric)!.label}: {getMetricValue(selectedBar, metric)}{metric === 'calories' ? ' cal' : 'g'}
+                {METRICS.find(m => m.id === metric)!.label}: {getMetricValue(selectedBar, metric)}g
               </span>
             )}
           </div>

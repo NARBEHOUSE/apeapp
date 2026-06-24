@@ -1,8 +1,6 @@
 import { useState, useMemo } from 'react';
 import { ChevronDown, ChevronUp, Calendar, TrendingUp, BarChart3, Share2, Trash2, Pencil, Check } from 'lucide-react';
 import {
-  BarChart,
-  Bar,
   XAxis,
   YAxis,
   Tooltip,
@@ -11,6 +9,7 @@ import {
   Line,
   CartesianGrid,
 } from 'recharts';
+import { SVGBarChart } from '../shared/SVGBarChart';
 import type { WorkoutSession, Program } from '../../types';
 import { buildWorkoutCardData, renderWorkoutCard, shareOrDownload } from '../../utils/shareCards';
 import { ConfirmDialog } from '../shared/ConfirmDialog';
@@ -669,19 +668,19 @@ export function WorkoutHistory({ sessions, programs, onDeleteSession, onUpdateSe
                 </div>
 
                 {muscleChartData.filter((d) => d.volume > 0).length > 1 ? (
-                  <div className="h-52">
-                    <ResponsiveContainer width="100%" height="100%">
-                      {volumeGranularity === 'weekly' ? (
-                        <BarChart data={muscleChartData}>
-                          <XAxis dataKey="label" tick={{ fill: 'var(--color-text-muted)', fontSize: 10 }} axisLine={{ stroke: 'var(--color-border)' }} tickLine={false} />
-                          <YAxis tick={{ fill: 'var(--color-text-muted)', fontSize: 10 }} axisLine={false} tickLine={false} width={50} domain={['auto', 'auto']} />
-                          <Tooltip content={({ active, payload, label }) => {
-                            if (!active || !payload?.length) return null;
-                            return <div className="bg-surface-raised border border-border-light rounded-lg px-3 py-2 text-xs shadow-lg"><p className="text-text-secondary mb-0.5">{label as string}</p><p className="font-bold text-accent-orange">{Number(payload[0].value).toLocaleString()} lbs</p></div>;
-                          }} cursor={{ fill: 'rgba(232,87,42,0.08)' }} />
-                          <Bar dataKey="volume" fill="#e8572a" radius={[4, 4, 0, 0]} maxBarSize={32} />
-                        </BarChart>
-                      ) : (
+                  volumeGranularity === 'weekly' ? (
+                    <SVGBarChart
+                      key={`${effectiveMuscle}-weekly`}
+                      data={muscleChartData.map((d) => ({ label: d.label, value: d.volume }))}
+                      color="#e8572a"
+                      height={208}
+                      yAxisWidth={50}
+                      formatY={(v) => v >= 1000 ? `${Math.round(v / 1000)}k` : String(v)}
+                      formatValue={(v) => `${v.toLocaleString()} lbs`}
+                    />
+                  ) : (
+                    <div className="h-52">
+                      <ResponsiveContainer width="100%" height="100%">
                         <LineChart data={muscleChartData}>
                           <CartesianGrid stroke="var(--color-border)" strokeDasharray="3 3" />
                           <XAxis dataKey="label" tick={{ fill: 'var(--color-text-muted)', fontSize: 10 }} axisLine={{ stroke: 'var(--color-border)' }} tickLine={false} />
@@ -692,9 +691,9 @@ export function WorkoutHistory({ sessions, programs, onDeleteSession, onUpdateSe
                           }} />
                           <Line type="monotone" dataKey="volume" stroke="#e8572a" strokeWidth={2} dot={{ fill: '#e8572a', r: 3 }} activeDot={{ fill: '#e8572a', r: 5 }} connectNulls={false} />
                         </LineChart>
-                      )}
-                    </ResponsiveContainer>
-                  </div>
+                      </ResponsiveContainer>
+                    </div>
+                  )
                 ) : (
                   <p className="text-text-secondary text-sm text-center py-8">Not enough {effectiveMuscle} sessions to show a trend yet</p>
                 )}

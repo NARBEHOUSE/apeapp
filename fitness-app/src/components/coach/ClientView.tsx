@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, ReferenceLine, CartesianGrid } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip, ReferenceLine, CartesianGrid } from 'recharts';
+import { SVGBarChart } from '../shared/SVGBarChart';
 import {
   ArrowLeft, Send, Dumbbell, Utensils, TrendingUp, Target,
   ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Calendar, Plus, X, Heart, RefreshCw, ClipboardCheck, History, Edit3, Upload,
@@ -580,17 +581,16 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
             {nutritionTrendData.length >= 3 && (
               <div className="card p-4">
                 <div className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-2">Calories</div>
-                <div className="h-28">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={nutritionTrendData} barSize={chartRange <= 7 ? 20 : chartRange <= 30 ? 10 : 5}>
-                      <XAxis dataKey="date" tick={{ fontSize: 9 }} interval="preserveStartEnd" />
-                      <YAxis tick={{ fontSize: 9 }} width={32} domain={[0, 'auto']} />
-                      <Tooltip contentStyle={{ fontSize: 11, background: '#1a1a1f', border: '1px solid #333', borderRadius: 8 }} />
-                      {data.profile.macroTargets && <ReferenceLine y={data.profile.macroTargets.calories} stroke="#e8572a" strokeDasharray="4 2" strokeWidth={1} />}
-                      <Bar dataKey="cal" fill="#e8572a" radius={[2, 2, 0, 0]} opacity={0.85} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
+                <SVGBarChart
+                  key={chartRange}
+                  data={nutritionTrendData.map((d) => ({ label: d.date, value: d.cal }))}
+                  color="#e8572a"
+                  targetValue={data.profile.macroTargets?.calories}
+                  targetLabel="Target"
+                  height={112}
+                  yAxisWidth={32}
+                  formatValue={(v) => `${v.toLocaleString()} kcal`}
+                />
               </div>
             )}
 
@@ -626,16 +626,15 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
               <div className="card p-4">
                 <div className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-1">Workouts per Week</div>
                 <div className="text-[10px] text-text-muted mb-3">{rangeStats.workoutsInRange} workouts in {chartRange} days</div>
-                <div className="h-36">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={workoutFrequencyData} barSize={chartRange <= 7 ? 28 : chartRange <= 30 ? 18 : 12}>
-                      <XAxis dataKey="week" tick={{ fontSize: 9 }} interval={chartRange <= 30 ? 0 : 'preserveStartEnd'} />
-                      <YAxis tick={{ fontSize: 9 }} width={20} allowDecimals={false} />
-                      <Tooltip contentStyle={{ fontSize: 11, background: '#1a1a1f', border: '1px solid #333', borderRadius: 8 }} />
-                      <Bar dataKey="workouts" fill="#e8572a" radius={[3, 3, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
+                <SVGBarChart
+                  key={chartRange}
+                  data={workoutFrequencyData.map((d) => ({ label: d.week, value: d.workouts }))}
+                  color="#e8572a"
+                  height={144}
+                  yAxisWidth={20}
+                  formatY={(v) => String(v)}
+                  formatValue={(v) => `${v} workout${v !== 1 ? 's' : ''}`}
+                />
               </div>
             )}
             {recentWorkouts.length === 0 ? (
@@ -708,17 +707,16 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
                 {/* Calorie trend */}
                 <div>
                   <div className="text-[10px] text-text-muted mb-1">Calories vs Target</div>
-                  <div className="h-36">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={nutritionTrendData} barSize={chartRange <= 7 ? 20 : chartRange <= 30 ? 10 : 5}>
-                        <XAxis dataKey="date" tick={{ fontSize: 9 }} interval="preserveStartEnd" />
-                        <YAxis tick={{ fontSize: 9 }} width={32} domain={[0, 'auto']} />
-                        <Tooltip contentStyle={{ fontSize: 11, background: '#1a1a1f', border: '1px solid #333', borderRadius: 8 }} />
-                        {data.profile.macroTargets && <ReferenceLine y={data.profile.macroTargets.calories} stroke="#e8572a" strokeDasharray="4 2" strokeWidth={1} />}
-                        <Bar dataKey="cal" fill="#e8572a" radius={[2, 2, 0, 0]} opacity={0.85} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
+                  <SVGBarChart
+                    key={`cal-${chartRange}`}
+                    data={nutritionTrendData.map((d) => ({ label: d.date, value: d.cal }))}
+                    color="#e8572a"
+                    targetValue={data.profile.macroTargets?.calories}
+                    targetLabel="Target"
+                    height={144}
+                    yAxisWidth={32}
+                    formatValue={(v) => `${v.toLocaleString()} kcal`}
+                  />
                 </div>
                 {/* Protein trend */}
                 <div>
@@ -922,16 +920,15 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
               {stepsTrendData.length >= 7 && (
                 <div className="card p-4 mt-3">
                   <div className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3">Steps (last 60 days)</div>
-                  <div className="h-36">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={stepsTrendData} barSize={8}>
-                        <XAxis dataKey="date" tick={{ fontSize: 9 }} interval="preserveStartEnd" />
-                        <YAxis tick={{ fontSize: 9 }} width={36} />
-                        <Tooltip contentStyle={{ fontSize: 11, background: '#1a1a1f', border: '1px solid #333', borderRadius: 8 }} formatter={(v) => [`${Number(v).toLocaleString()} steps`, 'Steps']} />
-                        <Bar dataKey="steps" fill="#2e9e6b" radius={[2, 2, 0, 0]} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
+                  <SVGBarChart
+                    key={chartRange}
+                    data={stepsTrendData.map((d) => ({ label: d.date, value: d.steps }))}
+                    color="#2e9e6b"
+                    height={144}
+                    yAxisWidth={36}
+                    formatY={(v) => v >= 1000 ? `${Math.round(v / 1000)}k` : String(v)}
+                    formatValue={(v) => `${v.toLocaleString()} steps`}
+                  />
                 </div>
               )}
 

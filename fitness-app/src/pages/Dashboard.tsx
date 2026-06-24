@@ -24,15 +24,14 @@ import { AICoachCard } from '../components/dashboard/AICoachCard';
 import { StepsCard } from '../components/dashboard/StepsCard';
 import { WaterCard } from '../components/dashboard/WaterCard';
 import { CalendarHeatmap } from '../components/dashboard/CalendarHeatmap';
-import { MuscleVolumeCard } from '../components/dashboard/MuscleVolumeCard';
 import { ZeroMacroWarning } from '../components/dashboard/ZeroMacroWarning';
 
 type CardId =
-  | 'nutrition' | 'aiCoach' | 'water' | 'weeklyInsights' | 'muscleVolume'
+  | 'nutrition' | 'aiCoach' | 'water' | 'weeklyInsights'
   | 'steps' | 'calendar' | 'calories' | 'weight' | 'measurements' | 'lifts';
 
 const DEFAULT_CARD_ORDER: CardId[] = [
-  'nutrition', 'aiCoach', 'water', 'weeklyInsights', 'muscleVolume',
+  'nutrition', 'aiCoach', 'water', 'weeklyInsights',
   'steps', 'calendar', 'calories', 'weight', 'measurements', 'lifts',
 ];
 
@@ -611,8 +610,6 @@ export default function Dashboard({ profile, onUpdateProfile }: DashboardProps) 
               units={profile.units}
             />
           );
-        } else if (id === 'muscleVolume' && dashConfig.muscleVolume) {
-          content = <MuscleVolumeCard sessions={sessions} programs={programs} />;
         } else if (id === 'steps' && dashConfig.steps) {
           content = (
             <StepsCard steps={steps} profileId={profile.id} onStepSaved={async () => {
