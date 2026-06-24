@@ -42,11 +42,17 @@ export function useNutrition(profileId: string | null) {
   const addEntry = useCallback(
     async (entry: Omit<FoodEntry, 'id' | 'profileId' | 'loggedAt'> & { loggedAt?: string }) => {
       if (!profileId) return;
+      const entryKey = entry.fdcId ? `fdc:${entry.fdcId}` : `${entry.name}|${entry.brand || ''}`;
+      const isFavoritedElsewhere = allFavorites.some((f) => {
+        const fKey = f.fdcId ? `fdc:${f.fdcId}` : `${f.name}|${f.brand || ''}`;
+        return fKey === entryKey;
+      });
       const full: FoodEntry = {
         ...entry,
         id: crypto.randomUUID(),
         profileId,
         loggedAt: entry.loggedAt || new Date().toISOString(),
+        isFavorite: entry.isFavorite ?? isFavoritedElsewhere,
       };
       await saveFoodEntry(full);
       saveFoodToHistory(profileId, {
@@ -64,7 +70,7 @@ export function useNutrition(profileId: string | null) {
       });
       await loadEntries();
     },
-    [profileId, selectedDate, loadEntries]
+    [profileId, selectedDate, loadEntries, allFavorites]
   );
 
   const deleteEntry = useCallback(
