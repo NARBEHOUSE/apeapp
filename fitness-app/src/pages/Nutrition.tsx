@@ -334,7 +334,7 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
       ...e,
       isFavorite: e.isFavorite || favoriteKeys.has(e.fdcId ? `fdc:${e.fdcId}` : `${e.name}|${e.brand || ''}`),
     }))
-    .sort((a, b) => a.loggedAt.localeCompare(b.loggedAt));
+    .sort((a, b) => new Date(a.loggedAt).getTime() - new Date(b.loggedAt).getTime());
 
   const TIMELINE_START = 0;
   const TIMELINE_END = 23;

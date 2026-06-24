@@ -14,7 +14,7 @@ export function useNutrition(profileId: string | null) {
     if (!profileId) return;
     setLoading(true);
     const data = await getFoodEntriesByDate(profileId, selectedDate);
-    setEntries(data.sort((a, b) => a.loggedAt.localeCompare(b.loggedAt)));
+    setEntries(data.sort((a, b) => new Date(a.loggedAt).getTime() - new Date(b.loggedAt).getTime()));
     setLoading(false);
   }, [profileId, selectedDate]);
 
