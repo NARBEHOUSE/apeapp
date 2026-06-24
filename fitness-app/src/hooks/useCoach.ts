@@ -98,7 +98,9 @@ export function useCoach() {
   // --- Client side ---
 
   const uploadAllPhotos = useCallback(async (token: string, folderId: string): Promise<CoachPhotoMeta[]> => {
-    const uploadedMap: Record<string, string> = JSON.parse(localStorage.getItem(UPLOADED_PHOTOS_KEY) || '{}');
+    // Cache is scoped per folder — if the folder changes, old cached file IDs don't apply
+    const cacheKey = `${UPLOADED_PHOTOS_KEY}-${folderId}`;
+    const uploadedMap: Record<string, string> = JSON.parse(localStorage.getItem(cacheKey) || '{}');
     const db = await getDB();
     const allPhotos = await db.getAll('progressPhotos');
     const allMeasurements = await db.getAll('measurements') as { profileId: string; date: string; weight?: number }[];
@@ -142,7 +144,7 @@ export function useCoach() {
         delete uploadedMap[pid];
       }
     }
-    localStorage.setItem(UPLOADED_PHOTOS_KEY, JSON.stringify(uploadedMap));
+    localStorage.setItem(cacheKey, JSON.stringify(uploadedMap));
     return photoMeta;
   }, []);
 
@@ -541,6 +543,26 @@ export function useCoach() {
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': `multipart/related; boundary=${boundary}` },
         body,
       });
+
+      // Keep only the 2 most recent backups for this client — delete the rest
+      try {
+        const safePrefix = clientName.replace(/'/g, "\\'");
+        const listRes = await fetch(
+          `https://www.googleapis.com/drive/v3/files?q=name+contains+'${safePrefix}_'+and+'${backupFolderId}'+in+parents+and+trashed=false&fields=files(id,name,createdTime)&orderBy=createdTime+desc&pageSize=50`,
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
+        const listData = await listRes.json();
+        const allBackups: { id: string; name: string; createdTime: string }[] = listData.files || [];
+        const clientBackups = allBackups.filter((f) => f.name.startsWith(`${clientName}_`));
+        // Already sorted newest-first; delete everything after the 2nd
+        for (const old of clientBackups.slice(2)) {
+          await fetch(`https://www.googleapis.com/drive/v3/files/${old.id}`, {
+            method: 'DELETE',
+            headers: { Authorization: `Bearer ${token}` },
+          });
+        }
+      } catch { /* non-fatal — backup itself succeeded */ }
+
       return true;
     } catch (err) {
       console.error('Backup failed:', err);
