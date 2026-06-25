@@ -39,10 +39,18 @@ interface LocalResult {
 
 interface PlateItem {
   name: string;
+  brand?: string;
+  servingSize: number;
+  servingUnit: string;
+  servingsConsumed: number;
   calories: number;
   protein: number;
   carbs: number;
   fat: number;
+  fiber?: number;
+  source?: 'manual' | 'usda' | 'ai_vision' | 'builtin';
+  fdcId?: string;
+  mealType: MealType;
 }
 
 interface FoodSearchProps {
@@ -323,31 +331,44 @@ export function FoodSearch({ onAdd, onClose, profileId, defaultTab, saveOnly = f
     const finalF = Math.round(selected.fat * scaleFactor * 10) / 10;
     const finalFb = selected.fiber ? Math.round(selected.fiber * scaleFactor * 10) / 10 : undefined;
 
-    onAdd({
-      date: new Date().toISOString().split('T')[0],
-      name: selected.name,
-      brand: selected.brand,
-      servingSize: sz,
-      servingUnit: selected.servingUnit,
-      servingsConsumed: qty,
-      calories: finalCal,
-      protein: finalP,
-      carbs: finalC,
-      fat: finalF,
-      fiber: finalFb,
-      source: selected.source,
-      fdcId: selected.fdcId,
-      mealType,
-    });
-
     if (multiMode) {
-      setPlate((prev) => [...prev, { name: selected.name, calories: finalCal, protein: finalP, carbs: finalC, fat: finalF }]);
+      setPlate((prev) => [...prev, {
+        name: selected.name,
+        brand: selected.brand,
+        servingSize: sz,
+        servingUnit: selected.servingUnit,
+        servingsConsumed: qty,
+        calories: finalCal,
+        protein: finalP,
+        carbs: finalC,
+        fat: finalF,
+        fiber: finalFb,
+        source: selected.source,
+        fdcId: selected.fdcId,
+        mealType,
+      }]);
       setSelected(null);
       setServingSize('');
       setServingsConsumed('1');
       setQuery('');
       setUsdaResults([]);
     } else {
+      onAdd({
+        date: new Date().toISOString().split('T')[0],
+        name: selected.name,
+        brand: selected.brand,
+        servingSize: sz,
+        servingUnit: selected.servingUnit,
+        servingsConsumed: qty,
+        calories: finalCal,
+        protein: finalP,
+        carbs: finalC,
+        fat: finalF,
+        fiber: finalFb,
+        source: selected.source,
+        fdcId: selected.fdcId,
+        mealType,
+      });
       handleClose();
     }
   }
@@ -526,7 +547,25 @@ export function FoodSearch({ onAdd, onClose, profileId, defaultTab, saveOnly = f
               </div>
             ))}
           </div>
-          <button type="button" onClick={handleClose} className="btn-primary w-full text-sm">
+          <button type="button" onClick={() => {
+            plate.forEach((item) => onAdd({
+              date: new Date().toISOString().split('T')[0],
+              name: item.name,
+              brand: item.brand,
+              servingSize: item.servingSize,
+              servingUnit: item.servingUnit,
+              servingsConsumed: item.servingsConsumed,
+              calories: item.calories,
+              protein: item.protein,
+              carbs: item.carbs,
+              fat: item.fat,
+              fiber: item.fiber,
+              source: item.source ?? 'manual',
+              fdcId: item.fdcId,
+              mealType: item.mealType,
+            }));
+            handleClose();
+          }} className="btn-primary w-full text-sm">
             Done — add {plate.length} item{plate.length > 1 ? 's' : ''} to log
           </button>
         </div>

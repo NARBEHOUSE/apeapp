@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import {
   ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Plus, Search, Camera,
-  Loader2, Star, Trash2, BookmarkPlus, Bookmark, GripVertical, Clock, Pencil, AlertCircle,
+  Loader2, Star, Trash2, BookmarkPlus, Bookmark, GripVertical, Clock, Pencil, AlertCircle, AlignLeft, AlignRight, Copy,
 } from 'lucide-react';
 import {
   DndContext, PointerSensor, useSensor, useSensors, useDroppable,
@@ -45,7 +45,7 @@ interface NutritionPageProps {
   onUpdateProfile?: (id: string, updates: Partial<Profile>) => void;
 }
 
-type ModalType = 'add' | 'save-meal' | 'save-meal-manual' | 'meal-builder' | 'edit-time' | 'edit-macros' | 'edit-entry' | 'recipe-editor' | null;
+type ModalType = 'add' | 'copy-entry' | 'save-meal' | 'save-meal-manual' | 'meal-builder' | 'edit-time' | 'edit-macros' | 'edit-entry' | 'recipe-editor' | null;
 type Tab = 'planner' | 'my-foods' | 'recipes' | 'charts';
 
 function MiniMacroBar({ label, current, target, color }: {
@@ -103,12 +103,13 @@ function currentTimeExact(): string {
 }
 
 // Draggable entry
-function DraggableEntry({ entry, onDelete, onToggleFavorite, onEditTime, onEdit }: {
+function DraggableEntry({ entry, onDelete, onToggleFavorite, onEditTime, onEdit, onCopy }: {
   entry: FoodEntry;
   onDelete: (id: string) => void;
   onToggleFavorite: (id: string) => void;
   onEditTime: (entry: FoodEntry) => void;
   onEdit: (entry: FoodEntry) => void;
+  onCopy: (entry: FoodEntry) => void;
 }) {
   const [confirming, setConfirming] = useState(false);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: entry.id });
@@ -140,6 +141,9 @@ function DraggableEntry({ entry, onDelete, onToggleFavorite, onEditTime, onEdit 
         <button onClick={() => onEdit(entry)} className="p-0.5">
           <Pencil size={10} className="text-text-muted/30 hover:text-accent-blue" />
         </button>
+        <button onClick={() => onCopy(entry)} className="p-0.5" title="Copy to another time">
+          <Copy size={10} className="text-text-muted/20 hover:text-accent-blue" />
+        </button>
         <button onClick={() => onEditTime(entry)} className="text-[10px] text-text-muted bg-surface rounded px-1 py-0.5 flex items-center gap-0.5">
           <Clock size={9} />{formatTime12(entry.loggedAt)}
         </button>
@@ -166,64 +170,74 @@ function DraggableEntry({ entry, onDelete, onToggleFavorite, onEditTime, onEdit 
 }
 
 // Droppable hour slot
-function HourSlot({ hour, children, onAddAtHour, isOver, summary }: {
+function HourSlot({ hour, children, onAddAtHour, isOver, summary, labelsRight }: {
   hour: number; children: React.ReactNode; onAddAtHour: (hour: number) => void; isOver: boolean;
   summary?: { cals: number; protein: number; carbs: number; fat: number; count: number };
+  labelsRight?: boolean;
 }) {
   const { setNodeRef } = useDroppable({ id: `hour-${hour}` });
   const hasChildren = Array.isArray(children) ? children.length > 0 : !!children;
+
+  const label = (
+    <div className={`w-[38px] pt-1.5 shrink-0 ${labelsRight ? 'text-left' : 'text-right'}`}>
+      <span className={`text-xs font-medium ${hasChildren ? 'text-text-secondary' : 'text-text-muted/40'}`}>
+        {formatHourLabel(hour)}
+      </span>
+    </div>
+  );
+
+  const dot = (
+    <div className="flex flex-col items-center shrink-0 pt-2">
+      <div className={`w-2 h-2 rounded-full shrink-0 ${hasChildren ? 'bg-accent-orange' : isOver ? 'bg-accent-blue' : 'bg-border/40'}`} />
+      <div className="w-px flex-1 bg-border/20 mt-1" />
+    </div>
+  );
+
+  const content = (
+    <div className="flex-1 min-w-0 pb-1">
+      {hasChildren ? (
+        <div className="space-y-1 pt-0.5">
+          {summary && (
+            <div className="flex items-center gap-2.5 px-1 pb-1 border-b border-border/30">
+              <span className="text-[10px] font-semibold text-accent-orange">{summary.cals} cal</span>
+              <span className="text-[10px] text-text-muted">P{summary.protein}</span>
+              <span className="text-[10px] text-text-muted">C{summary.carbs}</span>
+              <span className="text-[10px] text-text-muted">F{summary.fat}</span>
+              {summary.count > 1 && (
+                <span className="text-[9px] text-text-muted/50">{summary.count} items</span>
+              )}
+              <button
+                onClick={() => onAddAtHour(hour)}
+                className="ml-auto p-0.5 rounded hover:bg-surface-raised transition-colors"
+                title="Add to this time"
+              >
+                <Plus size={12} className="text-text-muted/40 hover:text-accent-orange" />
+              </button>
+            </div>
+          )}
+          {children}
+        </div>
+      ) : (
+        <button
+          onClick={() => onAddAtHour(hour)}
+          className={`w-full flex items-center justify-center gap-1 py-1.5 rounded-lg text-xs text-text-muted/40 hover:text-text-muted hover:bg-surface-raised/50 transition-colors ${isOver ? 'text-accent-blue bg-accent-blue/10' : ''}`}
+        >
+          <Plus size={13} />
+        </button>
+      )}
+    </div>
+  );
 
   return (
     <div
       ref={setNodeRef}
       className={`relative flex gap-2 min-h-[36px] transition-colors rounded-lg ${isOver ? 'bg-accent-blue/5' : ''}`}
     >
-      {/* Hour label */}
-      <div className="w-[38px] pt-1.5 text-right shrink-0">
-        <span className={`text-xs font-medium ${hasChildren ? 'text-text-secondary' : 'text-text-muted/40'}`}>
-          {formatHourLabel(hour)}
-        </span>
-      </div>
-
-      {/* Timeline dot + line */}
-      <div className="flex flex-col items-center shrink-0 pt-2">
-        <div className={`w-2 h-2 rounded-full shrink-0 ${hasChildren ? 'bg-accent-orange' : isOver ? 'bg-accent-blue' : 'bg-border/40'}`} />
-        <div className="w-px flex-1 bg-border/20 mt-1" />
-      </div>
-
-      {/* Content area */}
-      <div className="flex-1 min-w-0 pb-1">
-        {hasChildren ? (
-          <div className="space-y-1 pt-0.5">
-            {summary && (
-              <div className="flex items-center gap-2.5 px-1 pb-1 border-b border-border/30">
-                <span className="text-[10px] font-semibold text-accent-orange">{summary.cals} cal</span>
-                <span className="text-[10px] text-text-muted">P{summary.protein}</span>
-                <span className="text-[10px] text-text-muted">C{summary.carbs}</span>
-                <span className="text-[10px] text-text-muted">F{summary.fat}</span>
-                {summary.count > 1 && (
-                  <span className="text-[9px] text-text-muted/50">{summary.count} items</span>
-                )}
-                <button
-                  onClick={() => onAddAtHour(hour)}
-                  className="ml-auto p-0.5 rounded hover:bg-surface-raised transition-colors"
-                  title="Add to this time"
-                >
-                  <Plus size={12} className="text-text-muted/40 hover:text-accent-orange" />
-                </button>
-              </div>
-            )}
-            {children}
-          </div>
-        ) : (
-          <button
-            onClick={() => onAddAtHour(hour)}
-            className={`w-full flex items-center justify-center gap-1 py-1.5 rounded-lg text-xs text-text-muted/40 hover:text-text-muted hover:bg-surface-raised/50 transition-colors ${isOver ? 'text-accent-blue bg-accent-blue/10' : ''}`}
-          >
-            <Plus size={13} />
-          </button>
-        )}
-      </div>
+      {labelsRight ? (
+        <>{content}{dot}{label}</>
+      ) : (
+        <>{label}{dot}{content}</>
+      )}
     </div>
   );
 }
@@ -306,9 +320,12 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
   };
   const [editTimeValue, setEditTimeValue] = useState('12:00');
   const [addAtTime, setAddAtTime] = useState<string | null>(null);
+  const [copyingEntry, setCopyingEntry] = useState<FoodEntry | null>(null);
+  const [copyTimeValue, setCopyTimeValue] = useState('12:00');
   const [mealBuilderAddToToday, setMealBuilderAddToToday] = useState(false);
   const [overHour, setOverHour] = useState<string | null>(null);
   const [showAllHours, setShowAllHours] = useState(false);
+  const [labelsRight, setLabelsRight] = useState(() => localStorage.getItem('fitos-timeline-labels-right') === 'true');
 
   const [editMacroProtein, setEditMacroProtein] = useState(String(profile.macroTargets.protein));
   const [editMacroCarbs, setEditMacroCarbs] = useState(String(profile.macroTargets.carbs));
@@ -405,6 +422,22 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
     updateEntryTime(editingEntry.id, d.toISOString());
     setModal(null);
     setEditingEntry(null);
+  }
+
+  function handleCopyEntry(entry: FoodEntry) {
+    setCopyingEntry(entry);
+    const d = new Date(entry.loggedAt);
+    setCopyTimeValue(`${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`);
+    setModal('copy-entry');
+  }
+
+  function handleConfirmCopyEntry() {
+    if (!copyingEntry) return;
+    const { id: _id, profileId: _pid, loggedAt: _la, ...rest } = copyingEntry;
+    addEntry({ ...rest, date: selectedDate, loggedAt: buildLoggedAt(copyTimeValue) });
+    toast(`Copied ${copyingEntry.name}`, 'success');
+    setModal(null);
+    setCopyingEntry(null);
   }
 
   async function handleFoodEditChoice(choice: 'all' | 'library' | 'copy') {
@@ -661,14 +694,28 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
       {/* ===== TIMELINE ===== */}
       {tab === 'planner' && (
         <>
-          <button
-            type="button"
-            onClick={() => { setAddAtTime(null); setModal('add'); }}
-            className="w-full bg-surface rounded-xl py-2.5 flex items-center justify-center gap-1.5 active:scale-[0.98] transition-transform"
-          >
-            <Plus size={14} className="text-accent-orange" />
-            <span className="text-xs font-medium">Add</span>
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => { setAddAtTime(null); setModal('add'); }}
+              className="flex-1 bg-surface rounded-xl py-2.5 flex items-center justify-center gap-1.5 active:scale-[0.98] transition-transform"
+            >
+              <Plus size={14} className="text-accent-orange" />
+              <span className="text-xs font-medium">Add</span>
+            </button>
+            <button
+              type="button"
+              title={labelsRight ? 'Move times to left' : 'Move times to right'}
+              onClick={() => {
+                const next = !labelsRight;
+                setLabelsRight(next);
+                localStorage.setItem('fitos-timeline-labels-right', String(next));
+              }}
+              className="bg-surface rounded-xl px-3 flex items-center justify-center active:scale-[0.98] transition-transform"
+            >
+              {labelsRight ? <AlignLeft size={14} className="text-text-muted" /> : <AlignRight size={14} className="text-text-muted" />}
+            </button>
+          </div>
 
           {loading ? (
             <div className="flex items-center justify-center py-10"><Loader2 size={24} className="animate-spin text-text-muted" /></div>
@@ -697,7 +744,7 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
                       count: hourEntries.length,
                     } : undefined;
                     return (
-                      <HourSlot key={hour} hour={hour} onAddAtHour={handleAddAtHour} isOver={overHour === `hour-${hour}`} summary={slotSummary}>
+                      <HourSlot key={hour} hour={hour} onAddAtHour={handleAddAtHour} isOver={overHour === `hour-${hour}`} summary={slotSummary} labelsRight={labelsRight}>
                         {hourEntries.map((entry) => (
                           <DraggableEntry
                             key={entry.id}
@@ -706,6 +753,7 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
                             onToggleFavorite={toggleFavorite}
                             onEditTime={handleEditTime}
                             onEdit={handleEditEntry}
+                            onCopy={handleCopyEntry}
                           />
                         ))}
                       </HourSlot>
@@ -1272,6 +1320,25 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
         />
       </Modal>
 
+
+      <Modal open={modal === 'copy-entry'} onClose={() => { setModal(null); setCopyingEntry(null); }} title="Copy to Time">
+        <div className="space-y-4">
+          {copyingEntry && (
+            <div className="flex items-center gap-3 bg-surface rounded-xl p-3">
+              <span className="text-lg">{getFoodEmoji(copyingEntry.name)}</span>
+              <span className="text-sm font-medium">{copyingEntry.name}</span>
+            </div>
+          )}
+          <div>
+            <label className="label mb-1.5 block">Copy to time</label>
+            <input type="time" className="input-field text-lg py-3 text-center" value={copyTimeValue} onChange={(e) => setCopyTimeValue(e.target.value)} />
+          </div>
+          <div className="flex gap-2">
+            <button onClick={() => { setModal(null); setCopyingEntry(null); }} className="btn-secondary flex-1 text-sm">Cancel</button>
+            <button onClick={handleConfirmCopyEntry} className="btn-primary flex-1 text-sm">Copy</button>
+          </div>
+        </div>
+      </Modal>
 
       <Modal open={modal === 'edit-time'} onClose={() => { setModal(null); setEditingEntry(null); }} title="Change Time">
         <div className="space-y-4">
