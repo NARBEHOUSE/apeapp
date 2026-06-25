@@ -4,6 +4,7 @@ import type { Measurement, ProgressPhoto } from '../types';
 export async function saveMeasurement(m: Measurement): Promise<void> {
   const db = await getDB();
   await db.put('measurements', m);
+  window.dispatchEvent(new Event('ape-data-saved'));
 }
 
 export async function getMeasurementsByProfile(profileId: string): Promise<Measurement[]> {
@@ -19,6 +20,7 @@ export async function deleteMeasurement(id: string): Promise<void> {
 export async function saveProgressPhoto(photo: ProgressPhoto): Promise<void> {
   const db = await getDB();
   await db.put('progressPhotos', photo);
+  window.dispatchEvent(new Event('ape-data-saved'));
 }
 
 export async function getPhotosByProfile(profileId: string): Promise<ProgressPhoto[]> {

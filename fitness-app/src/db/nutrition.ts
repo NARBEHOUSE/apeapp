@@ -4,6 +4,7 @@ import type { FoodEntry } from '../types';
 export async function saveFoodEntry(entry: FoodEntry): Promise<void> {
   const db = await getDB();
   await db.put('foodEntries', entry);
+  window.dispatchEvent(new Event('ape-data-saved'));
 }
 
 export async function getFoodEntriesByDate(profileId: string, date: string): Promise<FoodEntry[]> {

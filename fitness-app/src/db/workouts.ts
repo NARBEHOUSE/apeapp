@@ -4,6 +4,7 @@ import type { WorkoutSession } from '../types';
 export async function saveWorkoutSession(session: WorkoutSession): Promise<void> {
   const db = await getDB();
   await db.put('workoutSessions', session);
+  window.dispatchEvent(new Event('ape-data-saved'));
 }
 
 export async function getWorkoutSession(id: string): Promise<WorkoutSession | undefined> {

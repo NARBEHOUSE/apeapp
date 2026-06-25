@@ -147,6 +147,7 @@ export function Progress({ profile, onUpdateProfile }: Props) {
     };
     const db = await getDB();
     await db.put('checkIns', entry);
+    window.dispatchEvent(new Event('ape-data-saved'));
     setCheckInResponses({});
     setCheckInNotes('');
     await loadCheckIns();
@@ -167,6 +168,7 @@ export function Progress({ profile, onUpdateProfile }: Props) {
     const updated: CheckInEntry = { ...editingCheckIn, responses, notes: editNotes.trim() || undefined };
     const db = await getDB();
     await db.put('checkIns', updated);
+    window.dispatchEvent(new Event('ape-data-saved'));
     setEditingCheckIn(null);
     await loadCheckIns();
     toast('Check-in updated', 'success');

@@ -4,6 +4,7 @@ import type { StepEntry } from '../types';
 export async function saveStepEntry(entry: StepEntry): Promise<void> {
   const db = await getDB();
   await db.put('steps', entry);
+  window.dispatchEvent(new Event('ape-data-saved'));
 }
 
 export async function getStepsByProfile(profileId: string): Promise<StepEntry[]> {

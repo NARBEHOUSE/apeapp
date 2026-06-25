@@ -142,22 +142,29 @@ export default function Dashboard({ profile, onUpdateProfile }: DashboardProps) 
     }
   }, [googleSignedIn, myCoachRels.length, syncCoachFiles, checkForCoachChanges]);
 
-  // Periodic coach sync every 5 minutes + re-sync when tab regains focus
+  // Periodic coach sync every 5 minutes + re-sync when tab regains focus or is hidden
   const coachSyncIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const dataSavedDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (!googleSignedIn || myCoachRels.length === 0) return;
-    coachSyncIntervalRef.current = setInterval(() => {
-      syncCoachFiles().then(() => checkForCoachChanges());
-    }, 5 * 60 * 1000);
+    const doSync = () => syncCoachFiles().then(() => checkForCoachChanges());
+    coachSyncIntervalRef.current = setInterval(doSync, 5 * 60 * 1000);
     const handleVisibility = () => {
-      if (document.visibilityState === 'visible') {
-        syncCoachFiles().then(() => checkForCoachChanges());
-      }
+      // Sync both when regaining focus AND when losing it (tab close/switch away)
+      doSync();
+    };
+    // Sync within 10s of any data save, debounced so rapid logging fires once
+    const handleDataSaved = () => {
+      if (dataSavedDebounceRef.current) clearTimeout(dataSavedDebounceRef.current);
+      dataSavedDebounceRef.current = setTimeout(doSync, 10_000);
     };
     document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('ape-data-saved', handleDataSaved);
     return () => {
       if (coachSyncIntervalRef.current) clearInterval(coachSyncIntervalRef.current);
+      if (dataSavedDebounceRef.current) clearTimeout(dataSavedDebounceRef.current);
       document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('ape-data-saved', handleDataSaved);
     };
   }, [googleSignedIn, myCoachRels.length, syncCoachFiles, checkForCoachChanges]);
 
