@@ -226,6 +226,7 @@ export function ManualEntry({ onAdd, onClose, profileId, dailyTotals, macroTarge
           profileId={profileId}
           onSelect={handleFoodSelect}
           onQueryChange={(q) => setName(q)}
+          onAddNew={(q) => setName(q)}
           placeholder="Search or type food name"
         />
       </div>

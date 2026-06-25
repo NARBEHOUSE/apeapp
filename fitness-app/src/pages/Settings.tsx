@@ -86,7 +86,7 @@ interface Props {
 
 type Section = 'google' | 'coach' | 'theme' | 'api' | 'dashboard' | 'reports' | 'profile' | 'tdee' | 'data' | 'profiles' | 'about';
 
-const REST_OPTIONS = [60, 90, 120];
+const REST_OPTIONS = [0, 60, 90, 120];
 
 export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, onLogout }: Props) {
   const { user: googleUser, isSignedIn: googleSignedIn, signIn: googleSignIn, signOut: googleSignOut, deleteCloudDataAndSignOut, syncStatus, lastSynced, syncNow, isLoading: googleLoading, keyLoaded } = useGoogleAuth();
@@ -1925,7 +1925,7 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
                           : 'bg-surface-raised text-text-secondary border border-border-light'
                       }`}
                     >
-                      {sec}s
+                      {sec === 0 ? 'None' : `${sec}s`}
                     </button>
                   ))}
                   <button

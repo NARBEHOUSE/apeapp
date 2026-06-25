@@ -831,6 +831,9 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
                           <div className="text-sm font-medium truncate">{entry.name}</div>
                           <div className="text-[10px] text-text-muted">{Math.round(entry.calories)} cal · P{Math.round(entry.protein)}g · C{Math.round(entry.carbs)}g · F{Math.round(entry.fat)}g</div>
                         </div>
+                        <button onClick={() => toggleFavorite(entry.id)} className="p-1.5 text-nutrition" title="Remove from favorites">
+                          <Star size={14} className="fill-nutrition" />
+                        </button>
                         <button onClick={() => handleQuickAddFavorite(entry)} className="bg-surface-raised px-3 py-1.5 rounded-lg text-[10px] font-medium text-accent-blue">+ Add</button>
                       </div>
                     ))}

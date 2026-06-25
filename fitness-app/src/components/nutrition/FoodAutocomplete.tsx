@@ -23,6 +23,7 @@ interface Props {
   profileId: string;
   onSelect: (food: SelectedFood) => void;
   onQueryChange?: (query: string) => void;
+  onAddNew?: (query: string) => void;
   placeholder?: string;
 }
 
@@ -63,7 +64,7 @@ function convertBuiltIn(food: BuiltInFood): ResultItem {
 
 const MAX_RESULTS = 15;
 
-export function FoodAutocomplete({ profileId, onSelect, onQueryChange, placeholder }: Props) {
+export function FoodAutocomplete({ profileId, onSelect, onQueryChange, onAddNew, placeholder }: Props) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<ResultItem[]>([]);
   const [isOpen, setIsOpen] = useState(false);
@@ -346,9 +347,17 @@ export function FoodAutocomplete({ profileId, onSelect, onQueryChange, placehold
 
           {results.length === 0 && query.trim() && (
             <div className="px-3 py-4 text-center">
-              <p className="text-sm text-text-secondary">
-                No matches — add as new food
-              </p>
+              {onAddNew ? (
+                <button
+                  type="button"
+                  onClick={() => { setIsOpen(false); onAddNew(query.trim()); }}
+                  className="text-sm text-accent-blue font-medium"
+                >
+                  No matches — add "{query.trim()}" manually
+                </button>
+              ) : (
+                <p className="text-sm text-text-secondary">No matches found</p>
+              )}
             </div>
           )}
 

@@ -71,6 +71,7 @@ export interface ReportData {
     change: number | null;
     startBodyFat?: number;
     endBodyFat?: number;
+    weightUnit: 'lbs' | 'kg';
   };
   measurements: {
     entries: { date: string; measurements: Record<string, number> }[];
@@ -158,11 +159,18 @@ export async function generateReport(config: ReportConfig): Promise<ReportData> 
     };
   }).sort((a, b) => a.date.localeCompare(b.date));
 
-  // Bodyweight + body fat
+  // Bodyweight + body fat — normalize stored weights to display unit
+  const profileWeightUnit: 'lbs' | 'kg' = config.profile.units === 'metric' ? 'kg' : 'lbs';
+  const toDisplayW = (raw: number, storedUnit?: string): number => {
+    const inLbs = storedUnit === 'kg' ? raw * 2.20462 : raw;
+    return profileWeightUnit === 'kg'
+      ? Math.round(inLbs * 0.453592 * 10) / 10
+      : Math.round(inLbs * 10) / 10;
+  };
   const weightEntries = filteredMeasurements
     .filter((m) => m.weight != null)
     .sort((a, b) => a.date.localeCompare(b.date))
-    .map((m) => ({ date: m.date, weight: m.weight!, bodyFat: m.bodyFatPercent }));
+    .map((m) => ({ date: m.date, weight: toDisplayW(m.weight!, m.weightUnit), bodyFat: m.bodyFatPercent }));
   const bfEntries = weightEntries.filter((e) => e.bodyFat != null);
 
   // Measurements
@@ -216,6 +224,7 @@ export async function generateReport(config: ReportConfig): Promise<ReportData> 
       change: weightEntries.length > 1 ? weightEntries[weightEntries.length - 1].weight - weightEntries[0].weight : null,
       startBodyFat: bfEntries.length > 0 ? bfEntries[0].bodyFat : undefined,
       endBodyFat: bfEntries.length > 0 ? bfEntries[bfEntries.length - 1].bodyFat : undefined,
+      weightUnit: profileWeightUnit,
     },
     measurements: { entries: measurementEntries },
     steps: {
@@ -257,7 +266,7 @@ export function generateCSV(data: ReportData): string {
   lines.push(`Avg Carbs (g),${nutrition.avgCarbs}`);
   lines.push(`Avg Fat (g),${nutrition.avgFat}`);
   lines.push(`Avg Fiber (g),${nutrition.avgFiber}`);
-  if (bodyweight.change != null) lines.push(`Weight Change,${bodyweight.change > 0 ? '+' : ''}${bodyweight.change.toFixed(1)} lbs`);
+  if (bodyweight.change != null) lines.push(`Weight Change,${bodyweight.change > 0 ? '+' : ''}${bodyweight.change.toFixed(1)} ${bodyweight.weightUnit}`);
   if (steps.avgDailySteps > 0) lines.push(`Avg Daily Steps,${steps.avgDailySteps.toLocaleString()}`);
   lines.push('');
 
@@ -289,7 +298,7 @@ export function generateCSV(data: ReportData): string {
 
   if (bodyweight.entries.length > 0) {
     lines.push('=== BODYWEIGHT ===');
-    lines.push('Date,Weight (lbs),Body Fat %');
+    lines.push(`Date,Weight (${bodyweight.weightUnit}),Body Fat %`);
     for (const e of bodyweight.entries) lines.push(`${e.date},${e.weight},${e.bodyFat != null ? e.bodyFat + '%' : ''}`);
     lines.push('');
   }
@@ -434,7 +443,7 @@ export function generateHTMLReport(data: ReportData): string {
       ${photoList.map((p) => `<div style="border:1px solid #eee;border-radius:10px;overflow:hidden;background:#fafafa;">
         <img src="${p.imageData}" style="width:100%;aspect-ratio:3/4;object-fit:cover;display:block;" />
         <div style="padding:8px;"><div style="font-size:11px;font-weight:600;">${fmt(p.date)}</div>
-        <div style="font-size:10px;color:#888;margin-top:2px;">${poseLabel(p.pose)}${p.weight != null ? ` · ${p.weight} lbs` : ''}</div></div></div>`).join('')}
+        <div style="font-size:10px;color:#888;margin-top:2px;">${poseLabel(p.pose)}${p.weight != null ? ` · ${p.weight} ${bodyweight.weightUnit}` : ''}</div></div></div>`).join('')}
     </div>`;
 
   return `<!DOCTYPE html><html><head><meta charset="utf-8">
@@ -475,7 +484,7 @@ export function generateHTMLReport(data: ReportData): string {
   ${bs ? `
   <div class="profile-row"><strong>Age:</strong> ${bs.age} yrs</div>
   <div class="profile-row"><strong>Height:</strong> ${heightStr || bs.heightCm + ' cm'}</div>
-  <div class="profile-row"><strong>Starting Weight:</strong> ${bodyweight.startWeight != null ? bodyweight.startWeight + ' lbs' : '—'}</div>
+  <div class="profile-row"><strong>Starting Weight:</strong> ${bodyweight.startWeight != null ? bodyweight.startWeight + ' ' + bodyweight.weightUnit : '—'}</div>
   <div class="profile-row"><strong>Goal:</strong> ${bs.fitnessGoal === 'lose' ? 'Fat Loss' : bs.fitnessGoal === 'build' ? 'Muscle Gain' : 'Maintenance'}</div>
   ` : ''}
   <div class="profile-row"><strong>Calorie Target:</strong> ${config.profile.macroTargets?.calories || '—'} kcal</div>
@@ -496,7 +505,7 @@ export function generateHTMLReport(data: ReportData): string {
   <div class="stat"><div class="stat-value">${nutrition.avgProtein}g</div><div class="stat-label">Avg Protein</div></div>
   <div class="stat"><div class="stat-value">${nutrition.daysOnTarget}/${nutrition.totalDaysLogged}</div><div class="stat-label">Cal On Target</div></div>
   <div class="stat"><div class="stat-value">${nutrition.daysOnProteinTarget}/${nutrition.totalDaysLogged}</div><div class="stat-label">Prot On Target</div></div>
-  ${bodyweight.change != null ? `<div class="stat"><div class="stat-value ${bodyweight.change < 0 ? 'positive' : bodyweight.change > 0 ? 'negative' : ''}">${bodyweight.change > 0 ? '+' : ''}${bodyweight.change.toFixed(1)}</div><div class="stat-label">Weight Δ (lbs)</div></div>` : ''}
+  ${bodyweight.change != null ? `<div class="stat"><div class="stat-value ${bodyweight.change < 0 ? 'positive' : bodyweight.change > 0 ? 'negative' : ''}">${bodyweight.change > 0 ? '+' : ''}${bodyweight.change.toFixed(1)}</div><div class="stat-label">Weight Δ (${bodyweight.weightUnit})</div></div>` : ''}
   ${bodyweight.startBodyFat != null && bodyweight.endBodyFat != null ? `<div class="stat"><div class="stat-value">${bodyweight.startBodyFat}% → ${bodyweight.endBodyFat}%</div><div class="stat-label">Body Fat</div></div>` : ''}
   ${steps.avgDailySteps > 0 ? `<div class="stat"><div class="stat-value">${(steps.avgDailySteps / 1000).toFixed(1)}k</div><div class="stat-label">Avg Steps/Day</div></div>` : ''}
 </div>
@@ -537,7 +546,7 @@ ${bodyweight.entries.length > 0 ? `
 <div class="card">
   ${weightChartSVG}
   <table style="margin-top:${weightChartSVG ? '16px' : '0'};">
-    <thead><tr><th>Date</th><th>Weight (lbs)</th><th>Body Fat %</th></tr></thead>
+    <thead><tr><th>Date</th><th>Weight (${bodyweight.weightUnit})</th><th>Body Fat %</th></tr></thead>
     <tbody>${bodyweight.entries.map((e) => `<tr><td>${fmtShort(e.date)}</td><td>${e.weight}</td><td>${e.bodyFat != null ? e.bodyFat + '%' : '—'}</td></tr>`).join('')}</tbody>
   </table>
 </div>` : ''}
@@ -1182,7 +1191,7 @@ export async function generatePDFReport(data: ReportData): Promise<void> {
       doc.text(fmtDateFull(p.date), cellX, rowTop + drawH + 4);
       doc.setFont('helvetica', 'normal'); doc.setFontSize(6.5); doc.setTextColor('#888888');
       const poseStr = p.pose.replace('_', ' ').replace(/\b\w/g, (c) => c.toUpperCase());
-      doc.text(`${poseStr}${p.weight != null ? ` · ${p.weight} lbs` : ''}`, cellX, rowTop + drawH + 8);
+      doc.text(`${poseStr}${p.weight != null ? ` · ${p.weight} ${bodyweight.weightUnit}` : ''}`, cellX, rowTop + drawH + 8);
       rowMaxH = Math.max(rowMaxH, cellH);
       col++;
       if (col >= cols) { col = 0; rowTop += rowMaxH + 8; }

@@ -64,18 +64,6 @@ interface SetInput {
   isWarmup: boolean;
 }
 
-function SetRestTimer({ since }: { since: number }) {
-  const [elapsed, setElapsed] = useState(0);
-  useEffect(() => {
-    const update = () => setElapsed(Math.floor((Date.now() - since) / 1000));
-    update();
-    const id = setInterval(update, 1000);
-    return () => clearInterval(id);
-  }, [since]);
-  const m = Math.floor(elapsed / 60);
-  const s = elapsed % 60;
-  return <div className="text-[8px] text-text-muted tabular-nums">{m}:{s.toString().padStart(2, '0')}</div>;
-}
 
 function formatLastPerformance(sets: SetLog[], date: string): string {
   const completed = sets.filter((s) => s.completed);
@@ -310,9 +298,6 @@ function ExerciseCard({
           {Array.from({ length: setCount }, (_, setIndex) => {
             const isComplete = sessionSets[setIndex]?.completed === true;
             const prev = previousSets?.[setIndex];
-            const setTimestamp = sessionSets[setIndex]?.timestamp;
-            const nextIncomplete = !sessionSets[setIndex + 1]?.completed;
-            const showRestElapsed = isComplete && nextIncomplete && setTimestamp && setIndex < setCount - 1;
 
             return (
               <div
@@ -342,7 +327,6 @@ function ExerciseCard({
                   ) : (
                     <span className="text-[9px]">{setIndex + 1}</span>
                   )}
-                  {showRestElapsed && <SetRestTimer since={setTimestamp} />}
                 </button>
                 <input
                   type="number"
@@ -774,8 +758,10 @@ export function ActiveWorkout({
       // Hierarchical rest timer: exercise override → program default → profile default
       const exercise = [...day.exercises, ...addedExercises].find((e) => e.id === exerciseId);
       const duration = exercise?.restTimerOverride || programDefaultRestTimer || restTimerDuration;
-      setActiveRestDuration(duration);
-      setShowRestTimer(true);
+      if (duration > 0) {
+        setActiveRestDuration(duration);
+        setShowRestTimer(true);
+      }
     },
     [onLogSet, prs, day.exercises, session.date, addedExercises, programDefaultRestTimer, restTimerDuration]
   );
