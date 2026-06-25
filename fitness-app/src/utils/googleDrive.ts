@@ -449,7 +449,7 @@ async function compressPhotosForSync(
 
 export async function gatherCoachData(profileId?: string): Promise<object> {
   const db = await getDB();
-  const [allWorkouts, allFood, allMeasurements, allPhotos, allPrograms, allCheckIns, allSteps] = await Promise.all([
+  const [allWorkouts, allFood, allMeasurements, allPhotos, allPrograms, allCheckIns, allSteps, allWater] = await Promise.all([
     db.getAll('workoutSessions'),
     db.getAll('foodEntries'),
     db.getAll('measurements'),
@@ -457,6 +457,7 @@ export async function gatherCoachData(profileId?: string): Promise<object> {
     db.getAll('programs'),
     db.getAll('checkIns'),
     db.getAll('steps'),
+    db.getAll('water'),
   ]);
 
   const profiles = JSON.parse(localStorage.getItem('fitos-profiles') || '[]');
@@ -479,6 +480,7 @@ export async function gatherCoachData(profileId?: string): Promise<object> {
     measurements: filter(allMeasurements as { profileId: string }[]),
     checkIns: filter(allCheckIns as { profileId: string }[]),
     steps: filter(allSteps as { profileId: string }[]),
+    water: filter(allWater as { profileId: string }[]),
     progressPhotos: await compressPhotosForSync(
       (filter(allPhotos as { profileId: string }[]) as unknown) as { imageData: string; [key: string]: unknown }[]
     ),

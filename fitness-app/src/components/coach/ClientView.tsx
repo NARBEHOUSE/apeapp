@@ -33,6 +33,7 @@ interface ClientData {
   photoFolderId?: string;
   checkIns?: CheckInEntry[];
   steps?: { id: string; date: string; count: number; profileId: string }[];
+  water?: { id: string; date: string; amount: number; unit: 'oz' | 'ml'; profileId: string }[];
   programs: Program[];
   pendingChanges?: PendingCoachChanges | null;
   clientResponse?: PendingClientResponse | null;
@@ -227,6 +228,23 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
     return [...data.steps].filter((s) => s.date >= rangeStart).sort((a, b) => a.date.localeCompare(b.date)).map((s) => ({ date: s.date.slice(5), steps: s.count }));
   }, [data.steps, rangeStart]);
 
+  const waterTrendData = useMemo(() => {
+    if (!data.water || data.water.length === 0) return { entries: [], unit: 'oz' as 'oz' | 'ml' };
+    const inRange = data.water.filter((w) => w.date >= rangeStart);
+    // Detect predominant unit
+    const mlCount = inRange.filter((w) => w.unit === 'ml').length;
+    const displayUnit: 'oz' | 'ml' = mlCount > inRange.length / 2 ? 'ml' : 'oz';
+    // Sum per day, normalizing to display unit
+    const byDate: Record<string, number> = {};
+    for (const w of inRange) {
+      let amt = w.amount;
+      if (w.unit !== displayUnit) amt = displayUnit === 'oz' ? w.amount / 29.5735 : w.amount * 29.5735;
+      byDate[w.date] = (byDate[w.date] || 0) + amt;
+    }
+    const entries = Object.entries(byDate).sort(([a], [b]) => a.localeCompare(b)).map(([date, amount]) => ({ date: date.slice(5), amount: Math.round(amount) }));
+    return { entries, unit: displayUnit };
+  }, [data.water, rangeStart]);
+
   const bodyMeasurementsData = useMemo(() => {
     const withM = [...data.measurements].filter((m) => m.measurements && Object.keys(m.measurements).length > 0 && m.date >= rangeStart).sort((a, b) => a.date.localeCompare(b.date));
     if (withM.length < 2) return [];
@@ -264,11 +282,22 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
     const avgProtein = loggedDays > 0 ? Math.round(Object.values(byDate).reduce((s, d) => s + d.protein, 0) / loggedDays) : null;
     const stepsInRange = (data.steps || []).filter((s) => s.date >= rangeStart);
     const avgSteps = stepsInRange.length > 0 ? Math.round(stepsInRange.reduce((s, x) => s + x.count, 0) / stepsInRange.length) : null;
+    const waterInRange = (data.water || []).filter((w) => w.date >= rangeStart);
+    const mlCount = waterInRange.filter((w) => w.unit === 'ml').length;
+    const waterUnit: 'oz' | 'ml' = mlCount > waterInRange.length / 2 ? 'ml' : 'oz';
+    const waterByDay: Record<string, number> = {};
+    for (const w of waterInRange) {
+      let amt = w.amount;
+      if (w.unit !== waterUnit) amt = waterUnit === 'oz' ? w.amount / 29.5735 : w.amount * 29.5735;
+      waterByDay[w.date] = (waterByDay[w.date] || 0) + amt;
+    }
+    const waterDays = Object.values(waterByDay);
+    const avgWater = waterDays.length > 0 ? Math.round(waterDays.reduce((s, x) => s + x, 0) / waterDays.length) : null;
     const calTarget = data.profile.macroTargets?.calories;
     const proteinTarget = data.profile.macroTargets?.protein;
     const calHit = calTarget && loggedDays > 0 ? Object.values(byDate).filter((d) => d.cal >= calTarget * 0.85 && d.cal <= calTarget * 1.15).length : null;
     const proteinHit = proteinTarget && loggedDays > 0 ? Object.values(byDate).filter((d) => d.protein >= proteinTarget * 0.9).length : null;
-    return { workoutsInRange, avgWeight, weightDelta, loggedDays, avgCal, avgProtein, avgSteps, calHit, proteinHit, calTarget, proteinTarget, weightCount: weightInRange.length };
+    return { workoutsInRange, avgWeight, weightDelta, loggedDays, avgCal, avgProtein, avgSteps, avgWater, waterUnit, calHit, proteinHit, calTarget, proteinTarget, weightCount: weightInRange.length };
   }, [data, rangeStart]);
 
   // Build and push all changes at once
@@ -556,6 +585,14 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
                   <div className="text-[9px] text-text-muted uppercase tracking-wider">Weigh-ins</div>
                   <div className="text-2xl font-bold" style={{ color: '#5b6ef5' }}>{rangeStats.weightCount}</div>
                   <div className="text-[10px] text-text-muted">in {chartRange} days</div>
+                </div>
+              )}
+              {/* Water */}
+              {rangeStats.avgWater != null && (
+                <div className="card p-3 space-y-0.5">
+                  <div className="text-[9px] text-text-muted uppercase tracking-wider">Avg Water</div>
+                  <div className="text-2xl font-bold" style={{ color: '#38bdf8' }}>{rangeStats.avgWater}</div>
+                  <div className="text-[10px] text-text-muted">{rangeStats.waterUnit}/day</div>
                 </div>
               )}
             </div>
@@ -928,6 +965,20 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
                     yAxisWidth={36}
                     formatY={(v) => v >= 1000 ? `${Math.round(v / 1000)}k` : String(v)}
                     formatValue={(v) => `${v.toLocaleString()} steps`}
+                  />
+                </div>
+              )}
+              {waterTrendData.entries.length >= 5 && (
+                <div className="card p-4 mt-3">
+                  <div className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3">Water ({waterTrendData.unit}/day)</div>
+                  <SVGBarChart
+                    key={`water-${chartRange}`}
+                    data={waterTrendData.entries.map((d) => ({ label: d.date, value: d.amount }))}
+                    color="#38bdf8"
+                    height={144}
+                    yAxisWidth={36}
+                    formatY={(v) => String(v)}
+                    formatValue={(v) => `${v} ${waterTrendData.unit}`}
                   />
                 </div>
               )}
