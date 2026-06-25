@@ -18,6 +18,7 @@ import {
   restoreAllData,
   deleteAllAppData,
 } from '../utils/googleDrive';
+import { loadApiKey, clearKeyFromMemory } from '../utils/apiKeyManager';
 
 type SyncStatus = 'idle' | 'syncing' | 'synced' | 'error';
 
@@ -25,6 +26,7 @@ interface GoogleAuthContextType {
   user: GoogleUser | null;
   isSignedIn: boolean;
   isLoading: boolean;
+  keyLoaded: boolean;
   signIn: () => Promise<boolean>;
   signOut: () => void;
   deleteCloudDataAndSignOut: () => Promise<void>;
@@ -37,6 +39,7 @@ const GoogleAuthContext = createContext<GoogleAuthContextType>({
   user: null,
   isSignedIn: false,
   isLoading: false,
+  keyLoaded: false,
   signIn: async () => false,
   signOut: () => {},
   deleteCloudDataAndSignOut: async () => {},
@@ -52,12 +55,27 @@ export function useGoogleAuth() {
 export function GoogleAuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<GoogleUser | null>(() => getStoredUser());
   const [isLoading, setIsLoading] = useState(false);
+  const [keyLoaded, setKeyLoaded] = useState(false);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('idle');
   const [lastSynced, setLastSynced] = useState<string | null>(
     () => localStorage.getItem('fitos-last-synced'),
   );
   const syncFileIdRef = useRef<string | null>(null);
   const syncTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Load the user's API key from the Worker whenever the signed-in user changes.
+  // On sign-out (user === null) the in-memory key is wiped immediately.
+  useEffect(() => {
+    if (!user) {
+      clearKeyFromMemory();
+      setKeyLoaded(false);
+      return;
+    }
+    setKeyLoaded(false);
+    loadApiKey(user.email)
+      .then(() => setKeyLoaded(true))
+      .catch(() => setKeyLoaded(true));
+  }, [user?.email]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const markSynced = useCallback(() => {
     const now = new Date().toISOString();
@@ -224,6 +242,7 @@ export function GoogleAuthProvider({ children }: { children: ReactNode }) {
         user,
         isSignedIn: !!user,
         isLoading,
+        keyLoaded,
         signIn,
         signOut,
         deleteCloudDataAndSignOut,

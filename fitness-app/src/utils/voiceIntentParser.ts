@@ -90,7 +90,8 @@ function buildFoodPrompt(): string {
 }
 
 async function callClaude(systemPrompt: string, userMessage: string): Promise<string> {
-  const apiKey = localStorage.getItem('fitos-claude-key');
+  const { getApiKey } = await import('./apiKeyManager');
+  const apiKey = getApiKey();
   if (!apiKey) throw new Error('Claude API key not set');
 
   const res = await fetch('https://api.anthropic.com/v1/messages', {

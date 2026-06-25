@@ -10,6 +10,7 @@ import {
   type CoachResponse,
   type CoachSuggestion,
 } from '../../utils/aiCoach';
+import { getApiKey } from '../../utils/apiKeyManager';
 import { toast } from '../shared/Toast';
 
 interface Props {
@@ -52,7 +53,7 @@ export function AICoachCard({ profile, sessions, allFoodEntries, measurements, c
   const [applied, setApplied] = useState<Set<string>>(new Set());
   const [showDisclaimer, setShowDisclaimer] = useState(false);
 
-  const apiKey = localStorage.getItem('fitos-claude-key') || '';
+  const apiKey = getApiKey();
   const disclaimerAccepted = localStorage.getItem(DISCLAIMER_KEY) === 'true';
 
   const dismissSuggestion = useCallback((id: string) => {

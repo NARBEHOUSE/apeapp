@@ -11,6 +11,7 @@ import { getAllPrograms, initializePrograms } from '../db/programs';
 import { getDB } from '../db';
 import { calculateAutoAdjustment, type AutoAdjustResult } from '../utils/tdee';
 import { getDashboardConfig, saveDashboardConfig } from '../utils/dashboardConfig';
+import { getApiKey } from '../utils/apiKeyManager';
 import { daysSinceBackup } from '../utils/backupReminder';
 import { useGoogleAuth } from '../contexts/GoogleAuthContext';
 import { useCoach } from '../hooks/useCoach';
@@ -597,7 +598,7 @@ export default function Dashboard({ profile, onUpdateProfile }: DashboardProps) 
               <MacroSummary totals={macroTotals} targets={profile.macroTargets} />
             </div>
           );
-        } else if (id === 'aiCoach' && dashConfig.aiCoach && localStorage.getItem('fitos-claude-key')) {
+        } else if (id === 'aiCoach' && dashConfig.aiCoach && getApiKey()) {
           content = (
             <AICoachCard
               profile={profile}

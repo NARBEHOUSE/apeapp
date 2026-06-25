@@ -36,6 +36,7 @@ import { VoiceMicButton } from '../components/shared/VoiceMicButton';
 import { VoiceConfirmationCard } from '../components/shared/VoiceConfirmationCard';
 import { useVoiceMode } from '../hooks/useVoiceMode';
 import { getDashboardConfig as getVoiceConfig } from '../utils/dashboardConfig';
+import { getApiKey } from '../utils/apiKeyManager';
 import { calculateMacros } from '../utils/tdee';
 
 interface NutritionPageProps {
@@ -261,7 +262,7 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
   const [showFoodEditWarning, setShowFoodEditWarning] = useState(false);
 
   // Voice mode
-  const voiceEnabled = getVoiceConfig().aiVoice && !!localStorage.getItem('fitos-claude-key');
+  const voiceEnabled = getVoiceConfig().aiVoice && !!getApiKey();
   const voiceMode = useVoiceMode({
     mode: 'food',
     enabled: voiceEnabled,

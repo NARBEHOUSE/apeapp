@@ -23,6 +23,7 @@ import { getAllPRs } from '../../db/workouts';
 import { saveWorkoutInputs, loadWorkoutInputs } from '../../hooks/useWorkout';
 import { useVoiceMode } from '../../hooks/useVoiceMode';
 import { getDashboardConfig } from '../../utils/dashboardConfig';
+import { getApiKey } from '../../utils/apiKeyManager';
 import { toDisplayWeight, fromDisplayWeight, type WeightUnit } from '../../utils/units';
 import {
   calculateWeeklyTargets,
@@ -631,7 +632,7 @@ export function ActiveWorkout({
   ];
 
   // Voice mode
-  const voiceEnabled = getDashboardConfig().aiVoice && !!localStorage.getItem('fitos-claude-key');
+  const voiceEnabled = getDashboardConfig().aiVoice && !!getApiKey();
   const currentExercise = useMemo(() => {
     return activeExercises.find((ex) => {
       const completed = (session.sets[ex.id] || []).filter((s) => s.completed).length;

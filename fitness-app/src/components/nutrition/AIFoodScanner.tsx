@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback } from 'react';
 import { Camera, Loader2, Check, AlertTriangle, Edit3, StickyNote } from 'lucide-react';
 import { analyzeFood } from '../../utils/claudeVision';
+import { getApiKey } from '../../utils/apiKeyManager';
 import type { FoodEntry } from '../../types';
 
 type MealType = FoodEntry['mealType'];
@@ -58,8 +59,7 @@ function compressImage(file: File, maxWidth: number): Promise<string> {
 }
 
 export function AIFoodScanner({ onAdd, onClose }: AIFoodScannerProps) {
-  const apiKey = localStorage.getItem('fitos-claude-key') || '';
-  const isEnabled = localStorage.getItem('fitos-claude-enabled') === 'true';
+  const apiKey = getApiKey();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<string | null>(null);
@@ -87,15 +87,13 @@ export function AIFoodScanner({ onAdd, onClose }: AIFoodScannerProps) {
     }
   };
 
-  if (!apiKey || !isEnabled) {
+  if (!apiKey) {
     return (
       <div className="text-center py-8 space-y-3">
         <Camera size={40} className="mx-auto text-text-muted" />
         <h4 className="text-lg font-bold">AI Food Scanner</h4>
         <p className="text-text-secondary text-sm max-w-xs mx-auto">
-          {!apiKey
-            ? 'Add your Claude API key in Settings to enable AI-powered food scanning.'
-            : 'Enable Claude AI scanning in Settings to use this feature.'}
+          Add your AI API key in Settings to enable AI-powered food scanning.
         </p>
         <button type="button" onClick={onClose} className="btn-secondary mt-4">
           Close

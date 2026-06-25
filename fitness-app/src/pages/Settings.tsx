@@ -41,7 +41,7 @@ import { ClientView } from '../components/coach/ClientView';
 import { CoachHistory as CoachHistoryComponent } from '../components/coach/CoachHistory';
 // USDA now uses Cloudflare Worker proxy — no user key needed
 import { testClaudeKey } from '../utils/claudeVision';
-import { saveApiKey, clearApiKey, getApiKey, detectProvider } from '../utils/apiKeyManager';
+import { saveApiKey, deleteApiKey, getApiKey, detectProvider } from '../utils/apiKeyManager';
 import {
   exportAllData, downloadJSON, importData, clearAllData,
   exportProgram, importProgram, exportAllPrograms, importProgramsBundle,
@@ -89,7 +89,7 @@ type Section = 'google' | 'coach' | 'theme' | 'api' | 'dashboard' | 'reports' | 
 const REST_OPTIONS = [60, 90, 120];
 
 export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, onLogout }: Props) {
-  const { user: googleUser, isSignedIn: googleSignedIn, signIn: googleSignIn, signOut: googleSignOut, deleteCloudDataAndSignOut, syncStatus, lastSynced, syncNow, isLoading: googleLoading } = useGoogleAuth();
+  const { user: googleUser, isSignedIn: googleSignedIn, signIn: googleSignIn, signOut: googleSignOut, deleteCloudDataAndSignOut, syncStatus, lastSynced, syncNow, isLoading: googleLoading, keyLoaded } = useGoogleAuth();
   const {
     myCoachRels, myClients, loading: coachLoading, pendingChanges,
     shareWithCoach, revokeCoachAccess, syncCoachFiles,
@@ -128,6 +128,11 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
   const [usdaKey, setUsdaKey] = useState(() => localStorage.getItem('fitos-usda-key') || '');
   const [claudeKey, setClaudeKey] = useState(() => getApiKey());
   const claudeEnabled = !!claudeKey.trim();
+
+  // Once the Worker has responded on page load, populate the key field if it was empty.
+  useEffect(() => {
+    if (keyLoaded) setClaudeKey((prev) => prev || getApiKey());
+  }, [keyLoaded]);
   const [showUsdaKey, setShowUsdaKey] = useState(false);
   const [showClaudeKey, setShowClaudeKey] = useState(false);
   const [usdaStatus, setUsdaStatus] = useState<'idle' | 'testing' | 'valid' | 'invalid'>('idle');
@@ -508,27 +513,29 @@ export function Settings({ profile, onUpdateProfile, profiles, onDeleteProfile, 
   };
 
   // API Key handlers
-  const handleSaveClaudeKey = () => {
-    if (claudeKey.trim()) {
-      saveApiKey(claudeKey.trim());
-    } else {
-      clearApiKey();
+  const handleSaveClaudeKey = async () => {
+    if (!googleUser?.email) return;
+    try {
+      if (claudeKey.trim()) {
+        await saveApiKey(claudeKey.trim(), googleUser.email);
+      } else {
+        await deleteApiKey(googleUser.email);
+      }
+    } catch (e) {
+      console.error('Failed to save API key:', e);
+      setClaudeStatus('invalid');
+      setTimeout(() => setClaudeStatus('idle'), 3000);
     }
   };
 
   const handleTestClaude = async () => {
-    if (!claudeKey.trim()) return;
+    if (!claudeKey.trim() || !googleUser?.email) return;
     setClaudeStatus('testing');
-    handleSaveClaudeKey();
+    await handleSaveClaudeKey();
     const valid = await testClaudeKey(claudeKey.trim());
     setClaudeStatus(valid ? 'valid' : 'invalid');
     setTimeout(() => setClaudeStatus('idle'), 3000);
   };
-
-  // Claude is enabled when a key is present — update localStorage to match
-  useEffect(() => {
-    localStorage.setItem('fitos-claude-enabled', String(claudeEnabled));
-  }, [claudeEnabled]);
 
   // Recalculate macros from body stats
   const handleRecalculate = () => {
