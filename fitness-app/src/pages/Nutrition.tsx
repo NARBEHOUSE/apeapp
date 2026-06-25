@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import {
   ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Plus, Search, Camera,
-  Loader2, Star, Trash2, BookmarkPlus, Bookmark, GripVertical, Clock, Pencil, AlertCircle, ScanBarcode,
+  Loader2, Star, Trash2, BookmarkPlus, Bookmark, GripVertical, Clock, Pencil, AlertCircle,
 } from 'lucide-react';
 import {
   DndContext, PointerSensor, useSensor, useSensors, useDroppable,
@@ -28,6 +28,7 @@ import { ManualEntry } from '../components/nutrition/ManualEntry';
 import { FoodSearch } from '../components/nutrition/FoodSearch';
 import { MealBuilder } from '../components/nutrition/MealBuilder';
 import { AIFoodScanner } from '../components/nutrition/AIFoodScanner';
+import { QuickAddSheet } from '../components/nutrition/QuickAddSheet';
 import { RecipeEditor } from '../components/nutrition/RecipeEditor';
 import { NutritionCharts } from '../components/nutrition/NutritionCharts';
 import { ConfirmDialog } from '../components/shared/ConfirmDialog';
@@ -44,7 +45,7 @@ interface NutritionPageProps {
   onUpdateProfile?: (id: string, updates: Partial<Profile>) => void;
 }
 
-type ModalType = 'manual' | 'search' | 'ai' | 'barcode' | 'save-meal' | 'save-meal-manual' | 'meal-builder' | 'edit-time' | 'edit-macros' | 'edit-entry' | 'recipe-editor' | null;
+type ModalType = 'add' | 'save-meal' | 'save-meal-manual' | 'meal-builder' | 'edit-time' | 'edit-macros' | 'edit-entry' | 'recipe-editor' | null;
 type Tab = 'planner' | 'my-foods' | 'recipes' | 'charts';
 
 function MiniMacroBar({ label, current, target, color }: {
@@ -95,6 +96,11 @@ function generateTimeOptions(): { value: string; label: string }[] {
 }
 
 const TIME_OPTIONS = generateTimeOptions();
+
+function currentTimeExact(): string {
+  const now = new Date();
+  return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+}
 
 // Draggable entry
 function DraggableEntry({ entry, onDelete, onToggleFavorite, onEditTime, onEdit }: {
@@ -196,8 +202,15 @@ function HourSlot({ hour, children, onAddAtHour, isOver, summary }: {
                 <span className="text-[10px] text-text-muted">C{summary.carbs}</span>
                 <span className="text-[10px] text-text-muted">F{summary.fat}</span>
                 {summary.count > 1 && (
-                  <span className="text-[9px] text-text-muted/50 ml-auto">{summary.count} items</span>
+                  <span className="text-[9px] text-text-muted/50">{summary.count} items</span>
                 )}
+                <button
+                  onClick={() => onAddAtHour(hour)}
+                  className="ml-auto p-0.5 rounded hover:bg-surface-raised transition-colors"
+                  title="Add to this time"
+                >
+                  <Plus size={12} className="text-text-muted/40 hover:text-accent-orange" />
+                </button>
               </div>
             )}
             {children}
@@ -334,9 +347,6 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
   const [saveMealServing, setSaveMealServing] = useState('1');
   const [saveMealUnit, setSaveMealUnit] = useState('serving');
 
-  const [prevMealGroups, setPrevMealGroups] = useState<{ label: string; date: string; time: string; items: FoodEntry[] }[]>([]);
-  const [copyingMeal, setCopyingMeal] = useState(false);
-  const [showPrevMeals, setShowPrevMeals] = useState(false);
   const [editingMeal, setEditingMeal] = useState<SavedMeal | null>(null);
 
   const totals = getTodayTotals();
@@ -458,7 +468,7 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
 
   function handleAddAtHour(hour: number) {
     setAddAtTime(`${String(hour).padStart(2, '0')}:00`);
-    setModal('manual');
+    setModal('add');
   }
 
   function buildLoggedAt(time: string): string {
@@ -514,32 +524,9 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
     toast(`Added ${food.name}`, 'success');
   }
 
-  async function openMealBuilder() {
+  function openMealBuilder() {
     setAddAtTime(null);
-    setModal('search');
-    // Load last 3 days of entries grouped by hour-slot for the "copy a meal" feature
-    const groups: { label: string; date: string; time: string; items: FoodEntry[] }[] = [];
-    const dayLabels = ['Yesterday', '2 days ago', '3 days ago'];
-    for (let d = 1; d <= 3; d++) {
-      const date = new Date();
-      date.setDate(date.getDate() - d);
-      const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-      const dayEntries = await getFoodEntriesByDate(profile.id, dateStr);
-      // Group by hour
-      const byHour: Record<string, FoodEntry[]> = {};
-      for (const e of dayEntries) {
-        const hour = e.loggedAt ? new Date(e.loggedAt).getHours() : 8;
-        const slot = `${String(hour).padStart(2, '0')}:00`;
-        (byHour[slot] = byHour[slot] || []).push(e);
-      }
-      for (const [time, items] of Object.entries(byHour).sort()) {
-        if (items.length === 0) continue;
-        const h = parseInt(time);
-        const label = `${dayLabels[d - 1]} ${h < 12 ? 'AM' : 'PM'} (${h === 0 ? '12' : h > 12 ? h - 12 : h}:00${h < 12 ? 'am' : 'pm'})`;
-        groups.push({ label, date: dateStr, time, items });
-      }
-    }
-    setPrevMealGroups(groups);
+    setModal('add');
   }
 
   function handleSaveMeal() {
@@ -674,20 +661,14 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
       {/* ===== TIMELINE ===== */}
       {tab === 'planner' && (
         <>
-          <div className="flex gap-2">
-            <button type="button" onClick={() => { setAddAtTime(null); setModal('manual'); }} className="flex-1 bg-surface rounded-xl py-2.5 flex items-center justify-center gap-1.5 active:scale-[0.98] transition-transform">
-              <Plus size={14} className="text-accent-orange" /><span className="text-xs font-medium">Add</span>
-            </button>
-            <button type="button" onClick={openMealBuilder} className="flex-1 bg-surface rounded-xl py-2.5 flex items-center justify-center gap-1.5 active:scale-[0.98] transition-transform">
-              <Search size={14} className="text-accent-blue" /><span className="text-xs font-medium">Meal</span>
-            </button>
-            <button type="button" onClick={() => { setAddAtTime(null); setModal('barcode'); }} className="flex-1 bg-surface rounded-xl py-2.5 flex items-center justify-center gap-1.5 active:scale-[0.98] transition-transform">
-              <ScanBarcode size={14} className="text-accent-purple" /><span className="text-xs font-medium">Scan</span>
-            </button>
-            <button type="button" onClick={() => setModal('ai')} className="flex-1 bg-surface rounded-xl py-2.5 flex items-center justify-center gap-1.5 active:scale-[0.98] transition-transform">
-              <Camera size={14} className="text-nutrition" /><span className="text-xs font-medium">AI Scan</span>
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => { setAddAtTime(null); setModal('add'); }}
+            className="w-full bg-surface rounded-xl py-2.5 flex items-center justify-center gap-1.5 active:scale-[0.98] transition-transform"
+          >
+            <Plus size={14} className="text-accent-orange" />
+            <span className="text-xs font-medium">Add</span>
+          </button>
 
           {loading ? (
             <div className="flex items-center justify-center py-10"><Loader2 size={24} className="animate-spin text-text-muted" /></div>
@@ -1278,104 +1259,15 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
       {tab === 'charts' && <NutritionCharts profileId={profile.id} targets={targets} fiberTarget={profile.fiberTarget ?? 30} />}
 
       {/* Modals */}
-      <Modal open={modal === 'manual'} onClose={() => { setModal(null); setAddAtTime(null); }} title="Add Food">
-        <div className="mb-3">
-          <label className="label mb-1 block">Time</label>
-          <select
-            className="input-field text-sm"
-            value={addAtTime || currentTimeRounded()}
-            onChange={(e) => setAddAtTime(e.target.value)}
-          >
-            {TIME_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
-            ))}
-          </select>
-        </div>
-        <ManualEntry onAdd={addEntryWithTime} onClose={() => { setModal(null); setAddAtTime(null); }} profileId={profile.id} dailyTotals={totals} macroTargets={targets} />
-      </Modal>
-
-      <Modal open={modal === 'search'} onClose={() => { setModal(null); setAddAtTime(null); }} title="Build a Meal">
-        <div className="mb-3">
-          <label className="label mb-1 block">Meal Time</label>
-          <select
-            className="input-field text-sm"
-            value={addAtTime || currentTimeRounded()}
-            onChange={(e) => setAddAtTime(e.target.value)}
-          >
-            {TIME_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
-            ))}
-          </select>
-        </div>
-
-        {/* Copy a previous meal — collapsible */}
-        {prevMealGroups.length > 0 && (
-          <div className="mb-4">
-            <button
-              type="button"
-              onClick={() => setShowPrevMeals((v) => !v)}
-              className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-surface text-left"
-            >
-              <span className="text-xs font-medium text-text-secondary">Copy a previous meal</span>
-              <span className="text-[10px] text-text-muted">{showPrevMeals ? '▲ hide' : `▼ ${prevMealGroups.length} recent`}</span>
-            </button>
-            {showPrevMeals && (
-              <div className="space-y-1.5 mt-1.5">
-                {prevMealGroups.map((group, i) => {
-                  const groupCal = group.items.reduce((s, e) => s + e.calories, 0);
-                  const groupP = group.items.reduce((s, e) => s + e.protein, 0);
-                  return (
-                    <button
-                      key={i}
-                      type="button"
-                      disabled={copyingMeal}
-                      onClick={async () => {
-                        setCopyingMeal(true);
-                        for (const item of group.items) {
-                          await addEntryWithTime({
-                            date: selectedDate,
-                            name: item.name, brand: item.brand,
-                            servingSize: item.servingSize, servingUnit: item.servingUnit,
-                            servingsConsumed: item.servingsConsumed,
-                            calories: item.calories, protein: item.protein,
-                            carbs: item.carbs, fat: item.fat, fiber: item.fiber,
-                            source: item.source, fdcId: item.fdcId, mealType: item.mealType,
-                          });
-                        }
-                        setCopyingMeal(false);
-                        setModal(null);
-                        setAddAtTime(null);
-                        toast(`Added ${group.items.length} items from ${group.label}`, 'success');
-                      }}
-                      className="w-full bg-surface rounded-xl px-3 py-2.5 flex items-center justify-between text-left active:scale-[0.98] transition-transform disabled:opacity-50"
-                    >
-                      <div>
-                        <div className="text-xs font-medium">{group.label}</div>
-                        <div className="text-[10px] text-text-muted mt-0.5">
-                          {group.items.length} item{group.items.length > 1 ? 's' : ''} · {group.items.map((e) => e.name).join(', ').slice(0, 50)}{group.items.map((e) => e.name).join(', ').length > 50 ? '…' : ''}
-                        </div>
-                      </div>
-                      <div className="text-right shrink-0 ml-3">
-                        <div className="text-xs font-semibold text-accent-orange">{Math.round(groupCal)} cal</div>
-                        <div className="text-[10px] text-accent-blue">P{Math.round(groupP)}g</div>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        )}
-
-        <FoodSearch onAdd={addEntryWithTime} onClose={() => { setModal(null); setAddAtTime(null); }} profileId={profile.id} multiMode={true} />
-      </Modal>
-
-      <Modal open={modal === 'ai'} onClose={() => setModal(null)} title="AI Food Scanner">
-        <AIFoodScanner onAdd={addEntry} onClose={() => setModal(null)} />
-      </Modal>
-
-      <Modal open={modal === 'barcode'} onClose={() => { setModal(null); setAddAtTime(null); }} title="Scan Barcode">
-        <FoodSearch onAdd={addEntryWithTime} onClose={() => { setModal(null); setAddAtTime(null); }} profileId={profile.id} multiMode={true} startWithScan={true} />
+      <Modal open={modal === 'add'} onClose={() => { setModal(null); setAddAtTime(null); }} title="Add">
+        <QuickAddSheet
+          profileId={profile.id}
+          initialTime={addAtTime ?? currentTimeExact()}
+          selectedDate={selectedDate}
+          addEntry={addEntry}
+          onClose={() => { setModal(null); setAddAtTime(null); }}
+          savedMeals={savedMeals}
+        />
       </Modal>
 
 
@@ -1569,15 +1461,12 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
             </button>
           </div>
           {mealBuilderAddToToday && (
-            <select
+            <input
+              type="time"
               className="input-field text-sm"
-              value={addAtTime || currentTimeRounded()}
+              value={addAtTime || currentTimeExact()}
               onChange={(e) => setAddAtTime(e.target.value)}
-            >
-              {TIME_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </select>
+            />
           )}
         </div>
         <MealBuilder
