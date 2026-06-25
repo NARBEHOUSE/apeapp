@@ -43,6 +43,13 @@ const BODY_LABELS: Record<string, string> = {
   shoulders: 'Shoulders',
 };
 
+function convertWeightDisplay(weight: number, storedUnit: string | undefined, displayUnit: 'lbs' | 'kg'): number {
+  const from = storedUnit ?? 'lbs';
+  if (from === displayUnit) return weight;
+  if (from === 'kg' && displayUnit === 'lbs') return Math.round(weight * 2.20462 * 10) / 10;
+  return Math.round(weight * 0.453592 * 100) / 100;
+}
+
 export function Progress({ profile, onUpdateProfile }: Props) {
   const location = useLocation();
   const [tab, setTab] = useState<Tab>(() => {
@@ -242,7 +249,7 @@ export function Progress({ profile, onUpdateProfile }: Props) {
             measurementUnit={profile.measurementUnit}
           />
 
-          <ProgressCharts measurements={measurements} />
+          <ProgressCharts measurements={measurements} weightUnit={profile.units === 'imperial' ? 'lbs' : 'kg'} />
 
           {/* Measurement History */}
           {measurements.length > 0 && (
@@ -257,11 +264,14 @@ export function Progress({ profile, onUpdateProfile }: Props) {
                       <span className="text-sm font-semibold">
                         {formatDate(m.date)}
                       </span>
-                      {m.weight != null && (
-                        <span className="text-xs font-semibold text-accent-orange">
-                          {m.weight} {m.weightUnit}
-                        </span>
-                      )}
+                      {m.weight != null && (() => {
+                        const displayUnit = profile.units === 'imperial' ? 'lbs' : 'kg';
+                        return (
+                          <span className="text-xs font-semibold text-accent-orange">
+                            {convertWeightDisplay(m.weight!, m.weightUnit, displayUnit)} {displayUnit}
+                          </span>
+                        );
+                      })()}
                     </div>
                     {m.measurements && (
                       <div className="flex flex-wrap gap-x-3 gap-y-0.5">

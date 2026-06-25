@@ -14,6 +14,7 @@ import { formatShortDate, daysAgo } from '../../utils/dateHelpers';
 
 interface Props {
   measurements: Measurement[];
+  weightUnit: 'lbs' | 'kg';
 }
 
 type Range = '30d' | '90d' | 'all';
@@ -56,7 +57,14 @@ function CustomTooltip({ active, payload, label }: { active?: boolean; payload?:
   );
 }
 
-export function ProgressCharts({ measurements }: Props) {
+function toDisplayW(weight: number, storedUnit: string | undefined, displayUnit: 'lbs' | 'kg'): number {
+  const from = storedUnit ?? 'lbs';
+  if (from === displayUnit) return weight;
+  if (from === 'kg' && displayUnit === 'lbs') return Math.round(weight * 2.20462 * 10) / 10;
+  return Math.round(weight * 0.453592 * 100) / 100;
+}
+
+export function ProgressCharts({ measurements, weightUnit }: Props) {
   const [range, setRange] = useState<Range>('30d');
 
   const sorted = useMemo(
@@ -71,9 +79,9 @@ export function ProgressCharts({ measurements }: Props) {
       .filter((m) => m.weight != null && (cutoff === '' || m.date >= cutoff))
       .map((m) => ({
         date: formatShortDate(m.date),
-        weight: m.weight,
+        weight: toDisplayW(m.weight!, m.weightUnit, weightUnit),
       }));
-  }, [sorted, cutoff]);
+  }, [sorted, cutoff, weightUnit]);
 
   const bodyKeys = useMemo(() => {
     const keys = new Set<string>();
@@ -133,7 +141,7 @@ export function ProgressCharts({ measurements }: Props) {
       {weightData.length > 0 && (
         <div className="card">
           <h4 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-4">
-            Weight Over Time
+            Weight Over Time ({weightUnit})
           </h4>
           <div className="h-52">
             <ResponsiveContainer width="100%" height="100%">
