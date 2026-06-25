@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Search, UtensilsCrossed, Camera, ChevronDown, ChevronUp } from 'lucide-react';
+import { Search, UtensilsCrossed, Camera, ChevronDown, ChevronUp, PenLine } from 'lucide-react';
 import { FoodSearch } from './FoodSearch';
 import { AIFoodScanner } from './AIFoodScanner';
+import { ManualEntry } from './ManualEntry';
 import { getApiKey } from '../../utils/apiKeyManager';
 import { getFoodEntriesByDate } from '../../db/nutrition';
 import { getFoodEmoji } from '../../utils/foodEmoji';
@@ -9,13 +10,20 @@ import type { FoodEntry } from '../../types';
 import type { SavedMeal } from '../../db/savedMeals';
 import { toast } from '../shared/Toast';
 
-type AddTab = 'search' | 'meals' | 'ai';
+type AddTab = 'search' | 'meals' | 'manual' | 'ai';
 
 interface PrevMealGroup {
   label: string;
   date: string;
   time: string;
   items: FoodEntry[];
+}
+
+interface DailyTotals {
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
 }
 
 interface Props {
@@ -25,6 +33,8 @@ interface Props {
   addEntry: (entry: Omit<FoodEntry, 'id' | 'profileId'>) => void;
   onClose: () => void;
   savedMeals: SavedMeal[];
+  dailyTotals?: DailyTotals;
+  macroTargets?: DailyTotals;
 }
 
 function buildLoggedAt(timeHHMM: string, date: string): string {
@@ -34,7 +44,7 @@ function buildLoggedAt(timeHHMM: string, date: string): string {
   return d.toISOString();
 }
 
-export function QuickAddSheet({ profileId, initialTime, selectedDate, addEntry, onClose, savedMeals }: Props) {
+export function QuickAddSheet({ profileId, initialTime, selectedDate, addEntry, onClose, savedMeals, dailyTotals, macroTargets }: Props) {
   const [time, setTime] = useState(initialTime);
   const [activeTab, setActiveTab] = useState<AddTab>('search');
   const [prevMealGroups, setPrevMealGroups] = useState<PrevMealGroup[]>([]);
@@ -99,6 +109,7 @@ export function QuickAddSheet({ profileId, initialTime, selectedDate, addEntry, 
   const tabs: { key: AddTab; label: string; icon: typeof Search }[] = [
     { key: 'search', label: 'Search', icon: Search },
     { key: 'meals', label: 'Meals', icon: UtensilsCrossed },
+    { key: 'manual', label: 'Manual', icon: PenLine },
     ...(hasAI ? [{ key: 'ai' as AddTab, label: 'AI Scan', icon: Camera }] : []),
   ];
 
@@ -237,6 +248,17 @@ export function QuickAddSheet({ profileId, initialTime, selectedDate, addEntry, 
             </p>
           )}
         </div>
+      )}
+
+      {/* Manual tab */}
+      {activeTab === 'manual' && (
+        <ManualEntry
+          onAdd={addWithTime}
+          onClose={onClose}
+          profileId={profileId}
+          dailyTotals={dailyTotals}
+          macroTargets={macroTargets}
+        />
       )}
 
       {/* AI tab */}

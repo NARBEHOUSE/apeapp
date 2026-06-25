@@ -1267,6 +1267,8 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
           addEntry={addEntry}
           onClose={() => { setModal(null); setAddAtTime(null); }}
           savedMeals={savedMeals}
+          dailyTotals={totals}
+          macroTargets={targets}
         />
       </Modal>
 
