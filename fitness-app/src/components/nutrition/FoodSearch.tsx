@@ -7,6 +7,9 @@ import { searchSavedFoods, saveFoodToHistory, lookupByBarcode as lookupLocalBarc
 import { getFoodEmoji } from '../../utils/foodEmoji';
 import type { FoodEntry } from '../../types';
 
+// Session-level USDA result cache — cleared on page reload, persists across modal opens
+const usdaCache = new Map<string, Awaited<ReturnType<typeof searchFoodsWithFallback>>>();
+
 type MealType = FoodEntry['mealType'];
 type SearchTab = 'search' | 'barcode';
 
@@ -153,10 +156,16 @@ export function FoodSearch({ onAdd, onClose, profileId, defaultTab, saveOnly = f
     if (query.trim().length < 2) { setUsdaResults([]); setUsdaError(''); return; }
     if (usdaTimerRef.current) clearTimeout(usdaTimerRef.current);
     usdaTimerRef.current = setTimeout(async () => {
+      const key = query.trim().toLowerCase();
+      if (usdaCache.has(key)) {
+        setUsdaResults(usdaCache.get(key)!);
+        return;
+      }
       setUsdaSearching(true);
       setUsdaError('');
       try {
         const foods = await searchFoodsWithFallback(query.trim());
+        usdaCache.set(key, foods);
         setUsdaResults(foods);
       } catch (err) {
         setUsdaError(err instanceof Error ? err.message : 'Search failed');
@@ -317,6 +326,25 @@ export function FoodSearch({ onAdd, onClose, profileId, defaultTab, saveOnly = f
     const t = setTimeout(() => startScanner(), 400);
     return () => clearTimeout(t);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function handleSaveToLibrary() {
+    if (!selected || !profileId) return;
+    const sz = parseFloat(servingSize) || selected.servingSize;
+    const scaleFactor = sz / (selected.servingSize || 1);
+    saveFoodToHistory(profileId, {
+      name: selected.name,
+      brand: selected.brand,
+      servingSize: sz,
+      servingUnit: selected.servingUnit,
+      calories: Math.round(selected.calories * scaleFactor),
+      protein: Math.round(selected.protein * scaleFactor * 10) / 10,
+      carbs: Math.round(selected.carbs * scaleFactor * 10) / 10,
+      fat: Math.round(selected.fat * scaleFactor * 10) / 10,
+      fiber: selected.fiber ? Math.round(selected.fiber * scaleFactor * 10) / 10 : undefined,
+      source: selected.source,
+      fdcId: selected.fdcId,
+    });
+  }
 
   function handleAdd() {
     if (!selected) return;
@@ -487,30 +515,10 @@ export function FoodSearch({ onAdd, onClose, profileId, defaultTab, saveOnly = f
         <div className="flex gap-2">
           <button type="button" onClick={handleClose} className="btn-secondary flex-1 text-sm">Cancel</button>
           {saveOnly ? (
-            <button type="button" onClick={() => {
-              if (selected && profileId) {
-                saveFoodToHistory(profileId, {
-                  name: selected.name, brand: selected.brand, calories: selected.calories,
-                  protein: selected.protein, carbs: selected.carbs, fat: selected.fat, fiber: selected.fiber,
-                  servingSize: selected.servingSize, servingUnit: selected.servingUnit, source: selected.source,
-                  fdcId: selected.fdcId,
-                });
-              }
-              handleClose();
-            }} className="btn-primary flex-1 text-sm">Save to Library</button>
+            <button type="button" onClick={() => { handleSaveToLibrary(); handleClose(); }} className="btn-primary flex-1 text-sm">Save to Library</button>
           ) : (
             <>
-              <button type="button" onClick={() => {
-                if (selected && profileId) {
-                  saveFoodToHistory(profileId, {
-                    name: selected.name, brand: selected.brand, calories: selected.calories,
-                    protein: selected.protein, carbs: selected.carbs, fat: selected.fat, fiber: selected.fiber,
-                    servingSize: selected.servingSize, servingUnit: selected.servingUnit, source: selected.source,
-                    fdcId: selected.fdcId,
-                  });
-                }
-                handleClose();
-              }} className="btn-secondary flex-1 text-sm">Save to Library</button>
+              <button type="button" onClick={() => { handleSaveToLibrary(); handleClose(); }} className="btn-secondary flex-1 text-sm">Save to Library</button>
               <button type="button" onClick={handleAdd} className="btn-primary flex-1 text-sm">{multiMode ? 'Add to Plate' : 'Add to Log'}</button>
             </>
           )}
