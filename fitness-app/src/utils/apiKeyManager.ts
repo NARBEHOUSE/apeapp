@@ -25,11 +25,14 @@ function toB64(buf: ArrayBuffer | Uint8Array): string {
   return btoa(String.fromCharCode(...bytes));
 }
 
-function fromB64(s: string): Uint8Array {
-  return Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+function fromB64(s: string): Uint8Array<ArrayBuffer> {
+  const bin = atob(s);
+  const arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return arr;
 }
 
-async function deriveAesKey(userId: string, salt: Uint8Array): Promise<CryptoKey> {
+async function deriveAesKey(userId: string, salt: Uint8Array<ArrayBuffer>): Promise<CryptoKey> {
   const raw = await crypto.subtle.importKey(
     'raw',
     new TextEncoder().encode(userId),
