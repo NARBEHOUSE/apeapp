@@ -11,6 +11,8 @@ import {
   MessageSquare,
   Heart,
   Trash2,
+  Play,
+  Square,
 } from 'lucide-react';
 import type { WorkoutSession, WorkoutDay, SetLog, Exercise, ExerciseLastPerformance, CardioEntry, Program } from '../../types';
 import { searchExerciseLibrary, getSimilarExercises, type LibraryExercise } from '../../data/exerciseLibrary';
@@ -73,8 +75,6 @@ function fmtDur(secs: number): string {
 }
 
 function parseDuration(val: string): number {
-  const parts = val.split(':');
-  if (parts.length === 2) return (parseInt(parts[0]) || 0) * 60 + (parseInt(parts[1]) || 0);
   return parseInt(val) || 0;
 }
 
@@ -134,6 +134,12 @@ function ExerciseCard({
   const [showSwaps, setShowSwaps] = useState(false);
   const [showVideoInput, setShowVideoInput] = useState(false);
   const [videoUrl, setVideoUrl] = useState(() => getExerciseVideo(exercise.name) || '');
+  const [runningTimerIdx, setRunningTimerIdx] = useState<number | null>(null);
+  const [timerElapsed, setTimerElapsed] = useState(0);
+  const timerStartRef = useRef<number>(0);
+  const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => () => { if (timerIntervalRef.current) clearInterval(timerIntervalRef.current); }, []);
   const swapSuggestions = exercise.alternatives || [];
   const weightUnit: WeightUnit = getDashboardConfig().weightUnit ?? 'lbs';
   const lastSets = lastPerformance?.sets.filter((s) => s.completed);
@@ -182,7 +188,7 @@ function ExerciseCard({
       return {
         weight: displayWeight != null ? String(displayWeight) : '',
         reps: repStr,
-        duration: exercise.inputType === 'time' && prevDuration != null ? fmtDur(prevDuration) : '',
+        duration: exercise.inputType === 'time' && prevDuration != null ? String(prevDuration) : '',
         effort: '',
         isWarmup: false,
       };
@@ -204,12 +210,29 @@ function ExerciseCard({
     saveWorkoutInputs(current);
   }, [inputs, exercise.id]);
 
+  function startTimer(setIndex: number) {
+    if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+    timerStartRef.current = Date.now();
+    setRunningTimerIdx(setIndex);
+    setTimerElapsed(0);
+    timerIntervalRef.current = setInterval(() => {
+      setTimerElapsed(Math.floor((Date.now() - timerStartRef.current) / 1000));
+    }, 100);
+  }
+
+  function stopTimer(setIndex: number) {
+    if (timerIntervalRef.current) { clearInterval(timerIntervalRef.current); timerIntervalRef.current = null; }
+    const elapsed = Math.floor((Date.now() - timerStartRef.current) / 1000);
+    setRunningTimerIdx(null);
+    handleInputChange(setIndex, 'duration', String(elapsed || 0));
+  }
+
   const handleInputChange = (
     setIndex: number,
     field: 'weight' | 'reps' | 'duration' | 'effort',
     value: string
   ) => {
-    const cleaned = field === 'duration' ? value.replace(/[^0-9:]/g, '') : value.replace(/[^0-9.]/g, '');
+    const cleaned = field === 'duration' ? value.replace(/[^0-9]/g, '') : value.replace(/[^0-9.]/g, '');
     setInputs((prev) => {
       const next = [...prev];
       next[setIndex] = { ...next[setIndex], [field]: cleaned };
@@ -310,7 +333,7 @@ function ExerciseCard({
           <div className={`grid ${effortMetric !== 'none' ? 'grid-cols-[1.5rem_1fr_1fr_2.5rem_2.25rem]' : 'grid-cols-[1.5rem_1fr_1fr_2.25rem]'} gap-1.5 px-0.5`}>
             <span className="text-[9px] text-warning text-center" title="Tap to toggle warmup">W</span>
             <span className="text-[9px] text-text-muted">{exercise.inputType === 'time' ? 'Weight (opt)' : `Weight (${weightUnit})`}</span>
-            <span className="text-[9px] text-text-muted">{exercise.inputType === 'time' ? 'Time (MM:SS)' : 'Reps'}</span>
+            <span className="text-[9px] text-text-muted">{exercise.inputType === 'time' ? 'Time (sec)' : 'Reps'}</span>
             {effortMetric !== 'none' && <span className="text-[9px] text-accent-blue text-center">{effortMetric === 'rir' ? 'RIR' : 'RPE'}</span>}
             <span />
           </div>
@@ -360,17 +383,36 @@ function ExerciseCard({
                   }`}
                 />
                 {exercise.inputType === 'time' ? (
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    value={inputs[setIndex]?.duration ?? ''}
-                    onChange={(e) => handleInputChange(setIndex, 'duration', e.target.value)}
-                    placeholder={prev?.duration != null ? fmtDur(prev.duration) : '0:00'}
-                    disabled={isComplete}
-                    className={`w-full bg-surface-raised rounded-lg px-2 py-2 text-sm text-center outline-none ${
-                      isComplete ? 'text-success' : 'text-text-primary'
-                    }`}
-                  />
+                  <div className="flex items-center gap-1 w-full">
+                    {runningTimerIdx === setIndex ? (
+                      <span className="flex-1 bg-surface-raised rounded-lg px-1 py-2 text-sm font-mono text-accent-orange text-center">
+                        {timerElapsed}s
+                      </span>
+                    ) : (
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        value={inputs[setIndex]?.duration ?? ''}
+                        onChange={(e) => handleInputChange(setIndex, 'duration', e.target.value)}
+                        placeholder={prev?.duration != null ? String(prev.duration) : '0'}
+                        disabled={isComplete}
+                        className={`flex-1 min-w-0 bg-surface-raised rounded-lg px-1 py-2 text-sm text-center outline-none ${
+                          isComplete ? 'text-success' : 'text-text-primary'
+                        }`}
+                      />
+                    )}
+                    {!isComplete && (
+                      <button
+                        type="button"
+                        onClick={() => runningTimerIdx === setIndex ? stopTimer(setIndex) : startTimer(setIndex)}
+                        className={`w-7 h-8 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
+                          runningTimerIdx === setIndex ? 'bg-danger/20 text-danger' : 'bg-surface-raised text-text-muted'
+                        }`}
+                      >
+                        {runningTimerIdx === setIndex ? <Square size={11} /> : <Play size={11} />}
+                      </button>
+                    )}
+                  </div>
                 ) : (
                   <input
                     type="number"
