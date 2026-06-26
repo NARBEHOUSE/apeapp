@@ -41,6 +41,8 @@ function SessionCard({
   const [editSets, setEditSets] = useState<Record<string, { weight: string; reps: string }[]>>({});
   const [deleteSets, setDeleteSets] = useState<Record<string, number[]>>({});
   const [deleteExercises, setDeleteExercises] = useState<string[]>([]);
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleValue, setTitleValue] = useState('');
 
   const day = program?.days.find((d) => d.id === session.dayId);
   const totalSets = Object.values(session.sets).reduce(
@@ -57,6 +59,11 @@ function SessionCard({
   );
   const durationMs = (session.endTime || Date.now()) - session.startTime;
   const durationMin = Math.round(durationMs / 60000);
+  const hasCardio = (session.cardio?.length ?? 0) > 0;
+  const isCardioOnly = totalSets === 0 && hasCardio;
+  const cardioTotalMin = session.cardio?.reduce((s, c) => s + c.durationMin, 0) ?? 0;
+
+  const displayTitle = session.name || day?.title || program?.name || 'Workout';
 
   const dateStr = new Date(session.date + 'T00:00:00').toLocaleDateString('en-US', {
     weekday: 'short',
@@ -77,22 +84,57 @@ function SessionCard({
           {day?.label?.slice(0, 2) || 'W'}
         </div>
         <div className="flex-1 min-w-0">
-          <div className="font-semibold text-sm truncate">
-            {day?.title || program?.name || 'Workout'}
-          </div>
+          {editingTitle ? (
+            <input
+              autoFocus
+              className="font-semibold text-sm bg-transparent border-b border-accent-orange focus:outline-none text-text-primary w-full"
+              value={titleValue}
+              onChange={(e) => setTitleValue(e.target.value)}
+              onClick={(e) => e.stopPropagation()}
+              onBlur={() => {
+                setEditingTitle(false);
+                const newName = titleValue.trim();
+                if (onUpdate && newName !== displayTitle) {
+                  onUpdate({ ...session, name: newName || undefined });
+                }
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') e.currentTarget.blur();
+                if (e.key === 'Escape') setEditingTitle(false);
+                e.stopPropagation();
+              }}
+            />
+          ) : (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                if (onUpdate) { setTitleValue(displayTitle); setEditingTitle(true); }
+              }}
+              className="font-semibold text-sm truncate flex items-center gap-1 text-left w-full"
+            >
+              <span className="truncate">{displayTitle}</span>
+              {onUpdate && <Pencil size={10} className="flex-shrink-0 opacity-30" />}
+            </button>
+          )}
           <div className="flex items-center gap-2 text-xs text-text-secondary">
             <span>{dateStr}</span>
             <span className="text-text-muted">|</span>
             <span>{durationMin} min</span>
             <span className="text-text-muted">|</span>
-            <span>{totalSets} sets</span>
+            {isCardioOnly ? (
+              <span>{session.cardio!.map((c) => c.type).join(', ')}</span>
+            ) : (
+              <span>{totalSets} sets</span>
+            )}
           </div>
         </div>
         <div className="text-right flex-shrink-0">
           <div className="text-sm font-bold text-accent-orange">
-            {totalVolume > 0
-              ? `${toDisplayWeight(totalVolume, weightUnit).toLocaleString()} ${weightUnit}`
-              : `${totalSets} sets`}
+            {isCardioOnly
+              ? `${cardioTotalMin} min`
+              : totalVolume > 0
+                ? `${toDisplayWeight(totalVolume, weightUnit).toLocaleString()} ${weightUnit}`
+                : `${totalSets} sets`}
           </div>
           {expanded ? (
             <ChevronUp size={16} className="text-text-muted ml-auto mt-0.5" />
@@ -165,6 +207,41 @@ function SessionCard({
               </div>
             );
           })}
+
+          {hasCardio && (
+            <div>
+              <p className="text-xs font-semibold text-text-secondary mb-1">Cardio</p>
+              <div className="space-y-1">
+                {session.cardio!.map((c, i) => (
+                  <div key={i} className="flex flex-wrap gap-1.5">
+                    <span className="text-xs bg-surface-raised border border-border-light rounded-md px-2 py-1">
+                      {c.type} · {c.durationMin} min
+                    </span>
+                    {c.intensity && (
+                      <span className="text-xs bg-surface-raised border border-border-light rounded-md px-2 py-1 capitalize">
+                        {c.intensity}
+                      </span>
+                    )}
+                    {c.distanceKm != null && (
+                      <span className="text-xs bg-surface-raised border border-border-light rounded-md px-2 py-1">
+                        {c.distanceKm} {c.distanceUnit ?? 'km'}
+                      </span>
+                    )}
+                    {c.heartRateAvg != null && (
+                      <span className="text-xs bg-surface-raised border border-border-light rounded-md px-2 py-1">
+                        {c.heartRateAvg} bpm
+                      </span>
+                    )}
+                    {c.caloriesBurned != null && (
+                      <span className="text-xs bg-surface-raised border border-border-light rounded-md px-2 py-1">
+                        {c.caloriesBurned} kcal
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {session.notes && (
             <p className="text-xs text-text-secondary italic">{session.notes}</p>

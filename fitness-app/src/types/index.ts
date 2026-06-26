@@ -282,6 +282,7 @@ export interface WorkoutSession {
   startTime: number;
   endTime?: number;
   sets: Record<string, SetLog[]>;
+  name?: string;
   notes?: string;
   bodyweight?: number;
   exerciseFeedback?: Record<string, ExerciseFeedback>;

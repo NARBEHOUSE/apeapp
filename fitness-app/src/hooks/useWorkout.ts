@@ -115,6 +115,10 @@ export function useWorkout(profileId: string | null) {
     [activeSession]
   );
 
+  const updateActiveSessionName = useCallback((name: string) => {
+    setActiveSession((prev) => prev ? { ...prev, name: name.trim() || undefined } : prev);
+  }, []);
+
   const finishWorkout = useCallback(async (): Promise<WorkoutSession | null> => {
     if (!activeSession) return null;
     const finished = { ...activeSession, endTime: Date.now() };
@@ -192,6 +196,7 @@ export function useWorkout(profileId: string | null) {
     logSet,
     updateSet,
     updateCardio,
+    updateActiveSessionName,
     finishWorkout,
     cancelWorkout,
     removeSession,

@@ -109,6 +109,7 @@ export function Workout({ profile, onUpdateProfile }: Props) {
     logSet,
     updateSet,
     updateCardio,
+    updateActiveSessionName,
     finishWorkout,
     cancelWorkout,
     removeSession,
@@ -349,6 +350,7 @@ export function Workout({ profile, onUpdateProfile }: Props) {
         programDefaultRestTimer={program?.defaultRestTimer}
         profileId={profile.id}
         onUpdateCardio={updateCardio}
+        onUpdateName={updateActiveSessionName}
         allSessions={sessions}
         effortMetric={isQuick ? quickEffortMetric : (program?.effortMetric || 'none')}
         programs={programs}

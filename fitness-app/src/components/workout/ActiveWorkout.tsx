@@ -13,6 +13,7 @@ import {
   Trash2,
   Play,
   Square,
+  Pencil,
 } from 'lucide-react';
 import type { WorkoutSession, WorkoutDay, SetLog, Exercise, ExerciseLastPerformance, CardioEntry, Program } from '../../types';
 import { searchExerciseLibrary, getSimilarExercises, type LibraryExercise } from '../../data/exerciseLibrary';
@@ -57,6 +58,7 @@ interface Props {
   programs?: Program[];
   effortMetric?: 'none' | 'rir' | 'rpe';
   onSwapExercise?: (exerciseId: string, swap: LibraryExercise, permanent: boolean) => void;
+  onUpdateName?: (name: string) => void;
 }
 
 interface SetInput {
@@ -615,7 +617,10 @@ export function ActiveWorkout({
   programs,
   effortMetric = 'none',
   onSwapExercise,
+  onUpdateName,
 }: Props) {
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleValue, setTitleValue] = useState('');
   const [elapsed, setElapsed] = useState(0);
   const [showRestTimer, setShowRestTimer] = useState(false);
   const [activeRestDuration, setActiveRestDuration] = useState(restTimerDuration);
@@ -880,7 +885,30 @@ export function ActiveWorkout({
             <X size={20} />
           </button>
           <div className="text-center">
-            <p className="text-xs text-text-secondary font-medium">{day.title}</p>
+            {editingTitle ? (
+              <input
+                autoFocus
+                className="text-xs font-medium text-center bg-transparent border-b border-accent-orange focus:outline-none text-text-primary w-36"
+                value={titleValue}
+                onChange={(e) => setTitleValue(e.target.value)}
+                onBlur={() => {
+                  setEditingTitle(false);
+                  onUpdateName?.(titleValue.trim() || day.title);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') e.currentTarget.blur();
+                  if (e.key === 'Escape') { setEditingTitle(false); }
+                }}
+              />
+            ) : (
+              <button
+                onClick={() => { setTitleValue(session.name || day.title); setEditingTitle(true); }}
+                className="flex items-center gap-1 text-xs text-text-secondary font-medium hover:text-text-primary transition-colors"
+              >
+                <span>{session.name || day.title}</span>
+                <Pencil size={10} className="opacity-40" />
+              </button>
+            )}
             <div className="flex items-center gap-1.5 justify-center">
               <Clock size={13} className="text-accent-orange" />
               <span className="text-sm font-bold tabular-nums text-accent-orange">
