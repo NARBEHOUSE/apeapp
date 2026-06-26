@@ -639,9 +639,11 @@ export function ActiveWorkout({
   const [skipReason, setSkipReason] = useState('');
   const [showAddExercise, setShowAddExercise] = useState(false);
   const [newExName, setNewExName] = useState('');
+  const [newExNamePicked, setNewExNamePicked] = useState(false);
   const [newExSets, setNewExSets] = useState('3');
   const [newExReps, setNewExReps] = useState('10');
   const [newExMuscle, setNewExMuscle] = useState('');
+  const [newExInputType, setNewExInputType] = useState<'reps' | 'time'>('reps');
 
   const skippedIds = new Set(skippedExercises.map((s) => s.exerciseId));
   const activeExercises = [
@@ -705,11 +707,12 @@ export function ActiveWorkout({
       muscle: newExMuscle,
       note: 'Added during session',
       flag: undefined,
+      inputType: newExInputType === 'time' ? 'time' : undefined,
     };
     setAddedExercises((prev) => [...prev, newEx]);
     saveCustomExercise(newEx.name, newExMuscle);
     toast(`Added ${newEx.name}`, 'success');
-    setNewExName(''); setNewExSets('3'); setNewExReps('10'); setNewExMuscle('');
+    setNewExName(''); setNewExNamePicked(false); setNewExSets('3'); setNewExReps('10'); setNewExMuscle(''); setNewExInputType('reps');
     setShowAddExercise(false);
   }
 
@@ -1007,20 +1010,17 @@ export function ActiveWorkout({
               className="input-field text-sm"
               placeholder="Search exercises..."
               value={newExName}
-              onChange={(e) => setNewExName(e.target.value)}
+              onChange={(e) => { setNewExName(e.target.value); setNewExNamePicked(false); }}
               autoFocus
             />
             {/* Library suggestions */}
-            {newExName.trim().length >= 2 && (
+            {!newExNamePicked && newExName.trim().length >= 2 && (
               <div className="space-y-1 max-h-36 overflow-y-auto">
                 {/* Custom exercises first, then library */}
                 {searchCustomExercises(newExName).slice(0, 3).map((ex) => (
                   <button
                     key={`custom-${ex.name}`}
-                    onClick={() => {
-                      setNewExName(ex.name);
-                      setNewExMuscle(ex.muscle || '');
-                    }}
+                    onClick={() => { setNewExName(ex.name); setNewExMuscle(ex.muscle || ''); setNewExNamePicked(true); }}
                     className="w-full text-left bg-surface-raised rounded-lg px-3 py-2 hover:bg-border transition-colors"
                   >
                     <div className="text-xs font-medium flex items-center gap-1">
@@ -1033,10 +1033,7 @@ export function ActiveWorkout({
                 {searchExerciseLibrary(newExName).slice(0, 6).map((ex) => (
                   <button
                     key={ex.name}
-                    onClick={() => {
-                      setNewExName(ex.name);
-                      setNewExMuscle(ex.muscles[0] || '');
-                    }}
+                    onClick={() => { setNewExName(ex.name); setNewExMuscle(ex.muscles[0] || ''); setNewExNamePicked(true); }}
                     className="w-full text-left bg-surface-raised rounded-lg px-3 py-2 hover:bg-border transition-colors"
                   >
                     <div className="text-xs font-medium">{ex.name}</div>
@@ -1051,16 +1048,29 @@ export function ActiveWorkout({
                 <input type="number" inputMode="numeric" className="input-field text-sm text-center" value={newExSets} onChange={(e) => setNewExSets(e.target.value)} />
               </div>
               <div>
-                <label className="text-[9px] text-text-muted mb-0.5 block">Reps</label>
-                <input type="text" className="input-field text-sm text-center" value={newExReps} onChange={(e) => setNewExReps(e.target.value)} placeholder="8-12" />
+                <label className="text-[9px] text-text-muted mb-0.5 block">{newExInputType === 'time' ? 'Target Time' : 'Reps'}</label>
+                <input type="text" className="input-field text-sm text-center" value={newExReps} onChange={(e) => setNewExReps(e.target.value)} placeholder={newExInputType === 'time' ? 'e.g. 1:00' : '8-12'} />
               </div>
               <div>
                 <label className="text-[9px] text-text-muted mb-0.5 block">Muscle</label>
                 <input type="text" className="input-field text-sm text-center" value={newExMuscle} onChange={(e) => setNewExMuscle(e.target.value)} placeholder="e.g. Chest" />
               </div>
             </div>
+            <div>
+              <label className="text-[9px] text-text-muted mb-1 block">Input Type</label>
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setNewExInputType('reps')}
+                  className={`flex-1 py-1.5 text-xs rounded-lg font-medium transition-colors ${newExInputType === 'reps' ? 'bg-accent-blue text-white' : 'bg-surface-raised text-text-muted'}`}>
+                  Reps
+                </button>
+                <button type="button" onClick={() => setNewExInputType('time')}
+                  className={`flex-1 py-1.5 text-xs rounded-lg font-medium transition-colors ${newExInputType === 'time' ? 'bg-accent-blue text-white' : 'bg-surface-raised text-text-muted'}`}>
+                  Timed
+                </button>
+              </div>
+            </div>
             <div className="flex gap-2 pt-1">
-              <button onClick={() => setShowAddExercise(false)} className="btn-secondary flex-1 text-sm">Cancel</button>
+              <button onClick={() => { setShowAddExercise(false); setNewExName(''); setNewExNamePicked(false); setNewExInputType('reps'); }} className="btn-secondary flex-1 text-sm">Cancel</button>
               <button onClick={handleAddExercise} disabled={!newExName.trim()} className="btn-primary flex-1 text-sm disabled:opacity-30">Add</button>
             </div>
           </div>
