@@ -1317,6 +1317,7 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
           savedMeals={savedMeals}
           dailyTotals={totals}
           macroTargets={targets}
+          onSaveToLibrary={() => setFoodLibrary(getSavedFoods(profile.id))}
         />
       </Modal>
 

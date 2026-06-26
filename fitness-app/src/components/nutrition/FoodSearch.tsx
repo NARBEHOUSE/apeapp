@@ -65,6 +65,7 @@ interface FoodSearchProps {
   saveOnly?: boolean;
   multiMode?: boolean;
   startWithScan?: boolean;
+  onSaveToLibrary?: () => void;
 }
 
 function convertBuiltIn(food: BuiltInFood): LocalResult {
@@ -85,7 +86,7 @@ function convertBuiltIn(food: BuiltInFood): LocalResult {
   };
 }
 
-export function FoodSearch({ onAdd, onClose, profileId, defaultTab, saveOnly = false, multiMode = false, startWithScan = false }: FoodSearchProps) {
+export function FoodSearch({ onAdd, onClose, profileId, defaultTab, saveOnly = false, multiMode = false, startWithScan = false, onSaveToLibrary }: FoodSearchProps) {
 
   const [plate, setPlate] = useState<PlateItem[]>([]);
   const [tab, setTab] = useState<SearchTab>(defaultTab || 'search');
@@ -352,6 +353,7 @@ export function FoodSearch({ onAdd, onClose, profileId, defaultTab, saveOnly = f
       source: selected.source,
       fdcId: selected.fdcId,
     });
+    onSaveToLibrary?.();
   }
 
   function handleAdd() {

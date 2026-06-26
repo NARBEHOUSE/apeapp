@@ -35,6 +35,7 @@ interface Props {
   savedMeals: SavedMeal[];
   dailyTotals?: DailyTotals;
   macroTargets?: DailyTotals;
+  onSaveToLibrary?: () => void;
 }
 
 function buildLoggedAt(timeHHMM: string, date: string): string {
@@ -44,7 +45,7 @@ function buildLoggedAt(timeHHMM: string, date: string): string {
   return d.toISOString();
 }
 
-export function QuickAddSheet({ profileId, initialTime, selectedDate, addEntry, onClose, savedMeals, dailyTotals, macroTargets }: Props) {
+export function QuickAddSheet({ profileId, initialTime, selectedDate, addEntry, onClose, savedMeals, dailyTotals, macroTargets, onSaveToLibrary }: Props) {
   const [time, setTime] = useState(initialTime);
   const [activeTab, setActiveTab] = useState<AddTab>('search');
   const [prevMealGroups, setPrevMealGroups] = useState<PrevMealGroup[]>([]);
@@ -152,6 +153,7 @@ export function QuickAddSheet({ profileId, initialTime, selectedDate, addEntry, 
           onClose={onClose}
           profileId={profileId}
           multiMode={true}
+          onSaveToLibrary={onSaveToLibrary}
         />
       )}
 
