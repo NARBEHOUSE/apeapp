@@ -115,7 +115,7 @@ function ExerciseCard({
   lastPerformance: ExerciseLastPerformance | undefined;
   weeklyTarget: WeeklyTarget | null;
   prs: Record<string, { weight: number; reps: number; date: string }>;
-  onComplete: (exerciseId: string, weight: number, reps: number, rir?: number, rpe?: number, isWarmup?: boolean, duration?: number) => void;
+  onComplete: (exerciseId: string, weight: number, reps: number, rir?: number, rpe?: number, isWarmup?: boolean, setDuration?: number) => void;
   onUpdate: (exerciseId: string, setIndex: number, updates: Partial<SetLog>) => void;
   onSwap?: (swap: LibraryExercise) => void;
   progression: ProgressionSuggestion | null;
@@ -754,12 +754,12 @@ export function ActiveWorkout({
   }, []);
 
   const handleComplete = useCallback(
-    (exerciseId: string, weight: number, reps: number, rir?: number, rpe?: number, isWarmup?: boolean, duration?: number) => {
+    (exerciseId: string, weight: number, reps: number, rir?: number, rpe?: number, isWarmup?: boolean, setDuration?: number) => {
       // Check if this set already exists (was unchecked then re-checked)
       const existingSets = session.sets[exerciseId] || [];
       const uncheckedIdx = existingSets.findIndex((s, i) => !s.completed && i < (existingSets.length));
       if (uncheckedIdx >= 0) {
-        onUpdateSet(exerciseId, uncheckedIdx, { weight, reps, completed: true, timestamp: Date.now(), rir, rpe, isWarmup, ...(duration != null ? { duration } : {}) });
+        onUpdateSet(exerciseId, uncheckedIdx, { weight, reps, completed: true, timestamp: Date.now(), rir, rpe, isWarmup, ...(setDuration != null ? { duration: setDuration } : {}) });
         return;
       }
 
@@ -771,7 +771,7 @@ export function ActiveWorkout({
         rir,
         isWarmup,
         rpe,
-        ...(duration != null ? { duration } : {}),
+        ...(setDuration != null ? { duration: setDuration } : {}),
       };
       onLogSet(exerciseId, setLog);
 
