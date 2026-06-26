@@ -60,17 +60,34 @@ interface Props {
 interface SetInput {
   weight: string;
   reps: string;
+  duration: string;
   effort: string;
   isWarmup: boolean;
 }
 
 
-function formatLastPerformance(sets: SetLog[], date: string): string {
+function fmtDur(secs: number): string {
+  const m = Math.floor(secs / 60);
+  const s = secs % 60;
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+function parseDuration(val: string): number {
+  const parts = val.split(':');
+  if (parts.length === 2) return (parseInt(parts[0]) || 0) * 60 + (parseInt(parts[1]) || 0);
+  return parseInt(val) || 0;
+}
+
+function formatLastPerformance(sets: SetLog[], date: string, isTimed?: boolean): string {
   const completed = sets.filter((s) => s.completed);
   if (completed.length === 0) return '';
-  const allSameWeight = completed.every((s) => s.weight === completed[0].weight);
   const d = new Date(date + 'T00:00:00');
   const dateStr = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  if (isTimed) {
+    const durs = completed.map((s) => (s.duration != null ? fmtDur(s.duration) : '0:00'));
+    return `${durs.join(', ')} · ${dateStr}`;
+  }
+  const allSameWeight = completed.every((s) => s.weight === completed[0].weight);
   if (allSameWeight) {
     return `${completed[0].weight} × ${completed.map((s) => s.reps).join(', ')} · ${dateStr}`;
   }
@@ -98,7 +115,7 @@ function ExerciseCard({
   lastPerformance: ExerciseLastPerformance | undefined;
   weeklyTarget: WeeklyTarget | null;
   prs: Record<string, { weight: number; reps: number; date: string }>;
-  onComplete: (exerciseId: string, weight: number, reps: number, rir?: number, rpe?: number, isWarmup?: boolean) => void;
+  onComplete: (exerciseId: string, weight: number, reps: number, rir?: number, rpe?: number, isWarmup?: boolean, duration?: number) => void;
   onUpdate: (exerciseId: string, setIndex: number, updates: Partial<SetLog>) => void;
   onSwap?: (swap: LibraryExercise) => void;
   progression: ProgressionSuggestion | null;
@@ -125,7 +142,7 @@ function ExerciseCard({
   const [inputs, setInputs] = useState<SetInput[]>(() => {
     // Try to restore persisted inputs first
     const persisted = loadWorkoutInputs();
-    if (persisted?.[exercise.id]) return persisted[exercise.id].map((p: any) => ({ weight: p.weight || '', reps: p.reps || '', effort: p.effort || '', isWarmup: !!p.isWarmup }));
+    if (persisted?.[exercise.id]) return persisted[exercise.id].map((p: any) => ({ weight: p.weight || '', reps: p.reps || '', duration: p.duration || '', effort: p.effort || '', isWarmup: !!p.isWarmup }));
     const totalSets = scheme?.type === 'top_set_backoff' ? 1 + (scheme.backoffSets || 2)
       : scheme?.type === 'pyramid' || scheme?.type === 'reverse_pyramid' ? scheme.pyramidReps?.length || exercise.sets
       : scheme?.type === 'to_failure' ? scheme.failureSets || exercise.sets
@@ -161,9 +178,11 @@ function ExerciseCard({
       }
 
       const displayWeight = weight != null ? toDisplayWeight(weight, getDashboardConfig().weightUnit ?? 'lbs') : null;
+      const prevDuration = lastSets?.[i]?.duration ?? previousSets?.[i]?.duration;
       return {
         weight: displayWeight != null ? String(displayWeight) : '',
         reps: repStr,
+        duration: exercise.inputType === 'time' && prevDuration != null ? fmtDur(prevDuration) : '',
         effort: '',
         isWarmup: false,
       };
@@ -187,10 +206,10 @@ function ExerciseCard({
 
   const handleInputChange = (
     setIndex: number,
-    field: 'weight' | 'reps' | 'effort',
+    field: 'weight' | 'reps' | 'duration' | 'effort',
     value: string
   ) => {
-    const cleaned = value.replace(/[^0-9.]/g, '');
+    const cleaned = field === 'duration' ? value.replace(/[^0-9:]/g, '') : value.replace(/[^0-9.]/g, '');
     setInputs((prev) => {
       const next = [...prev];
       next[setIndex] = { ...next[setIndex], [field]: cleaned };
@@ -212,14 +231,15 @@ function ExerciseCard({
     const effortVal = parseFloat(input.effort) || undefined;
     const rir = effortMetric === 'rir' ? effortVal : undefined;
     const rpe = effortMetric === 'rpe' ? effortVal : undefined;
-    onComplete(exercise.id, weightInLbs, reps, rir, rpe, input.isWarmup);
+    const duration = exercise.inputType === 'time' && input.duration ? parseDuration(input.duration) : undefined;
+    onComplete(exercise.id, weightInLbs, reps, rir, rpe, input.isWarmup, duration);
     navigator.vibrate?.([50]);
   };
 
   const addSet = () => {
     setSetCount((c) => c + 1);
     const lastInput = inputs[inputs.length - 1];
-    setInputs((prev) => [...prev, { weight: lastInput?.weight || '', reps: lastInput?.reps || '', effort: '', isWarmup: false }]);
+    setInputs((prev) => [...prev, { weight: lastInput?.weight || '', reps: lastInput?.reps || '', duration: lastInput?.duration || '', effort: '', isWarmup: false }]);
   };
 
   const removeSet = () => {
@@ -289,8 +309,8 @@ function ExerciseCard({
           {/* Header */}
           <div className={`grid ${effortMetric !== 'none' ? 'grid-cols-[1.5rem_1fr_1fr_2.5rem_2.25rem]' : 'grid-cols-[1.5rem_1fr_1fr_2.25rem]'} gap-1.5 px-0.5`}>
             <span className="text-[9px] text-warning text-center" title="Tap to toggle warmup">W</span>
-            <span className="text-[9px] text-text-muted">Weight ({weightUnit})</span>
-            <span className="text-[9px] text-text-muted">Reps</span>
+            <span className="text-[9px] text-text-muted">{exercise.inputType === 'time' ? 'Weight (opt)' : `Weight (${weightUnit})`}</span>
+            <span className="text-[9px] text-text-muted">{exercise.inputType === 'time' ? 'Time (MM:SS)' : 'Reps'}</span>
             {effortMetric !== 'none' && <span className="text-[9px] text-accent-blue text-center">{effortMetric === 'rir' ? 'RIR' : 'RPE'}</span>}
             <span />
           </div>
@@ -339,17 +359,31 @@ function ExerciseCard({
                     isComplete ? 'text-success' : 'text-text-primary'
                   }`}
                 />
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  value={inputs[setIndex]?.reps ?? ''}
-                  onChange={(e) => handleInputChange(setIndex, 'reps', e.target.value)}
-                  placeholder={scheme?.type === 'to_failure' ? 'AMRAP' : (prev ? String(prev.reps) : '0')}
-                  disabled={isComplete}
-                  className={`w-full bg-surface-raised rounded-lg px-2 py-2 text-sm text-center outline-none ${
-                    isComplete ? 'text-success' : 'text-text-primary'
-                  }`}
-                />
+                {exercise.inputType === 'time' ? (
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={inputs[setIndex]?.duration ?? ''}
+                    onChange={(e) => handleInputChange(setIndex, 'duration', e.target.value)}
+                    placeholder={prev?.duration != null ? fmtDur(prev.duration) : '0:00'}
+                    disabled={isComplete}
+                    className={`w-full bg-surface-raised rounded-lg px-2 py-2 text-sm text-center outline-none ${
+                      isComplete ? 'text-success' : 'text-text-primary'
+                    }`}
+                  />
+                ) : (
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    value={inputs[setIndex]?.reps ?? ''}
+                    onChange={(e) => handleInputChange(setIndex, 'reps', e.target.value)}
+                    placeholder={scheme?.type === 'to_failure' ? 'AMRAP' : (prev ? String(prev.reps) : '0')}
+                    disabled={isComplete}
+                    className={`w-full bg-surface-raised rounded-lg px-2 py-2 text-sm text-center outline-none ${
+                      isComplete ? 'text-success' : 'text-text-primary'
+                    }`}
+                  />
+                )}
                 {effortMetric !== 'none' && (
                   <input
                     type="number"
@@ -413,7 +447,7 @@ function ExerciseCard({
           {/* Last performance hint + estimated 1RM */}
           {lastPerformance && lastPerformance.sets.filter((s) => s.completed).length > 0 && (
             <p className="text-[10px] text-text-muted px-0.5">
-              Last: {formatLastPerformance(lastPerformance.sets, lastPerformance.date)}
+              Last: {formatLastPerformance(lastPerformance.sets, lastPerformance.date, exercise.inputType === 'time')}
               {(() => {
                 const best = lastPerformance.sets.filter((s) => s.completed).reduce<{ weight: number; reps: number } | null>((top, s) => (!top || s.weight > top.weight) ? s : top, null);
                 if (best && best.weight > 0 && best.reps > 1) {
@@ -720,12 +754,12 @@ export function ActiveWorkout({
   }, []);
 
   const handleComplete = useCallback(
-    (exerciseId: string, weight: number, reps: number, rir?: number, rpe?: number, isWarmup?: boolean) => {
+    (exerciseId: string, weight: number, reps: number, rir?: number, rpe?: number, isWarmup?: boolean, duration?: number) => {
       // Check if this set already exists (was unchecked then re-checked)
       const existingSets = session.sets[exerciseId] || [];
       const uncheckedIdx = existingSets.findIndex((s, i) => !s.completed && i < (existingSets.length));
       if (uncheckedIdx >= 0) {
-        onUpdateSet(exerciseId, uncheckedIdx, { weight, reps, completed: true, timestamp: Date.now(), rir, rpe, isWarmup });
+        onUpdateSet(exerciseId, uncheckedIdx, { weight, reps, completed: true, timestamp: Date.now(), rir, rpe, isWarmup, ...(duration != null ? { duration } : {}) });
         return;
       }
 
@@ -737,6 +771,7 @@ export function ActiveWorkout({
         rir,
         isWarmup,
         rpe,
+        ...(duration != null ? { duration } : {}),
       };
       onLogSet(exerciseId, setLog);
 

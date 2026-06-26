@@ -38,6 +38,7 @@ interface LocalResult {
   source: 'builtin' | 'manual' | 'usda' | 'ai_vision';
   category?: string;
   isHistory: boolean;
+  commonServing?: { label: string; grams: number };
 }
 
 interface PlateItem {
@@ -80,6 +81,7 @@ function convertBuiltIn(food: BuiltInFood): LocalResult {
     source: 'builtin',
     category: food.category,
     isHistory: false,
+    commonServing: food.commonServing,
   };
 }
 
@@ -105,8 +107,10 @@ export function FoodSearch({ onAdd, onClose, profileId, defaultTab, saveOnly = f
     name: string; brand?: string; calories: number; protein: number;
     carbs: number; fat: number; fiber?: number;
     servingSize: number; servingUnit: string; source: FoodEntry['source']; fdcId?: string;
+    commonServing?: { label: string; grams: number };
   } | null>(null);
   const [servingSize, setServingSize] = useState('');
+  const [servingUnitInput, setServingUnitInput] = useState('g');
   const [servingsConsumed, setServingsConsumed] = useState('1');
   const [editingBase, setEditingBase] = useState(false);
   const [editBaseCal, setEditBaseCal] = useState('');
@@ -211,6 +215,7 @@ export function FoodSearch({ onAdd, onClose, profileId, defaultTab, saveOnly = f
           servingSize: 100, servingUnit: 'g', source: 'usda', fdcId: result.fdcId,
         });
         setServingSize('100');
+        setServingUnitInput('g');
         setServingsConsumed('1');
         // Save to food history with barcode
         if (profileId) {
@@ -236,8 +241,10 @@ export function FoodSearch({ onAdd, onClose, profileId, defaultTab, saveOnly = f
       name: item.name, brand: item.brand, calories: item.calories,
       protein: item.protein, carbs: item.carbs, fat: item.fat, fiber: item.fiber,
       servingSize: item.servingSize, servingUnit: item.servingUnit, source: item.source,
+      commonServing: item.commonServing,
     });
     setServingSize(String(item.servingSize));
+    setServingUnitInput(item.servingUnit);
     setServingsConsumed('1');
     setMealType('snack');
   }
@@ -250,6 +257,7 @@ export function FoodSearch({ onAdd, onClose, profileId, defaultTab, saveOnly = f
       servingSize: 100, servingUnit: 'g', source: 'usda', fdcId: food.fdcId,
     });
     setServingSize('100');
+    setServingUnitInput('g');
     setServingsConsumed('1');
     setMealType('snack');
     // Save to food history for future use
@@ -335,7 +343,7 @@ export function FoodSearch({ onAdd, onClose, profileId, defaultTab, saveOnly = f
       name: selected.name,
       brand: selected.brand,
       servingSize: sz,
-      servingUnit: selected.servingUnit,
+      servingUnit: servingUnitInput || selected.servingUnit,
       calories: Math.round(selected.calories * scaleFactor),
       protein: Math.round(selected.protein * scaleFactor * 10) / 10,
       carbs: Math.round(selected.carbs * scaleFactor * 10) / 10,
@@ -359,12 +367,13 @@ export function FoodSearch({ onAdd, onClose, profileId, defaultTab, saveOnly = f
     const finalF = Math.round(selected.fat * scaleFactor * 10) / 10;
     const finalFb = selected.fiber ? Math.round(selected.fiber * scaleFactor * 10) / 10 : undefined;
 
+    const finalUnit = servingUnitInput || selected.servingUnit;
     if (multiMode) {
       setPlate((prev) => [...prev, {
         name: selected.name,
         brand: selected.brand,
         servingSize: sz,
-        servingUnit: selected.servingUnit,
+        servingUnit: finalUnit,
         servingsConsumed: qty,
         calories: finalCal,
         protein: finalP,
@@ -377,6 +386,7 @@ export function FoodSearch({ onAdd, onClose, profileId, defaultTab, saveOnly = f
       }]);
       setSelected(null);
       setServingSize('');
+      setServingUnitInput('g');
       setServingsConsumed('1');
       setQuery('');
       setUsdaResults([]);
@@ -386,7 +396,7 @@ export function FoodSearch({ onAdd, onClose, profileId, defaultTab, saveOnly = f
         name: selected.name,
         brand: selected.brand,
         servingSize: sz,
-        servingUnit: selected.servingUnit,
+        servingUnit: finalUnit,
         servingsConsumed: qty,
         calories: finalCal,
         protein: finalP,
@@ -479,8 +489,29 @@ export function FoodSearch({ onAdd, onClose, profileId, defaultTab, saveOnly = f
         {/* Your serving — editable */}
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="label mb-1 block">Your serving ({selected.servingUnit})</label>
-            <input type="text" inputMode="decimal" className="input-field text-sm" value={servingSize} onChange={(e) => setServingSize(e.target.value)} placeholder={String(baseServing)} />
+            <label className="label mb-1 block">Your serving</label>
+            <div className="flex gap-1">
+              <input type="text" inputMode="decimal" className="input-field text-sm flex-1 min-w-0" value={servingSize} onChange={(e) => setServingSize(e.target.value)} placeholder={String(baseServing)} />
+              <input
+                type="text"
+                className="input-field text-sm w-14 text-center px-1 shrink-0"
+                value={servingUnitInput}
+                onChange={(e) => setServingUnitInput(e.target.value)}
+                placeholder="unit"
+              />
+            </div>
+            {selected.commonServing && servingUnitInput !== selected.commonServing.label && (
+              <button
+                type="button"
+                onClick={() => {
+                  setServingSize(String(selected.commonServing!.grams));
+                  setServingUnitInput(selected.commonServing!.label);
+                }}
+                className="text-[10px] text-accent-blue mt-1"
+              >
+                Log as: {selected.commonServing.label}
+              </button>
+            )}
           </div>
           <div>
             <label className="label mb-1 block">Quantity</label>

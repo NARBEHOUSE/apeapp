@@ -567,12 +567,16 @@ export function Progress({ profile, onUpdateProfile }: Props) {
       </Modal>
 
       {/* Weight change recalculate prompt */}
-      {showRecalcPrompt && weightChangeInfo && onUpdateProfile && (
+      {showRecalcPrompt && weightChangeInfo && onUpdateProfile && (() => {
+        const displayUnit = profile.units === 'metric' ? 'kg' : 'lbs';
+        const dispOld = convertWeightDisplay(weightChangeInfo.oldWeight, 'lbs', displayUnit);
+        const dispNew = convertWeightDisplay(weightChangeInfo.newWeight, 'lbs', displayUnit);
+        return (
         <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/60 backdrop-blur-sm">
           <div className="card mx-6 max-w-sm w-full">
             <h3 className="font-bold text-lg mb-2">Weight Changed Significantly</h3>
             <p className="text-text-secondary text-sm mb-4">
-              Your weight went from {weightChangeInfo.oldWeight} lbs to {weightChangeInfo.newWeight} lbs
+              Your weight went from {dispOld} {displayUnit} to {dispNew} {displayUnit}
               ({Math.abs(Math.round(((weightChangeInfo.newWeight - weightChangeInfo.oldWeight) / weightChangeInfo.oldWeight) * 100))}% change).
               Would you like to recalculate your calories and macros?
             </p>
@@ -595,7 +599,7 @@ export function Progress({ profile, onUpdateProfile }: Props) {
                       bodyStats: updatedStats,
                       macroTargets: macros,
                     });
-                    toast(`Macros recalculated for ${weightChangeInfo.newWeight} lbs`, 'success');
+                    toast(`Macros recalculated for ${dispNew} ${displayUnit}`, 'success');
                   }
                   setShowRecalcPrompt(false);
                   setWeightChangeInfo(null);
@@ -607,7 +611,8 @@ export function Progress({ profile, onUpdateProfile }: Props) {
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
     </div>
   );
 }

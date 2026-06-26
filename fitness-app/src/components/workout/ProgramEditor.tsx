@@ -425,6 +425,25 @@ function SortableExercise({
               placeholder="Use program default"
             />
           </div>
+          <div>
+            <label className="label mb-1 block">Input Type</label>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => onUpdate(exercise.id, { inputType: undefined })}
+                className={`flex-1 py-2 text-xs rounded-lg font-medium transition-colors ${!exercise.inputType || exercise.inputType === 'reps' ? 'bg-accent-blue text-white' : 'bg-surface-raised text-text-muted'}`}
+              >
+                Reps
+              </button>
+              <button
+                type="button"
+                onClick={() => onUpdate(exercise.id, { inputType: 'time' })}
+                className={`flex-1 py-2 text-xs rounded-lg font-medium transition-colors ${exercise.inputType === 'time' ? 'bg-accent-blue text-white' : 'bg-surface-raised text-text-muted'}`}
+              >
+                Timed
+              </button>
+            </div>
+          </div>
           <SetSchemeEditor
             scheme={exercise.setScheme}
             sets={exercise.sets}

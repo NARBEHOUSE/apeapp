@@ -162,6 +162,7 @@ export interface Exercise {
   cardioType?: string;
   targetDuration?: number;
   targetIntensity?: 'low' | 'moderate' | 'high';
+  inputType?: 'reps' | 'time';
 }
 
 export interface ExerciseLastPerformance {
@@ -295,6 +296,7 @@ export interface SetLog {
   rir?: number;
   rpe?: number;
   isWarmup?: boolean;
+  duration?: number;
 }
 
 export type EffortMetric = 'none' | 'rir' | 'rpe';
