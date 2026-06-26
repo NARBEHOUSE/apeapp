@@ -330,13 +330,23 @@ function ExerciseCard({
           )}
 
           {/* Header */}
-          <div className={`grid ${effortMetric !== 'none' ? 'grid-cols-[1.5rem_1fr_1fr_2.5rem_2.25rem]' : 'grid-cols-[1.5rem_1fr_1fr_2.25rem]'} gap-1.5 px-0.5`}>
-            <span className="text-[9px] text-warning text-center" title="Tap to toggle warmup">W</span>
-            <span className="text-[9px] text-text-muted">{exercise.inputType === 'time' ? 'Weight (opt)' : `Weight (${weightUnit})`}</span>
-            <span className="text-[9px] text-text-muted">{exercise.inputType === 'time' ? 'Time (sec)' : 'Reps'}</span>
-            {effortMetric !== 'none' && <span className="text-[9px] text-accent-blue text-center">{effortMetric === 'rir' ? 'RIR' : 'RPE'}</span>}
-            <span />
-          </div>
+          {exercise.inputType === 'time' ? (
+            <div className="grid grid-cols-[1.5rem_1fr_1fr_2rem_2.25rem] gap-1.5 px-0.5">
+              <span className="text-[9px] text-warning text-center" title="Tap to toggle warmup">W</span>
+              <span className="text-[9px] text-text-muted">Weight (opt)</span>
+              <span className="text-[9px] text-text-muted">Sec</span>
+              <span />
+              <span />
+            </div>
+          ) : (
+            <div className={`grid ${effortMetric !== 'none' ? 'grid-cols-[1.5rem_1fr_1fr_2.5rem_2.25rem]' : 'grid-cols-[1.5rem_1fr_1fr_2.25rem]'} gap-1.5 px-0.5`}>
+              <span className="text-[9px] text-warning text-center" title="Tap to toggle warmup">W</span>
+              <span className="text-[9px] text-text-muted">Weight ({weightUnit})</span>
+              <span className="text-[9px] text-text-muted">Reps</span>
+              {effortMetric !== 'none' && <span className="text-[9px] text-accent-blue text-center">{effortMetric === 'rir' ? 'RIR' : 'RPE'}</span>}
+              <span />
+            </div>
+          )}
 
           {Array.from({ length: setCount }, (_, setIndex) => {
             const isComplete = sessionSets[setIndex]?.completed === true;
@@ -345,7 +355,7 @@ function ExerciseCard({
             return (
               <div
                 key={setIndex}
-                className={`grid ${effortMetric !== 'none' ? 'grid-cols-[1.5rem_1fr_1fr_2.5rem_2.25rem]' : 'grid-cols-[1.5rem_1fr_1fr_2.25rem]'} gap-1.5 items-center px-0.5 py-0.5 rounded-lg transition-colors ${
+                className={`grid ${exercise.inputType === 'time' ? 'grid-cols-[1.5rem_1fr_1fr_2rem_2.25rem]' : effortMetric !== 'none' ? 'grid-cols-[1.5rem_1fr_1fr_2.5rem_2.25rem]' : 'grid-cols-[1.5rem_1fr_1fr_2.25rem]'} gap-1.5 items-center px-0.5 py-0.5 rounded-lg transition-colors ${
                   isComplete ? 'bg-success/5' : ''
                 }`}
               >
@@ -383,9 +393,9 @@ function ExerciseCard({
                   }`}
                 />
                 {exercise.inputType === 'time' ? (
-                  <div className="flex items-center gap-1 w-full">
+                  <>
                     {runningTimerIdx === setIndex ? (
-                      <span className="flex-1 bg-surface-raised rounded-lg px-1 py-2 text-sm font-mono text-accent-orange text-center">
+                      <span className="w-full bg-surface-raised rounded-lg px-1 py-2 text-sm font-mono text-accent-orange text-center">
                         {timerElapsed}s
                       </span>
                     ) : (
@@ -396,48 +406,50 @@ function ExerciseCard({
                         onChange={(e) => handleInputChange(setIndex, 'duration', e.target.value)}
                         placeholder={prev?.duration != null ? String(prev.duration) : '0'}
                         disabled={isComplete}
-                        className={`flex-1 min-w-0 bg-surface-raised rounded-lg px-1 py-2 text-sm text-center outline-none ${
+                        className={`w-full bg-surface-raised rounded-lg px-2 py-2 text-sm text-center outline-none ${
                           isComplete ? 'text-success' : 'text-text-primary'
                         }`}
                       />
                     )}
-                    {!isComplete && (
+                    {!isComplete ? (
                       <button
                         type="button"
                         onClick={() => runningTimerIdx === setIndex ? stopTimer(setIndex) : startTimer(setIndex)}
-                        className={`w-7 h-8 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
+                        className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
                           runningTimerIdx === setIndex ? 'bg-danger/20 text-danger' : 'bg-surface-raised text-text-muted'
                         }`}
                       >
-                        {runningTimerIdx === setIndex ? <Square size={11} /> : <Play size={11} />}
+                        {runningTimerIdx === setIndex ? <Square size={12} /> : <Play size={12} />}
                       </button>
-                    )}
-                  </div>
+                    ) : <span />}
+                  </>
                 ) : (
-                  <input
-                    type="number"
-                    inputMode="numeric"
-                    value={inputs[setIndex]?.reps ?? ''}
-                    onChange={(e) => handleInputChange(setIndex, 'reps', e.target.value)}
-                    placeholder={scheme?.type === 'to_failure' ? 'AMRAP' : (prev ? String(prev.reps) : '0')}
-                    disabled={isComplete}
-                    className={`w-full bg-surface-raised rounded-lg px-2 py-2 text-sm text-center outline-none ${
-                      isComplete ? 'text-success' : 'text-text-primary'
-                    }`}
-                  />
-                )}
-                {effortMetric !== 'none' && (
-                  <input
-                    type="number"
-                    inputMode="numeric"
-                    value={inputs[setIndex]?.effort ?? ''}
-                    onChange={(e) => handleInputChange(setIndex, 'effort', e.target.value)}
-                    placeholder={effortMetric === 'rir' ? 'RIR' : 'RPE'}
-                    disabled={isComplete}
-                    className={`w-full bg-surface-raised rounded-lg px-1 py-2 text-[10px] text-center outline-none ${
-                      isComplete ? 'text-success' : 'text-accent-blue'
-                    }`}
-                  />
+                  <>
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      value={inputs[setIndex]?.reps ?? ''}
+                      onChange={(e) => handleInputChange(setIndex, 'reps', e.target.value)}
+                      placeholder={scheme?.type === 'to_failure' ? 'AMRAP' : (prev ? String(prev.reps) : '0')}
+                      disabled={isComplete}
+                      className={`w-full bg-surface-raised rounded-lg px-2 py-2 text-sm text-center outline-none ${
+                        isComplete ? 'text-success' : 'text-text-primary'
+                      }`}
+                    />
+                    {effortMetric !== 'none' && (
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        value={inputs[setIndex]?.effort ?? ''}
+                        onChange={(e) => handleInputChange(setIndex, 'effort', e.target.value)}
+                        placeholder={effortMetric === 'rir' ? 'RIR' : 'RPE'}
+                        disabled={isComplete}
+                        className={`w-full bg-surface-raised rounded-lg px-1 py-2 text-[10px] text-center outline-none ${
+                          isComplete ? 'text-success' : 'text-accent-blue'
+                        }`}
+                      />
+                    )}
+                  </>
                 )}
                 <button
                   onClick={() => handleComplete(setIndex)}
