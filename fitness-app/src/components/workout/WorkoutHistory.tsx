@@ -15,6 +15,12 @@ import { buildWorkoutCardData, renderWorkoutCard, shareOrDownload } from '../../
 import { ConfirmDialog } from '../shared/ConfirmDialog';
 import { getWeightUnit, toDisplayWeight, fromDisplayWeight, type WeightUnit } from '../../utils/units';
 
+const BADGE_COLORS = [
+  '#e8572a', '#f5a623', '#f5d623', '#2e9e6b',
+  '#1a7a52', '#23b5d3', '#5b6ef5', '#3b44c4',
+  '#c44fc4', '#e84393', '#ff6b6b', '#a855f7',
+];
+
 interface Props {
   sessions: WorkoutSession[];
   programs: Program[];
@@ -43,6 +49,9 @@ function SessionCard({
   const [deleteExercises, setDeleteExercises] = useState<string[]>([]);
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleValue, setTitleValue] = useState('');
+  const [editingBadge, setEditingBadge] = useState(false);
+  const [badgeLabelValue, setBadgeLabelValue] = useState('');
+  const [badgeColor, setBadgeColor] = useState('');
 
   const day = program?.days.find((d) => d.id === session.dayId);
   const totalSets = Object.values(session.sets).reduce(
@@ -77,12 +86,20 @@ function SessionCard({
         onClick={() => setExpanded(!expanded)}
         className="w-full flex items-center gap-3 text-left"
       >
-        <div
-          className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-white text-xs font-bold"
-          style={{ backgroundColor: day?.accent || '#e8572a' }}
+        <button
+          onClick={(e) => {
+            if (!onUpdate) return;
+            e.stopPropagation();
+            setExpanded(true);
+            setBadgeLabelValue(session.label || day?.label?.slice(0, 2) || 'W');
+            setBadgeColor(session.accent || day?.accent || '#e8572a');
+            setEditingBadge(true);
+          }}
+          className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-white text-xs font-bold active:scale-95 transition-transform"
+          style={{ backgroundColor: session.accent || day?.accent || '#e8572a' }}
         >
-          {day?.label?.slice(0, 2) || 'W'}
-        </div>
+          {session.label || day?.label?.slice(0, 2) || 'W'}
+        </button>
         <div className="flex-1 min-w-0">
           {editingTitle ? (
             <input
@@ -146,6 +163,54 @@ function SessionCard({
 
       {expanded && (
         <div className="mt-3 pt-3 border-t border-border space-y-3">
+          {editingBadge && (
+            <div className="p-3 bg-surface-raised rounded-xl border border-border space-y-3">
+              <div className="flex items-center gap-3">
+                <div
+                  className="w-10 h-10 rounded-xl flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
+                  style={{ backgroundColor: badgeColor }}
+                >
+                  {badgeLabelValue || 'W'}
+                </div>
+                <input
+                  autoFocus
+                  className="input-field text-sm font-bold uppercase text-center flex-1"
+                  maxLength={2}
+                  value={badgeLabelValue}
+                  onChange={(e) => setBadgeLabelValue(e.target.value.toUpperCase().slice(0, 2))}
+                  placeholder="AB"
+                />
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {BADGE_COLORS.map((color) => (
+                  <button
+                    key={color}
+                    onClick={() => setBadgeColor(color)}
+                    className={`w-7 h-7 rounded-full border-2 transition-all ${badgeColor === color ? 'border-white scale-110' : 'border-transparent hover:scale-105'}`}
+                    style={{ backgroundColor: color }}
+                  />
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setEditingBadge(false)}
+                  className="flex-1 py-2 rounded-lg bg-surface border border-border text-xs font-medium text-text-secondary"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    onUpdate?.({ ...session, label: badgeLabelValue || undefined, accent: badgeColor || undefined });
+                    setEditingBadge(false);
+                  }}
+                  className="flex-1 py-2 rounded-lg bg-accent-blue text-white text-xs font-semibold"
+                >
+                  Save
+                </button>
+              </div>
+            </div>
+          )}
+
           {Object.entries(session.sets).map(([exerciseId, sets]) => {
             if (deleteExercises.includes(exerciseId)) return null;
             const exercise = day?.exercises.find((e) => e.id === exerciseId);
