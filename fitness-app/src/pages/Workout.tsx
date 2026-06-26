@@ -345,7 +345,7 @@ export function Workout({ profile, onUpdateProfile }: Props) {
         onUpdateSet={updateSet}
         onFinish={handleFinish}
         onCancel={handleCancel}
-        restTimerDuration={profile.restTimerDuration || 90}
+        restTimerDuration={profile.restTimerDuration ?? 90}
         programDefaultRestTimer={program?.defaultRestTimer}
         profileId={profile.id}
         onUpdateCardio={updateCardio}
