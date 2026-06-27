@@ -22,6 +22,7 @@ interface SVGBarChartProps {
   yAxisWidth?: number;
   formatY?: (v: number) => string;
   formatValue?: (v: number) => string;
+  onBarClick?: (index: number) => void;
 }
 
 export function SVGBarChart({
@@ -33,6 +34,7 @@ export function SVGBarChart({
   yAxisWidth = 36,
   formatY,
   formatValue,
+  onBarClick,
 }: SVGBarChartProps) {
   const [activeIdx, setActiveIdx] = useState<number | null>(null);
 
@@ -93,7 +95,7 @@ export function SVGBarChart({
           const h = Math.max(0, (d.value / maxVal) * ch);
           const dim = activeIdx !== null && activeIdx !== i;
           return (
-            <g key={i} onClick={() => setActiveIdx((prev) => prev === i ? null : i)}
+            <g key={i} onClick={() => { setActiveIdx((prev) => prev === i ? null : i); onBarClick?.(i); }}
               style={{ cursor: 'pointer' }} opacity={dim ? 0.25 : 1}>
               {/* wider invisible hit area */}
               <rect x={x - 3} y={mt} width={barW + 6} height={ch} fill="transparent" />

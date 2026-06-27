@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react';
-import { Droplets, Plus, Minus, ChevronDown, ChevronUp } from 'lucide-react';
+import { useState, useMemo, useEffect } from 'react';
+import { Droplets, Plus, Minus, Check, ChevronDown, ChevronUp } from 'lucide-react';
 import { SVGBarChart } from '../shared/SVGBarChart';
 import type { WaterEntry } from '../../types';
 import { today, formatShortDate } from '../../utils/dateHelpers';
@@ -38,6 +38,8 @@ export function WaterCard({ water, profileId, units, onUpdate }: Props) {
   const [range, setRange] = useState<number>(30);
   const [customInput, setCustomInput] = useState('');
   const [showCustomInput, setShowCustomInput] = useState(false);
+  const [editingDate, setEditingDate] = useState<string | null>(null);
+  const [historicalInput, setHistoricalInput] = useState('');
   const [waterUnit, setWaterUnit] = useState<'oz' | 'ml'>(() => {
     const saved = localStorage.getItem(WATER_UNIT_KEY);
     if (saved === 'oz' || saved === 'ml') return saved;
@@ -77,18 +79,20 @@ export function WaterCard({ water, profileId, units, onUpdate }: Props) {
   }, [water, isMetric]);
 
   // Chart data for expanded view
+  const chartDates = useMemo(() => getLastNDays(range), [range]);
   const chartData = useMemo(() => {
-    const days = getLastNDays(range);
     const xInterval = range <= 7 ? 0 : range <= 30 ? 4 : range <= 60 ? 6 : 9;
     return {
-      data: days.map((date) => ({
+      data: chartDates.map((date) => ({
         label: formatShortDate(date),
         amount: Math.round(waterByDate.get(date) || 0),
       })),
       xInterval,
       barSize: range <= 7 ? 22 : range <= 30 ? 10 : range <= 60 ? 6 : 4,
     };
-  }, [range, waterByDate]);
+  }, [range, chartDates, waterByDate]);
+
+  useEffect(() => { setEditingDate(null); }, [range]);
 
   const daysLogged = chartData.data.filter((d) => d.amount > 0).length;
   const totalInRange = chartData.data.reduce((s, d) => s + d.amount, 0);
@@ -121,6 +125,35 @@ export function WaterCard({ water, profileId, units, onUpdate }: Props) {
       setCustomAmount('');
       setShowCustom(false);
     }
+  };
+
+  const handleBarClick = (index: number) => {
+    const date = chartDates[index];
+    if (date === today()) return;
+    setEditingDate(date);
+    setHistoricalInput(String(Math.round(waterByDate.get(date) || 0) || ''));
+  };
+
+  const handleHistoricalWaterSave = async () => {
+    if (!editingDate) return;
+    const val = parseFloat(historicalInput);
+    if (isNaN(val) || val < 0) return;
+    const dateEntries = water.filter((w) => w.date === editingDate);
+    for (const entry of dateEntries) {
+      await deleteWaterEntry(entry.id);
+    }
+    if (val > 0) {
+      await saveWaterEntry({
+        id: crypto.randomUUID(),
+        profileId,
+        date: editingDate,
+        amount: val,
+        unit: unitLabel as 'oz' | 'ml',
+      });
+    }
+    setEditingDate(null);
+    setHistoricalInput('');
+    onUpdate?.();
   };
 
   const applyCustomRange = () => {
@@ -240,7 +273,33 @@ export function WaterCard({ water, profileId, units, onUpdate }: Props) {
             yAxisWidth={30}
             formatY={(v) => isMetric ? (v >= 1000 ? `${(v / 1000).toFixed(1)}L` : String(v)) : String(v)}
             formatValue={(v) => `${v} ${unitLabel}`}
+            onBarClick={handleBarClick}
           />
+
+          {/* Historical day editor */}
+          {editingDate && (
+            <div className="mt-2 p-2.5 bg-surface-raised rounded-xl">
+              <p className="text-[10px] text-text-muted mb-1.5">
+                {new Date(editingDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+              </p>
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  className="input-field text-sm flex-1"
+                  placeholder={`Total ${unitLabel} (0 to clear)`}
+                  value={historicalInput}
+                  onChange={(e) => setHistoricalInput(e.target.value)}
+                  autoFocus
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleHistoricalWaterSave(); if (e.key === 'Escape') setEditingDate(null); }}
+                />
+                <button onClick={handleHistoricalWaterSave} className="bg-accent-blue text-white px-3 rounded-lg">
+                  <Check size={16} />
+                </button>
+                <button onClick={() => setEditingDate(null)} className="bg-surface-raised border border-border rounded-lg px-3 text-xs text-text-muted">✕</button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
