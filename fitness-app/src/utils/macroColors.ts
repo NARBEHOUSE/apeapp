@@ -1,14 +1,15 @@
 // Smooth gradient: green at target, grades to red as you go further under or over.
 // The gradient zone spans roughly ±40% of target; beyond that it clamps to red.
+// Stops: ±8% yellow-green, ±17% yellow, ±28% orange, ±40%+ red.
 
 type Stop = { dev: number; r: number; g: number; b: number };
 
 const STOPS: Stop[] = [
   { dev:  0, r: 46,  g: 158, b: 107 }, // #2e9e6b green
-  { dev: 10, r: 142, g: 184, b: 68  }, // #8eb844 yellow-green
-  { dev: 22, r: 201, g: 168, b: 32  }, // #c9a820 yellow
-  { dev: 36, r: 224, g: 114, b: 48  }, // #e07230 orange
-  { dev: 50, r: 232, g: 87,  b: 87  }, // #e85757 red
+  { dev:  8, r: 142, g: 184, b: 68  }, // #8eb844 yellow-green
+  { dev: 17, r: 201, g: 168, b: 32  }, // #c9a820 yellow
+  { dev: 28, r: 224, g: 114, b: 48  }, // #e07230 orange
+  { dev: 40, r: 232, g: 87,  b: 87  }, // #e85757 red
 ];
 
 function lerp(a: number, b: number, t: number) { return a + (b - a) * t; }
