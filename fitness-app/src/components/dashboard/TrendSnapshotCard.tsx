@@ -7,6 +7,7 @@ import { SVGBarChart } from '../shared/SVGBarChart';
 import { X, ChevronLeft, ChevronRight } from 'lucide-react';
 import type { Measurement, WorkoutSession } from '../../types';
 import { daysAgo, formatShortDate, getWeekDates, today } from '../../utils/dateHelpers';
+import { macroStatusColor } from '../../utils/macroColors';
 
 type TrendRange = '7d' | '30d' | '60d' | '90d' | '1y' | 'all';
 
@@ -196,11 +197,9 @@ export default function TrendSnapshotCard({
                         height: isFuture ? '4px' : hasData ? `${Math.max(fillPercent, 6)}%` : '4px',
                         backgroundColor: isFuture
                           ? 'var(--color-border)'
-                          : hitGoal
-                            ? '#2e9e6b'
-                            : hasData
-                              ? '#e8572a'
-                              : 'var(--color-border)',
+                          : hasData
+                            ? macroStatusColor(day.value, calorieTarget ?? 0)
+                            : 'var(--color-border)',
                         opacity: isFuture ? 0.4 : isToday ? 1 : 0.75,
                       }}
                     />
