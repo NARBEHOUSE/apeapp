@@ -1,3 +1,5 @@
+import { macroStatusColor, macroStatusBg } from '../../utils/macroColors';
+
 interface MacroSummaryProps {
   totals: { calories: number; protein: number; carbs: number; fat: number; fiber: number };
   targets: { calories: number; protein: number; carbs: number; fat: number };
@@ -57,8 +59,8 @@ export default function MacroSummary({ totals, targets }: MacroSummaryProps) {
         <span
           className="text-xs font-medium ml-auto px-2 py-0.5 rounded-full"
           style={{
-            backgroundColor: calPercentage > 100 ? 'rgba(232, 87, 87, 0.15)' : 'rgba(232, 87, 42, 0.15)',
-            color: calPercentage > 100 ? '#e85757' : '#e8572a',
+            backgroundColor: macroStatusBg(totals.calories, targets.calories),
+            color: macroStatusColor(totals.calories, targets.calories),
           }}
         >
           {calPercentage}%

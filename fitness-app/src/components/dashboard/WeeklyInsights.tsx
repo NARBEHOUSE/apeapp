@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { ChevronDown, ChevronUp, TrendingUp, TrendingDown, Minus, Dumbbell, Utensils, Scale, Brain, Target } from 'lucide-react';
 import type { WorkoutSession, FoodEntry, Measurement, CheckInEntry, MacroTargets } from '../../types';
 import { getWeekDates, today } from '../../utils/dateHelpers';
+import { macroStatusColor } from '../../utils/macroColors';
 
 interface Props {
   sessions: WorkoutSession[];
@@ -344,22 +345,23 @@ export function WeeklyInsights({ sessions, allFoodEntries, measurements, checkIn
               { label: 'Protein',  value: insights.avgProtein,  target: macroTargets.protein,  unit: 'g',   color: '#5b6ef5' },
               { label: 'Carbs',    value: insights.avgCarbs,    target: macroTargets.carbs,    unit: 'g',   color: '#2e9e6b' },
               { label: 'Fat',      value: insights.avgFat,      target: macroTargets.fat,      unit: 'g',   color: '#f5a623' },
-            ].map(({ label, value, target, unit, color }) => {
+            ].map(({ label, value, target, unit }) => {
               const pct = target > 0 ? Math.min((value / target) * 100, 100) : 0;
-              const over = target > 0 && value > target;
+              const isOver = target > 0 && value > target;
+              const statusColor = macroStatusColor(value, target);
               return (
                 <div key={label}>
                   <div className="flex items-center justify-between mb-0.5">
                     <span className="text-[10px] text-text-muted">{label}</span>
                     <span className="text-[10px] tabular-nums">
-                      <span className="font-medium" style={{ color: over ? '#e85757' : 'var(--color-text-primary)' }}>
+                      <span className="font-medium" style={{ color: statusColor }}>
                         {value.toLocaleString()}
                       </span>
                       <span className="text-text-muted"> / {target.toLocaleString()} {unit}</span>
                     </span>
                   </div>
                   <div className="h-1.5 rounded-full bg-surface-raised overflow-hidden">
-                    <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: over ? '#e85757' : color }} />
+                    <div className="h-full rounded-full transition-all" style={{ width: `${isOver ? 100 : pct}%`, backgroundColor: statusColor }} />
                   </div>
                 </div>
               );

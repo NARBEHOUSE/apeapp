@@ -1,3 +1,5 @@
+import { macroStatusColor } from '../../utils/macroColors';
+
 interface MacroBarProps {
   label: string;
   current: number;
@@ -6,11 +8,12 @@ interface MacroBarProps {
   unit?: string;
 }
 
-export function MacroBar({ label, current, target, color, unit = 'g' }: MacroBarProps) {
+export function MacroBar({ label, current, target, unit = 'g' }: MacroBarProps) {
   const isOver = current > target && target > 0;
   const percentage = target > 0 ? Math.min((current / target) * 100, 100) : 0;
   const displayCurrent = Math.round(current);
   const displayTarget = Math.round(target);
+  const statusColor = macroStatusColor(current, target);
 
   return (
     <div className="space-y-1.5">
@@ -19,7 +22,7 @@ export function MacroBar({ label, current, target, color, unit = 'g' }: MacroBar
         <span className="text-xs text-text-secondary">
           <span
             className="font-medium"
-            style={{ color: isOver ? '#e85757' : 'var(--color-text-primary)' }}
+            style={{ color: statusColor }}
           >
             {displayCurrent}{unit}
           </span>
@@ -32,7 +35,7 @@ export function MacroBar({ label, current, target, color, unit = 'g' }: MacroBar
           className="h-full rounded-full transition-all duration-700 ease-out"
           style={{
             width: `${isOver ? 100 : percentage}%`,
-            backgroundColor: isOver ? '#e85757' : color,
+            backgroundColor: statusColor,
           }}
         />
       </div>

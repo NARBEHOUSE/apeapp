@@ -3,6 +3,7 @@ import { Barcode } from 'lucide-react';
 import type { FoodEntry } from '../../types';
 import { FoodAutocomplete, type SelectedFood } from './FoodAutocomplete';
 import { saveFoodToHistory } from '../../db/foodHistory';
+import { macroStatusColor } from '../../utils/macroColors';
 
 type ServingUnit = 'g' | 'oz' | 'cup' | 'serving';
 
@@ -372,11 +373,12 @@ export function ManualEntry({ onAdd, onClose, profileId, dailyTotals, macroTarge
             const remaining = target - current;
             const pct = target > 0 ? Math.min((current / target) * 100, 100) : 0;
             const over = current > target;
+            const statusColor = macroStatusColor(current, target);
             return (
               <div key={m.key} className="space-y-0.5">
                 <div className="flex justify-between text-[11px]">
                   <span className="text-text-secondary">{m.label}</span>
-                  <span className={over ? 'text-danger font-medium' : 'text-text-muted'}>
+                  <span className="font-medium" style={{ color: statusColor }}>
                     {over ? `+${Math.abs(Math.round(remaining))} over` : `${Math.round(remaining)} left`}
                   </span>
                 </div>
@@ -385,7 +387,7 @@ export function ManualEntry({ onAdd, onClose, profileId, dailyTotals, macroTarge
                     className="h-full rounded-full transition-all duration-200"
                     style={{
                       width: `${pct}%`,
-                      backgroundColor: over ? '#e85757' : m.color,
+                      backgroundColor: statusColor,
                     }}
                   />
                 </div>
