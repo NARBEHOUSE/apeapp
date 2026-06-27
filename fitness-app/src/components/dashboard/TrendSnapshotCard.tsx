@@ -116,9 +116,15 @@ export default function TrendSnapshotCard({
   }, [metric, measurements, sessions, cutoffDate, measurementKey, liftExerciseIds, calorieData, expanded, weekOffset]);
 
   const trendDelta = useMemo(() => {
+    if (metric === 'calories' && calorieTarget) {
+      const nonZero = chartData.filter((d) => d.value > 0);
+      if (nonZero.length === 0) return null;
+      const avg = nonZero.reduce((s, d) => s + d.value, 0) / nonZero.length;
+      return avg - calorieTarget;
+    }
     if (chartData.length < 2) return null;
     return chartData[chartData.length - 1].value - chartData[0].value;
-  }, [chartData]);
+  }, [chartData, metric, calorieTarget]);
 
   const currentValue = chartData.length > 0 ? chartData[chartData.length - 1].value : null;
 
@@ -329,6 +335,7 @@ export default function TrendSnapshotCard({
               <span className="text-sm font-medium ml-auto" style={{ color: getDeltaColor(trendDelta) }}>
                 {trendDelta > 0 ? '+' : ''}
                 {metric === 'calories' ? Math.round(trendDelta) : trendDelta.toFixed(1)} {displayUnit}
+                {metric === 'calories' && <span className="text-xs font-normal opacity-70"> avg</span>}
               </span>
             )}
           </div>
@@ -370,7 +377,7 @@ export default function TrendSnapshotCard({
                       contentStyle={{ backgroundColor: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '10px', fontSize: '11px', color: 'var(--color-text-primary)' }}
                       formatter={(value: unknown) => [
                         metric === 'calories' ? `${Math.round(Number(value))} kcal` : `${Number(value).toFixed(1)} ${displayUnit}`,
-                        title,
+                        metric === 'calories' ? 'Daily Calories' : title,
                       ]}
                       labelFormatter={(l) => formatShortDate(l as string)}
                     />
