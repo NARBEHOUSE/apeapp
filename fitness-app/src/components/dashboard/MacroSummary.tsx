@@ -9,19 +9,20 @@ interface MacroBarProps {
   label: string;
   current: number;
   target: number;
-  color: string;
   unit: string;
 }
 
-function MacroBar({ label, current, target, color, unit }: MacroBarProps) {
+function MacroBar({ label, current, target, unit }: MacroBarProps) {
+  const isOver = current > target && target > 0;
   const percentage = target > 0 ? Math.min((current / target) * 100, 100) : 0;
+  const statusColor = macroStatusColor(current, target);
 
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between">
         <span className="text-xs font-medium text-text-secondary">{label}</span>
         <span className="text-xs text-text-secondary">
-          <span className="text-text-primary font-medium">
+          <span className="font-medium" style={{ color: statusColor }}>
             {Math.round(current)}{unit}
           </span>
           {' / '}
@@ -32,8 +33,8 @@ function MacroBar({ label, current, target, color, unit }: MacroBarProps) {
         <div
           className="h-full rounded-full transition-all duration-700 ease-out"
           style={{
-            width: `${percentage}%`,
-            backgroundColor: color,
+            width: `${isOver ? 100 : percentage}%`,
+            backgroundColor: statusColor,
           }}
         />
       </div>
@@ -69,41 +70,11 @@ export default function MacroSummary({ totals, targets }: MacroSummaryProps) {
 
       {/* Macro bars */}
       <div className="space-y-3">
-        <MacroBar
-          label="Calories"
-          current={totals.calories}
-          target={targets.calories}
-          color="#e8572a"
-          unit=""
-        />
-        <MacroBar
-          label="Protein"
-          current={totals.protein}
-          target={targets.protein}
-          color="#5b6ef5"
-          unit="g"
-        />
-        <MacroBar
-          label="Carbs"
-          current={totals.carbs}
-          target={targets.carbs}
-          color="#2e9e6b"
-          unit="g"
-        />
-        <MacroBar
-          label="Fat"
-          current={totals.fat}
-          target={targets.fat}
-          color="#f5a623"
-          unit="g"
-        />
-        <MacroBar
-          label="Fiber"
-          current={totals.fiber}
-          target={30}
-          color="var(--color-text-muted)"
-          unit="g"
-        />
+        <MacroBar label="Calories" current={totals.calories} target={targets.calories} unit="" />
+        <MacroBar label="Protein"  current={totals.protein}  target={targets.protein}  unit="g" />
+        <MacroBar label="Carbs"    current={totals.carbs}    target={targets.carbs}    unit="g" />
+        <MacroBar label="Fat"      current={totals.fat}      target={targets.fat}      unit="g" />
+        <MacroBar label="Fiber"    current={totals.fiber}    target={30}               unit="g" />
       </div>
     </div>
   );

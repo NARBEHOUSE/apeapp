@@ -14,6 +14,7 @@ import type { Profile, FoodEntry } from '../types';
 import { useNutrition } from '../hooks/useNutrition';
 import { getFoodEntriesByDate } from '../db/nutrition';
 import { formatDate, today } from '../utils/dateHelpers';
+import { macroStatusColor, macroStatusBg } from '../utils/macroColors';
 import { getFoodEmoji } from '../utils/foodEmoji';
 import { getSavedMeals, addSavedMeal, deleteSavedMeal, updateSavedMeal, type SavedMeal, type MealIngredient } from '../db/savedMeals';
 import { getSavedFoods, updateSavedFood, updateSavedFoodLibraryOnly, saveAsNewFood, countFoodLogEntries, deleteSavedFood, type SavedFood } from '../db/foodHistory';
@@ -48,21 +49,22 @@ interface NutritionPageProps {
 type ModalType = 'add' | 'copy-entry' | 'save-meal' | 'save-meal-manual' | 'meal-builder' | 'edit-time' | 'edit-macros' | 'edit-entry' | 'recipe-editor' | null;
 type Tab = 'planner' | 'my-foods' | 'recipes' | 'charts';
 
-function MiniMacroBar({ label, current, target, color }: {
-  label: string; current: number; target: number; color: string;
+function MiniMacroBar({ label, current, target }: {
+  label: string; current: number; target: number;
 }) {
   const pct = target > 0 ? Math.min((current / target) * 100, 100) : 0;
   const isOver = current > target && target > 0;
+  const statusColor = macroStatusColor(current, target);
   return (
     <div className="flex-1 min-w-0">
       <div className="flex items-center justify-between mb-0.5">
         <span className="text-[9px] font-medium text-text-muted">{label}</span>
         <span className="text-[9px] text-text-muted">
-          <span className="font-medium" style={{ color: isOver ? '#e85757' : 'var(--color-text-primary)' }}>{Math.round(current)}</span>/{Math.round(target)}
+          <span className="font-medium" style={{ color: statusColor }}>{Math.round(current)}</span>/{Math.round(target)}
         </span>
       </div>
       <div className="h-1.5 rounded-full bg-surface-raised overflow-hidden">
-        <div className="h-full rounded-full transition-all duration-500" style={{ width: `${isOver ? 100 : pct}%`, backgroundColor: isOver ? '#e85757' : color }} />
+        <div className="h-full rounded-full transition-all duration-500" style={{ width: `${isOver ? 100 : pct}%`, backgroundColor: statusColor }} />
       </div>
     </div>
   );
@@ -671,15 +673,15 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
         <div className="flex items-baseline gap-2 mb-2.5">
           <span className="text-2xl font-bold">{Math.round(totals.calories)}</span>
           <span className="text-xs text-text-muted">/ {Math.round(targets.calories)} kcal</span>
-          <span className="text-[10px] font-medium ml-auto px-1.5 py-0.5 rounded-full" style={{ backgroundColor: totals.calories > targets.calories ? 'rgba(232,87,87,0.15)' : 'rgba(232,87,42,0.15)', color: totals.calories > targets.calories ? '#e85757' : '#e8572a' }}>
+          <span className="text-[10px] font-medium ml-auto px-1.5 py-0.5 rounded-full" style={{ backgroundColor: macroStatusBg(totals.calories, targets.calories), color: macroStatusColor(totals.calories, targets.calories) }}>
             {targets.calories > 0 ? Math.round((totals.calories / targets.calories) * 100) : 0}%
           </span>
         </div>
         <div className="flex gap-2">
-          <MiniMacroBar label="Protein" current={totals.protein} target={targets.protein} color="#5b6ef5" />
-          <MiniMacroBar label="Carbs" current={totals.carbs} target={targets.carbs} color="#2e9e6b" />
-          <MiniMacroBar label="Fat" current={totals.fat} target={targets.fat} color="#f5a623" />
-          <MiniMacroBar label="Fiber" current={totals.fiber} target={profile.fiberTarget ?? 30} color="#666" />
+          <MiniMacroBar label="Protein" current={totals.protein} target={targets.protein} />
+          <MiniMacroBar label="Carbs"   current={totals.carbs}   target={targets.carbs}   />
+          <MiniMacroBar label="Fat"     current={totals.fat}     target={targets.fat}     />
+          <MiniMacroBar label="Fiber"   current={totals.fiber}   target={profile.fiberTarget ?? 30} />
         </div>
         <div className="text-[9px] text-text-muted text-center mt-1.5">Tap to edit targets</div>
       </button>
