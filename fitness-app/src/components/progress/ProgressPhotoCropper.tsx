@@ -1,0 +1,360 @@
+import { useState, useRef, useCallback, useEffect } from 'react';
+import { ZoomIn, ZoomOut, Check, X, RotateCw, Eye, EyeOff } from 'lucide-react';
+
+interface Props {
+  imageSrc: string;
+  referenceImageSrc?: string;
+  onCrop: (base64: string) => void;
+  onCancel: () => void;
+}
+
+const OUTPUT_W = 600;
+const OUTPUT_H = 800;
+const ASPECT = OUTPUT_W / OUTPUT_H;
+
+export function ProgressPhotoCropper({ imageSrc, referenceImageSrc, onCrop, onCancel }: Props) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const imgRef = useRef<HTMLImageElement | null>(null);
+  const refImgRef = useRef<HTMLImageElement | null>(null);
+
+  const [scale, setScale] = useState(1);
+  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const [rotation, setRotation] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [imgLoaded, setImgLoaded] = useState(false);
+  const [initialScale, setInitialScale] = useState(1);
+  const [refImgLoaded, setRefImgLoaded] = useState(false);
+  const [showGuide, setShowGuide] = useState(true);
+  const touchesRef = useRef<Map<number, { x: number; y: number }>>(new Map());
+  const pinchStartDist = useRef(0);
+  const pinchStartScale = useRef(1);
+  const pinchStartAngle = useRef(0);
+  const pinchStartRotation = useRef(0);
+
+  const viewW = Math.min(320, window.innerWidth - 40);
+  const viewH = viewW / ASPECT;
+  const cropW = viewW - 20;
+  const cropH = viewH - 20;
+
+  useEffect(() => {
+    const img = new Image();
+    img.onload = () => {
+      imgRef.current = img;
+      const fitScale = Math.max(cropW / img.width, cropH / img.height);
+      setInitialScale(fitScale);
+      setScale(fitScale);
+      setOffset({ x: 0, y: 0 });
+      setImgLoaded(true);
+    };
+    img.src = imageSrc;
+  }, [imageSrc, cropW, cropH]);
+
+  useEffect(() => {
+    // referenceImageSrc is fixed for this cropper's lifetime (set once from the
+    // pose selected before it opens), so there's no case that needs resetting
+    // refImgLoaded back to false here — this only ever fires with a real src.
+    if (!referenceImageSrc) return;
+    const img = new Image();
+    img.onload = () => {
+      refImgRef.current = img;
+      setRefImgLoaded(true);
+    };
+    img.src = referenceImageSrc;
+  }, [referenceImageSrc]);
+
+  const draw = useCallback(() => {
+    const canvas = canvasRef.current;
+    const img = imgRef.current;
+    if (!canvas || !img) return;
+    const ctx = canvas.getContext('2d')!;
+    const cx = viewW / 2;
+    const cy = viewH / 2;
+
+    ctx.clearRect(0, 0, viewW, viewH);
+
+    // Draw image
+    ctx.save();
+    ctx.translate(cx + offset.x, cy + offset.y);
+    ctx.rotate((rotation * Math.PI) / 180);
+    ctx.scale(scale, scale);
+    ctx.drawImage(img, -img.width / 2, -img.height / 2);
+    ctx.restore();
+
+    // Dark overlay outside crop area
+    const cropX = (viewW - cropW) / 2;
+    const cropY = (viewH - cropH) / 2;
+    ctx.save();
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.beginPath();
+    ctx.rect(0, 0, viewW, viewH);
+    ctx.roundRect(cropX, cropY, cropW, cropH, 12);
+    ctx.fill('evenodd');
+    ctx.restore();
+
+    // Ghost overlay of the previous photo (same pose), for visual alignment
+    if (showGuide && refImgRef.current) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.roundRect(cropX, cropY, cropW, cropH, 12);
+      ctx.clip();
+      ctx.globalAlpha = 0.35;
+      ctx.drawImage(refImgRef.current, cropX, cropY, cropW, cropH);
+      ctx.restore();
+    }
+
+    // Crop border
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.roundRect(cropX, cropY, cropW, cropH, 12);
+    ctx.stroke();
+    ctx.restore();
+
+    // Rule of thirds grid
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+    ctx.lineWidth = 1;
+    for (let i = 1; i <= 2; i++) {
+      ctx.beginPath();
+      ctx.moveTo(cropX + (cropW / 3) * i, cropY);
+      ctx.lineTo(cropX + (cropW / 3) * i, cropY + cropH);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(cropX, cropY + (cropH / 3) * i);
+      ctx.lineTo(cropX + cropW, cropY + (cropH / 3) * i);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // Body alignment guides
+    ctx.save();
+    ctx.setLineDash([6, 4]);
+
+    // Head guide — ~8% from top
+    const headY = cropY + cropH * 0.08;
+    ctx.strokeStyle = 'rgba(91, 110, 245, 0.5)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(cropX + 20, headY);
+    ctx.lineTo(cropX + cropW - 20, headY);
+    ctx.stroke();
+
+    // Feet guide — ~95% from top
+    const feetY = cropY + cropH * 0.95;
+    ctx.strokeStyle = 'rgba(91, 110, 245, 0.5)';
+    ctx.beginPath();
+    ctx.moveTo(cropX + 20, feetY);
+    ctx.lineTo(cropX + cropW - 20, feetY);
+    ctx.stroke();
+
+    // Center line
+    ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+    ctx.beginPath();
+    ctx.moveTo(cx, cropY + cropH * 0.1);
+    ctx.lineTo(cx, cropY + cropH * 0.9);
+    ctx.stroke();
+
+    ctx.restore();
+
+    // Guide labels
+    ctx.save();
+    ctx.fillStyle = 'rgba(91, 110, 245, 0.7)';
+    ctx.font = '500 9px -apple-system, BlinkMacSystemFont, sans-serif';
+    ctx.fillText('HEAD', cropX + 24, headY - 4);
+    ctx.fillText('FEET', cropX + 24, feetY - 4);
+    ctx.restore();
+  }, [scale, offset, rotation, viewW, viewH, cropW, cropH, showGuide]);
+
+  useEffect(() => {
+    if (imgLoaded) draw();
+  }, [imgLoaded, refImgLoaded, draw]);
+
+  const getTouchDist = (touches: Map<number, { x: number; y: number }>) => {
+    const pts = Array.from(touches.values());
+    if (pts.length < 2) return 0;
+    return Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y);
+  };
+
+  const getTouchAngle = (touches: Map<number, { x: number; y: number }>) => {
+    const pts = Array.from(touches.values());
+    if (pts.length < 2) return 0;
+    return Math.atan2(pts[1].y - pts[0].y, pts[1].x - pts[0].x) * (180 / Math.PI);
+  };
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    touchesRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+
+    if (touchesRef.current.size === 2) {
+      pinchStartDist.current = getTouchDist(touchesRef.current);
+      pinchStartScale.current = scale;
+      pinchStartAngle.current = getTouchAngle(touchesRef.current);
+      pinchStartRotation.current = rotation;
+      setDragging(false);
+    } else if (touchesRef.current.size === 1) {
+      setDragging(true);
+      setDragStart({ x: e.clientX - offset.x, y: e.clientY - offset.y });
+    }
+  };
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    touchesRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+    if (touchesRef.current.size >= 2) {
+      const dist = getTouchDist(touchesRef.current);
+      if (pinchStartDist.current > 0) {
+        const newScale = pinchStartScale.current * (dist / pinchStartDist.current);
+        setScale(Math.max(initialScale * 0.3, Math.min(initialScale * 5, newScale)));
+      }
+      const angle = getTouchAngle(touchesRef.current);
+      const angleDiff = angle - pinchStartAngle.current;
+      setRotation(pinchStartRotation.current + angleDiff);
+    } else if (dragging) {
+      setOffset({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y });
+    }
+  };
+
+  const handlePointerUp = (e: React.PointerEvent) => {
+    touchesRef.current.delete(e.pointerId);
+    if (touchesRef.current.size < 2) {
+      pinchStartDist.current = 0;
+    }
+    if (touchesRef.current.size === 0) {
+      setDragging(false);
+    }
+  };
+
+  const handleWheel = (e: React.WheelEvent) => {
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? -0.03 : 0.03;
+    setScale((s) => Math.max(initialScale * 0.3, Math.min(initialScale * 5, s + delta)));
+  };
+
+  const zoom = (dir: number) => {
+    setScale((s) => Math.max(initialScale * 0.3, Math.min(initialScale * 5, s + dir * initialScale * 0.12)));
+  };
+
+  const rotate90 = () => setRotation((r) => Math.round(r / 90) * 90 + 90);
+
+  const handleCrop = () => {
+    const img = imgRef.current;
+    if (!img) return;
+
+    const out = document.createElement('canvas');
+    out.width = OUTPUT_W;
+    out.height = OUTPUT_H;
+    const ctx = out.getContext('2d')!;
+
+    const outScaleX = OUTPUT_W / cropW;
+    const outScaleY = OUTPUT_H / cropH;
+
+    ctx.translate(OUTPUT_W / 2, OUTPUT_H / 2);
+    ctx.scale(outScaleX, outScaleY);
+    ctx.translate(offset.x, offset.y);
+    ctx.rotate((rotation * Math.PI) / 180);
+    ctx.scale(scale, scale);
+    ctx.drawImage(img, -img.width / 2, -img.height / 2);
+
+    const dataUrl = out.toDataURL('image/jpeg', 0.85);
+    const base64 = dataUrl.split(',')[1];
+    onCrop(base64);
+  };
+
+  return (
+    <div className="fixed inset-0 z-[300] flex flex-col items-center justify-center bg-black/95">
+      <p className="text-white/60 text-[0.6875rem] mb-2">
+        {referenceImageSrc ? 'Match the faint outline of your last photo' : 'Align your body with the guides'}
+      </p>
+
+      <div
+        className="relative touch-none select-none"
+        style={{ width: viewW, height: viewH }}
+      >
+        <canvas
+          ref={canvasRef}
+          width={viewW}
+          height={viewH}
+          className="rounded-2xl cursor-grab active:cursor-grabbing"
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerUp}
+          onWheel={handleWheel}
+        />
+      </div>
+
+      {referenceImageSrc && refImgLoaded && (
+        <button
+          onClick={() => setShowGuide((v) => !v)}
+          className="flex items-center gap-1.5 mt-2 text-[0.6875rem] text-white/50 hover:text-white/80"
+        >
+          {showGuide ? <EyeOff size={12} /> : <Eye size={12} />}
+          {showGuide ? 'Hide' : 'Show'} last photo guide
+        </button>
+      )}
+
+      {/* Zoom controls */}
+      <div className="flex items-center gap-3 mt-3">
+        <button onClick={() => zoom(-1)} className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white active:scale-90 transition-transform">
+          <ZoomOut size={14} />
+        </button>
+        <input
+          type="range"
+          min={initialScale * 30}
+          max={initialScale * 500}
+          value={scale * 100}
+          onChange={(e) => setScale(parseFloat(e.target.value) / 100)}
+          className="w-24 accent-white"
+        />
+        <button onClick={() => zoom(1)} className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white active:scale-90 transition-transform">
+          <ZoomIn size={14} />
+        </button>
+      </div>
+
+      {/* Rotation controls */}
+      <div className="flex items-center gap-3 mt-2">
+        <button onClick={rotate90} className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white active:scale-90 transition-transform">
+          <RotateCw size={14} />
+        </button>
+        <input
+          type="range"
+          min={-45}
+          max={45}
+          step={0.5}
+          value={rotation % 90 > 45 ? rotation % 90 - 90 : rotation % 90 < -45 ? rotation % 90 + 90 : rotation % 90}
+          onChange={(e) => {
+            const base = Math.round(rotation / 90) * 90;
+            setRotation(base + parseFloat(e.target.value));
+          }}
+          className="w-24 accent-white"
+        />
+        <span className="text-white/50 text-[0.625rem] tabular-nums w-10 text-center">{rotation >= 0 ? '+' : ''}{rotation.toFixed(1)}°</span>
+        {Math.abs(rotation % 90) > 0.5 && (
+          <button onClick={() => setRotation(Math.round(rotation / 90) * 90)} className="text-[0.5625rem] text-white/40 hover:text-white">Reset</button>
+        )}
+      </div>
+
+      <p className="text-white/30 text-[0.5625rem] mt-1">Drag to position · Pinch to zoom · Two-finger rotate for fine adjustments</p>
+
+      {/* Actions */}
+      <div className="flex gap-3 mt-4">
+        <button
+          onClick={onCancel}
+          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white/10 text-white font-semibold text-sm active:scale-95 transition-transform"
+        >
+          <X size={16} />
+          Cancel
+        </button>
+        <button
+          onClick={handleCrop}
+          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-accent text-white font-semibold text-sm active:scale-95 transition-transform"
+        >
+          <Check size={16} />
+          Crop & Save
+        </button>
+      </div>
+    </div>
+  );
+}

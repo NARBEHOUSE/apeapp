@@ -1,0 +1,112 @@
+{
+  "id": "built-in-full-body-3day",
+  "name": "Full Body 3x/Week",
+  "description": "Full Body A · Rest · Full Body B · Rest · Full Body C · Rest · Rest",
+  "isBuiltIn": true,
+  "createdAt": "2025-06-01T00:00:00.000Z",
+  "updatedAt": "2025-06-01T00:00:00.000Z",
+  "suggestedDurationWeeks": 8,
+  "daysPerWeek": 3,
+  "split": "Full Body",
+  "goal": {
+    "type": "strength",
+    "description": "Build strength with compound lifts and full body training"
+  },
+  "days": [
+    {
+      "id": "fb3-day1",
+      "label": "Day 1",
+      "tag": "FULL BODY A",
+      "title": "Push Dominant",
+      "subtitle": "Squat and press focus",
+      "accent": "#e8572a",
+      "note": "Heavy compounds first. Keep rest 2-3 min on barbell lifts.",
+      "exercises": [
+        { "id": "fb3-d1-e1", "name": "Barbell Squat", "sets": 4, "reps": "6-8", "muscle": "Quads/Glutes", "note": "" },
+        { "id": "fb3-d1-e2", "name": "Bench Press", "sets": 4, "reps": "8-10", "muscle": "Chest", "note": "" },
+        { "id": "fb3-d1-e3", "name": "Overhead Press", "sets": 3, "reps": "8-10", "muscle": "Shoulders", "note": "" },
+        { "id": "fb3-d1-e4", "name": "Romanian Deadlift", "sets": 3, "reps": "10-12", "muscle": "Hamstrings/Glutes", "note": "" },
+        { "id": "fb3-d1-e5", "name": "Cable Lateral Raises", "sets": 3, "reps": "15-20", "muscle": "Side Delt", "note": "" },
+        { "id": "fb3-d1-e6", "name": "Tricep Pressdowns", "sets": 3, "reps": "12-15", "muscle": "Triceps", "note": "" },
+        { "id": "fb3-d1-e7", "name": "Plank", "sets": 3, "reps": "45s", "muscle": "Core", "note": "" }
+      ]
+    },
+    {
+      "id": "fb3-day2",
+      "label": "Day 2",
+      "tag": "REST",
+      "title": "Rest Day",
+      "subtitle": "Recovery",
+      "accent": "#444444",
+      "note": "",
+      "exercises": []
+    },
+    {
+      "id": "fb3-day3",
+      "label": "Day 3",
+      "tag": "FULL BODY B",
+      "title": "Pull Dominant",
+      "subtitle": "Deadlift and pull focus",
+      "accent": "#5b6ef5",
+      "note": "Deadlift is the main lift. Keep it heavy but controlled.",
+      "exercises": [
+        { "id": "fb3-d3-e1", "name": "Deadlift", "sets": 4, "reps": "5", "muscle": "Full Body", "note": "" },
+        { "id": "fb3-d3-e2", "name": "Pull-Ups or Pulldowns", "sets": 4, "reps": "8-10", "muscle": "Back/Biceps", "note": "" },
+        { "id": "fb3-d3-e3", "name": "Incline DB Press", "sets": 3, "reps": "10-12", "muscle": "Chest", "note": "" },
+        { "id": "fb3-d3-e4", "name": "DB Row", "sets": 3, "reps": "10-12/side", "muscle": "Mid Back", "note": "" },
+        { "id": "fb3-d3-e5", "name": "Face Pulls", "sets": 3, "reps": "15-20", "muscle": "Rear Delt/RC", "note": "" },
+        { "id": "fb3-d3-e6", "name": "Barbell Curl", "sets": 3, "reps": "10-12", "muscle": "Biceps", "note": "" },
+        { "id": "fb3-d3-e7", "name": "Leg Press", "sets": 3, "reps": "12-15", "muscle": "Quads", "note": "" }
+      ]
+    },
+    {
+      "id": "fb3-day4",
+      "label": "Day 4",
+      "tag": "REST",
+      "title": "Rest Day",
+      "subtitle": "Recovery",
+      "accent": "#444444",
+      "note": "",
+      "exercises": []
+    },
+    {
+      "id": "fb3-day5",
+      "label": "Day 5",
+      "tag": "FULL BODY C",
+      "title": "Balanced",
+      "subtitle": "Even split across muscle groups",
+      "accent": "#2e9e6b",
+      "note": "Moderate weight, quality reps.",
+      "exercises": [
+        { "id": "fb3-d5-e1", "name": "Front Squat or Goblet Squat", "sets": 3, "reps": "10-12", "muscle": "Quads", "note": "" },
+        { "id": "fb3-d5-e2", "name": "Weighted Dips", "sets": 3, "reps": "8-12", "muscle": "Chest/Triceps", "note": "" },
+        { "id": "fb3-d5-e3", "name": "Barbell Row", "sets": 4, "reps": "8-10", "muscle": "Back", "note": "" },
+        { "id": "fb3-d5-e4", "name": "Leg Curl", "sets": 3, "reps": "12-15", "muscle": "Hamstrings", "note": "" },
+        { "id": "fb3-d5-e5", "name": "Arnold Press", "sets": 3, "reps": "10-12", "muscle": "Shoulders", "note": "" },
+        { "id": "fb3-d5-e6", "name": "Hammer Curls", "sets": 2, "reps": "12-15", "muscle": "Biceps/Forearms", "note": "" },
+        { "id": "fb3-d5-e7", "name": "Standing Calf Raises", "sets": 4, "reps": "15-20", "muscle": "Calves", "note": "" },
+        { "id": "fb3-d5-e8", "name": "Ab Wheel or Rollouts", "sets": 3, "reps": "10", "muscle": "Core", "note": "" }
+      ]
+    },
+    {
+      "id": "fb3-day6",
+      "label": "Day 6",
+      "tag": "REST",
+      "title": "Rest Day",
+      "subtitle": "Recovery",
+      "accent": "#444444",
+      "note": "",
+      "exercises": []
+    },
+    {
+      "id": "fb3-day7",
+      "label": "Day 7",
+      "tag": "REST",
+      "title": "Rest Day",
+      "subtitle": "Recovery",
+      "accent": "#444444",
+      "note": "",
+      "exercises": []
+    }
+  ]
+}

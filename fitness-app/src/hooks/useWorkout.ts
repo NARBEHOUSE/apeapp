@@ -1,0 +1,241 @@
+import { useState, useEffect, useCallback } from 'react';
+import type { WorkoutSession, SetLog, Exercise, ExerciseLastPerformance, CardioEntry } from '../types';
+import { saveWorkoutSession, getSessionsByProfile, deleteWorkoutSession } from '../db/workouts';
+import { getAllPrograms, initializePrograms } from '../db/programs';
+import { today } from '../utils/dateHelpers';
+import type { Program } from '../types';
+
+const ACTIVE_SESSION_KEY = 'fitos-active-workout';
+const ACTIVE_INPUTS_KEY = 'fitos-active-workout-inputs';
+
+export function saveWorkoutInputs(inputs: Record<string, { weight: string; reps: string; effort: string }[]>) {
+  localStorage.setItem(ACTIVE_INPUTS_KEY, JSON.stringify(inputs));
+}
+
+export function loadWorkoutInputs(): Record<string, { weight: string; reps: string; effort: string }[]> | null {
+  try {
+    const raw = localStorage.getItem(ACTIVE_INPUTS_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+
+export function clearWorkoutInputs() {
+  localStorage.removeItem(ACTIVE_INPUTS_KEY);
+}
+
+function loadPersistedSession(): WorkoutSession | null {
+  try {
+    const raw = localStorage.getItem(ACTIVE_SESSION_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+
+function persistSession(session: WorkoutSession | null) {
+  if (session) localStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(session));
+  else localStorage.removeItem(ACTIVE_SESSION_KEY);
+}
+
+export function useWorkout(profileId: string | null) {
+  const [programs, setPrograms] = useState<Program[]>([]);
+  const [sessions, setSessions] = useState<WorkoutSession[]>([]);
+  const [activeSession, setActiveSession] = useState<WorkoutSession | null>(() => loadPersistedSession());
+  const [loading, setLoading] = useState(true);
+
+  const loadData = useCallback(async () => {
+    if (!profileId) return;
+    setLoading(true);
+    await initializePrograms();
+    const [progs, sess] = await Promise.all([
+      getAllPrograms(),
+      getSessionsByProfile(profileId),
+    ]);
+    setPrograms(progs);
+    setSessions(sess.sort((a, b) => b.startTime - a.startTime));
+    setLoading(false);
+  }, [profileId]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  // Persist active session to survive tab switches and refreshes
+  useEffect(() => {
+    persistSession(activeSession);
+  }, [activeSession]);
+
+  const startWorkout = useCallback(
+    (programId: string, dayId: string): WorkoutSession => {
+      const session: WorkoutSession = {
+        id: crypto.randomUUID(),
+        profileId: profileId!,
+        programId,
+        dayId,
+        date: today(),
+        startTime: Date.now(),
+        sets: {},
+      };
+      setActiveSession(session);
+      return session;
+    },
+    [profileId]
+  );
+
+  const logSet = useCallback(
+    (exerciseId: string, set: SetLog) => {
+      if (!activeSession) return;
+      setActiveSession((prev) => {
+        if (!prev) return prev;
+        const existing = prev.sets[exerciseId] || [];
+        return {
+          ...prev,
+          sets: { ...prev.sets, [exerciseId]: [...existing, set] },
+        };
+      });
+    },
+    [activeSession]
+  );
+
+  const updateSet = useCallback(
+    (exerciseId: string, setIndex: number, updates: Partial<SetLog>) => {
+      if (!activeSession) return;
+      setActiveSession((prev) => {
+        if (!prev) return prev;
+        const existing = [...(prev.sets[exerciseId] || [])];
+        existing[setIndex] = { ...existing[setIndex], ...updates };
+        return { ...prev, sets: { ...prev.sets, [exerciseId]: existing } };
+      });
+    },
+    [activeSession]
+  );
+
+  const removeExerciseFromSession = useCallback((exerciseId: string) => {
+    setActiveSession((prev) => {
+      if (!prev) return prev;
+      const { [exerciseId]: _removed, ...rest } = prev.sets;
+      return { ...prev, sets: rest };
+    });
+  }, []);
+
+  const updateCardio = useCallback(
+    (cardio: CardioEntry[]) => {
+      if (!activeSession) return;
+      setActiveSession((prev) => prev ? { ...prev, cardio } : prev);
+    },
+    [activeSession]
+  );
+
+  const updateActiveSessionName = useCallback((name: string) => {
+    setActiveSession((prev) => prev ? { ...prev, name: name.trim() || undefined } : prev);
+  }, []);
+
+  const finishWorkout = useCallback(async (): Promise<WorkoutSession | null> => {
+    if (!activeSession) return null;
+    const finished = { ...activeSession, endTime: Date.now() };
+    await saveWorkoutSession(finished);
+    setSessions((prev) => [finished, ...prev]);
+    setActiveSession(null);
+    clearWorkoutInputs();
+    return finished;
+  }, [activeSession]);
+
+  const cancelWorkout = useCallback(() => {
+    setActiveSession(null);
+    clearWorkoutInputs();
+  }, []);
+
+  const skipWorkout = useCallback(
+    async (programId: string, dayId: string): Promise<WorkoutSession> => {
+      const now = Date.now();
+      const session: WorkoutSession = {
+        id: crypto.randomUUID(),
+        profileId: profileId!,
+        programId,
+        dayId,
+        date: today(),
+        startTime: now,
+        endTime: now,
+        sets: {},
+        status: 'skipped',
+      };
+      await saveWorkoutSession(session);
+      setSessions((prev) => [session, ...prev]);
+      return session;
+    },
+    [profileId]
+  );
+
+  const removeSession = useCallback(async (sessionId: string) => {
+    await deleteWorkoutSession(sessionId);
+    setSessions((prev) => prev.filter((s) => s.id !== sessionId));
+  }, []);
+
+  const updateSession = useCallback(async (session: WorkoutSession) => {
+    await saveWorkoutSession(session);
+    setSessions((prev) => prev.map((s) => s.id === session.id ? session : s));
+  }, []);
+
+  const getPreviousSession = useCallback(
+    (programId: string, dayId: string): WorkoutSession | undefined => {
+      return sessions.find((s) => s.programId === programId && s.dayId === dayId && s.status !== 'skipped');
+    },
+    [sessions]
+  );
+
+  const getLastPerformanceMap = useCallback(
+    (dayExercises: Exercise[]): Record<string, ExerciseLastPerformance> => {
+      const idToName: Record<string, string> = {};
+      for (const program of programs) {
+        for (const day of program.days) {
+          for (const ex of day.exercises) {
+            if (ex.name.trim()) idToName[ex.id] = ex.name.toLowerCase().trim();
+          }
+        }
+      }
+
+      const targetNames = new Set(
+        dayExercises.map((e) => e.name.toLowerCase().trim()).filter((n) => n.length > 0)
+      );
+      const result: Record<string, ExerciseLastPerformance> = {};
+      const found = new Set<string>();
+
+      for (const session of sessions) {
+        if (found.size === targetNames.size) break;
+        if (session.status === 'skipped') continue;
+        for (const [exId, setLogs] of Object.entries(session.sets)) {
+          const name = idToName[exId];
+          if (name && targetNames.has(name) && !found.has(name)) {
+            const completed = setLogs.filter((s) => s.completed);
+            if (completed.length > 0) {
+              result[name] = { sets: completed, date: session.date };
+              found.add(name);
+            }
+          }
+        }
+      }
+
+      return result;
+    },
+    [programs, sessions]
+  );
+
+  return {
+    programs,
+    sessions,
+    activeSession,
+    loading,
+    startWorkout,
+    logSet,
+    updateSet,
+    removeExerciseFromSession,
+    updateCardio,
+    updateActiveSessionName,
+    finishWorkout,
+    cancelWorkout,
+    skipWorkout,
+    removeSession,
+    updateSession,
+    getPreviousSession,
+    getLastPerformanceMap,
+    refreshPrograms: loadData,
+  };
+}

@@ -1,0 +1,125 @@
+{
+  "id": "built-in-bro-split",
+  "name": "Bro Split 5x/Week",
+  "description": "Chest · Back · Shoulders · Arms · Legs · Rest · Rest",
+  "isBuiltIn": true,
+  "createdAt": "2025-06-01T00:00:00.000Z",
+  "updatedAt": "2025-06-01T00:00:00.000Z",
+  "suggestedDurationWeeks": 12,
+  "daysPerWeek": 5,
+  "split": "Body Part Split",
+  "goal": {
+    "type": "hypertrophy",
+    "description": "Maximum muscle growth with dedicated muscle group days"
+  },
+  "days": [
+    {
+      "id": "bs-day1",
+      "label": "Day 1",
+      "tag": "CHEST",
+      "title": "Chest Day",
+      "subtitle": "All pressing and fly variations",
+      "accent": "#e8572a",
+      "note": "Go heavy on flat bench. Chase the pump on flies.",
+      "exercises": [
+        { "id": "bs-d1-e1", "name": "Flat Barbell Bench Press", "sets": 4, "reps": "8-10", "muscle": "Chest", "note": "" },
+        { "id": "bs-d1-e2", "name": "Incline DB Press", "sets": 4, "reps": "10-12", "muscle": "Chest", "note": "" },
+        { "id": "bs-d1-e3", "name": "Cable Crossovers", "sets": 3, "reps": "15-20", "muscle": "Chest", "note": "" },
+        { "id": "bs-d1-e4", "name": "Pec Deck or Machine Fly", "sets": 3, "reps": "12-15", "muscle": "Chest", "note": "" },
+        { "id": "bs-d1-e5", "name": "Dips (chest focused)", "sets": 3, "reps": "10-12", "muscle": "Chest", "note": "" },
+        { "id": "bs-d1-e6", "name": "Push-Ups (burnout)", "sets": 1, "reps": "AMRAP", "muscle": "Chest", "note": "" }
+      ]
+    },
+    {
+      "id": "bs-day2",
+      "label": "Day 2",
+      "tag": "BACK",
+      "title": "Back Day",
+      "subtitle": "Width and thickness",
+      "accent": "#5b6ef5",
+      "note": "Deadlift first while fresh. Pull with elbows.",
+      "exercises": [
+        { "id": "bs-d2-e1", "name": "Deadlift", "sets": 4, "reps": "5", "muscle": "Back/Full Body", "note": "" },
+        { "id": "bs-d2-e2", "name": "Barbell Row", "sets": 4, "reps": "8-10", "muscle": "Back", "note": "" },
+        { "id": "bs-d2-e3", "name": "Pull-Ups or Pulldowns", "sets": 4, "reps": "8-10", "muscle": "Lats", "note": "" },
+        { "id": "bs-d2-e4", "name": "Seated Cable Row", "sets": 3, "reps": "10-12", "muscle": "Mid Back", "note": "" },
+        { "id": "bs-d2-e5", "name": "Single Arm DB Row", "sets": 3, "reps": "10-12/side", "muscle": "Mid Back", "note": "" },
+        { "id": "bs-d2-e6", "name": "Face Pulls", "sets": 3, "reps": "15-20", "muscle": "Rear Delt/RC", "note": "" }
+      ]
+    },
+    {
+      "id": "bs-day3",
+      "label": "Day 3",
+      "tag": "SHOULDERS",
+      "title": "Shoulder Day",
+      "subtitle": "All three heads",
+      "accent": "#2e9e6b",
+      "note": "Press heavy, raise light. Full ROM on laterals.",
+      "exercises": [
+        { "id": "bs-d3-e1", "name": "Seated DB Press", "sets": 4, "reps": "10-12", "muscle": "Shoulders", "note": "" },
+        { "id": "bs-d3-e2", "name": "Barbell Overhead Press", "sets": 3, "reps": "8-10", "muscle": "Shoulders", "note": "" },
+        { "id": "bs-d3-e3", "name": "Lateral Raises", "sets": 4, "reps": "15-20", "muscle": "Side Delt", "note": "" },
+        { "id": "bs-d3-e4", "name": "Rear Delt Flies", "sets": 3, "reps": "15-20", "muscle": "Rear Delt", "note": "" },
+        { "id": "bs-d3-e5", "name": "Upright Rows", "sets": 3, "reps": "12-15", "muscle": "Shoulders/Traps", "note": "" },
+        { "id": "bs-d3-e6", "name": "Shrugs", "sets": 3, "reps": "15-20", "muscle": "Traps", "note": "" }
+      ]
+    },
+    {
+      "id": "bs-day4",
+      "label": "Day 4",
+      "tag": "ARMS",
+      "title": "Arms Day",
+      "subtitle": "Biceps and triceps superset party",
+      "accent": "#c44fc4",
+      "note": "Alternate bi/tri exercises. Keep rest short.",
+      "exercises": [
+        { "id": "bs-d4-e1", "name": "Barbell Curl", "sets": 4, "reps": "10-12", "muscle": "Biceps", "note": "" },
+        { "id": "bs-d4-e2", "name": "Skull Crushers", "sets": 4, "reps": "10-12", "muscle": "Triceps", "note": "" },
+        { "id": "bs-d4-e3", "name": "Incline DB Curl", "sets": 3, "reps": "12-15", "muscle": "Biceps", "note": "" },
+        { "id": "bs-d4-e4", "name": "Close Grip Bench Press", "sets": 3, "reps": "10-12", "muscle": "Triceps", "note": "" },
+        { "id": "bs-d4-e5", "name": "Hammer Curls", "sets": 3, "reps": "12-15", "muscle": "Biceps/Forearms", "note": "" },
+        { "id": "bs-d4-e6", "name": "Tricep Pressdowns", "sets": 3, "reps": "15-20", "muscle": "Triceps", "note": "" },
+        { "id": "bs-d4-e7", "name": "Preacher Curl", "sets": 2, "reps": "12-15", "muscle": "Biceps", "note": "" },
+        { "id": "bs-d4-e8", "name": "Overhead Tricep Extension", "sets": 2, "reps": "15-20", "muscle": "Triceps", "note": "" }
+      ]
+    },
+    {
+      "id": "bs-day5",
+      "label": "Day 5",
+      "tag": "LEGS",
+      "title": "Leg Day",
+      "subtitle": "Quads, hams, and calves",
+      "accent": "#1a7a52",
+      "note": "Don't skip leg day. Squat deep.",
+      "exercises": [
+        { "id": "bs-d5-e1", "name": "Barbell Squat", "sets": 4, "reps": "8-10", "muscle": "Quads/Glutes", "note": "" },
+        { "id": "bs-d5-e2", "name": "Leg Press", "sets": 4, "reps": "12-15", "muscle": "Quads", "note": "" },
+        { "id": "bs-d5-e3", "name": "Romanian Deadlift", "sets": 3, "reps": "10-12", "muscle": "Hamstrings/Glutes", "note": "" },
+        { "id": "bs-d5-e4", "name": "Leg Extensions", "sets": 3, "reps": "15-20", "muscle": "Quads", "note": "" },
+        { "id": "bs-d5-e5", "name": "Lying Leg Curls", "sets": 3, "reps": "12-15", "muscle": "Hamstrings", "note": "" },
+        { "id": "bs-d5-e6", "name": "Standing Calf Raises", "sets": 5, "reps": "15-20", "muscle": "Calves", "note": "" },
+        { "id": "bs-d5-e7", "name": "Seated Calf Raises", "sets": 3, "reps": "20", "muscle": "Calves", "note": "" }
+      ]
+    },
+    {
+      "id": "bs-day6",
+      "label": "Day 6",
+      "tag": "REST",
+      "title": "Rest Day",
+      "subtitle": "Recovery",
+      "accent": "#444444",
+      "note": "",
+      "exercises": []
+    },
+    {
+      "id": "bs-day7",
+      "label": "Day 7",
+      "tag": "REST",
+      "title": "Rest Day",
+      "subtitle": "Recovery",
+      "accent": "#444444",
+      "note": "",
+      "exercises": []
+    }
+  ]
+}
