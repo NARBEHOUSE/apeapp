@@ -1,0 +1,4 @@
+interface:
+  display_name: "APE Data Safety"
+  short_description: "Protect profiles, backups, sync, and secrets"
+  default_prompt: "Use $ape-data-safety to review and implement this APE data change without risking user data."

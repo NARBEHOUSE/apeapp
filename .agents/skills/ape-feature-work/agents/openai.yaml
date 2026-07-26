@@ -1,0 +1,4 @@
+interface:
+  display_name: "APE Feature Work"
+  short_description: "Build APE changes with focused verification"
+  default_prompt: "Use $ape-feature-work to implement this APE app change safely and verify it."
