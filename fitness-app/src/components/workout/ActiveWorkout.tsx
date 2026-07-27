@@ -361,17 +361,17 @@ function ExerciseCard({
             {exerciseIndex + 1}
           </span>
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="font-medium text-sm truncate min-w-0">{exercise.name}</span>
+            <span className="font-medium text-sm block leading-snug">{exercise.name}</span>
+            <div className="flex items-center gap-2 mt-0.5">
+              <span className="text-[0.6875rem] text-text-muted shrink-0">
+                {completedCount}/{setCount} sets{setsChanged ? ` (plan: ${exercise.sets})` : ''}
+              </span>
               {exercise.muscle && (
-                <span className="text-[0.5625rem] px-1.5 py-0.5 rounded bg-surface-raised text-text-muted shrink-0">
+                <span className="text-[0.5625rem] px-1.5 py-0.5 rounded bg-surface-raised text-text-muted truncate min-w-0">
                   {exercise.muscle}
                 </span>
               )}
             </div>
-            <span className="text-[0.6875rem] text-text-muted">
-              {completedCount}/{setCount} sets{setsChanged ? ` (plan: ${exercise.sets})` : ''}
-            </span>
           </div>
           {allDone && (
             <span className="w-5 h-5 rounded-full bg-success/20 flex items-center justify-center shrink-0">
