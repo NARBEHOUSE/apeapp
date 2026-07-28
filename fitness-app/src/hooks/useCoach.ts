@@ -126,7 +126,7 @@ export function useCoach() {
       .filter((p) => p.profileId === pid);
 
     const UPLOAD_CONCURRENCY = 4;
-    const photoMeta = (await mapWithConcurrency(myPhotos, UPLOAD_CONCURRENCY, async (photo) => {
+    const photoMeta = (await mapWithConcurrency(myPhotos, UPLOAD_CONCURRENCY, async (photo): Promise<CoachPhotoMeta | null> => {
       let driveFileId = uploadedMap[photo.id];
       if (!driveFileId) {
         try {
