@@ -60,6 +60,19 @@ function saveBlockList(list: string[]) {
   localStorage.setItem(BLOCK_KEY, JSON.stringify(list));
 }
 
+async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let next = 0;
+  async function worker() {
+    while (next < items.length) {
+      const i = next++;
+      results[i] = await fn(items[i]);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
+}
+
 function migrateFlatChanges(raw: Record<string, unknown>): PendingCoachChanges {
   if (raw.items && Array.isArray(raw.items)) return raw as unknown as PendingCoachChanges;
   const items: CoachChangeItem[] = [];
@@ -104,13 +117,16 @@ export function useCoach() {
     const db = await getDB();
     const allPhotos = await db.getAll('progressPhotos');
     const allMeasurements = await db.getAll('measurements') as { profileId: string; date: string; weight?: number }[];
+    // Coach relationships are scoped to a single profile (same resolution as gatherCoachData),
+    // so only that profile's photos should ever leave the device.
     const profiles = JSON.parse(localStorage.getItem('fitos-profiles') || '[]') as { id: string }[];
-    const profileIds = new Set(profiles.map((p) => p.id));
+    const activeProfileId = localStorage.getItem('fitos-active-profile');
+    const pid = (profiles.find((p) => p.id === activeProfileId) || profiles[0])?.id;
     const myPhotos = (allPhotos as { id: string; profileId: string; imageData: string; date: string; pose: string; weight?: number; notes?: string }[])
-      .filter((p) => profileIds.has(p.profileId));
-    const photoMeta: CoachPhotoMeta[] = [];
+      .filter((p) => p.profileId === pid);
 
-    for (const photo of myPhotos) {
+    const UPLOAD_CONCURRENCY = 4;
+    const photoMeta = (await mapWithConcurrency(myPhotos, UPLOAD_CONCURRENCY, async (photo) => {
       let driveFileId = uploadedMap[photo.id];
       if (!driveFileId) {
         try {
@@ -118,7 +134,7 @@ export function useCoach() {
           uploadedMap[photo.id] = driveFileId;
         } catch (err) {
           console.error('Photo upload failed:', photo.id, err);
-          continue;
+          return null;
         }
       }
       // Prefer logged measurement weight over photo-specific weight
@@ -134,16 +150,15 @@ export function useCoach() {
         }
         return bestDiff <= 7 * 86400000 ? best.weight : photo.weight;
       })();
-      photoMeta.push({ photoId: photo.id, driveFileId, date: photo.date, pose: photo.pose, weight: effectiveWeight, notes: photo.notes });
-    }
+      return { photoId: photo.id, driveFileId, date: photo.date, pose: photo.pose, weight: effectiveWeight, notes: photo.notes };
+    })).filter((m): m is CoachPhotoMeta => m !== null);
 
     const currentIds = new Set(myPhotos.map((p) => p.id));
-    for (const pid of Object.keys(uploadedMap)) {
-      if (!currentIds.has(pid)) {
-        try { await deleteFile(token, uploadedMap[pid]); } catch { /* gone */ }
-        delete uploadedMap[pid];
-      }
-    }
+    const staleIds = Object.keys(uploadedMap).filter((pid) => !currentIds.has(pid));
+    await mapWithConcurrency(staleIds, UPLOAD_CONCURRENCY, async (id) => {
+      try { await deleteFile(token, uploadedMap[id]); } catch { /* gone */ }
+      delete uploadedMap[id];
+    });
     localStorage.setItem(cacheKey, JSON.stringify(uploadedMap));
     return photoMeta;
   }, []);

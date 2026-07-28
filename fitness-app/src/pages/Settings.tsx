@@ -117,6 +117,7 @@ export function Settings({ profile, onUpdateProfile, onSetMacroTargetHistory, pr
   const [showCoachHistory, setShowCoachHistory] = useState(false);
   const [inviteClientEmail, setInviteClientEmail] = useState('');
   const [invitePermissions, setInvitePermissions] = useState<Record<string, 'full' | 'readonly'>>({});
+  const [acceptingInviteId, setAcceptingInviteId] = useState<string | null>(null);
   const [sendingInvite, setSendingInvite] = useState(false);
 
   // Expanded sections — auto-expand if navigated with state
@@ -1013,6 +1014,7 @@ export function Settings({ profile, onUpdateProfile, onSetMacroTargetHistory, pr
                       <div className="flex gap-2">
                         <button
                           onClick={async () => {
+                            setAcceptingInviteId(invite.id);
                             try {
                               await acceptInvite(invite, invitePermissions[invite.id] ?? 'full');
                               toast(`${invite.coachName} added as coach`, 'success');
@@ -1023,16 +1025,20 @@ export function Settings({ profile, onUpdateProfile, onSetMacroTargetHistory, pr
                               } else {
                                 toast(msg, 'error');
                               }
+                            } finally {
+                              setAcceptingInviteId(null);
                             }
                           }}
                           disabled={coachLoading}
-                          className="btn-primary flex-1 text-xs disabled:opacity-30"
+                          className="btn-primary flex-1 text-xs disabled:opacity-30 flex items-center justify-center gap-1.5"
                         >
-                          Accept
+                          {acceptingInviteId === invite.id && <Loader2Icon size={12} className="animate-spin" />}
+                          {acceptingInviteId === invite.id ? 'Adding…' : 'Accept'}
                         </button>
                         <button
                           onClick={async () => { await declineInvite(invite); toast('Invite declined', 'success'); }}
-                          className="btn-secondary flex-1 text-xs"
+                          disabled={coachLoading}
+                          className="btn-secondary flex-1 text-xs disabled:opacity-30"
                         >
                           Decline
                         </button>
