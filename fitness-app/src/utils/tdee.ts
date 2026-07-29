@@ -161,13 +161,24 @@ const MIN_TRACKING_COVERAGE = 0.4;
 // unrelated, already-settled data instead of being read for what it is.
 const TREND_WINDOW_DAYS = 30;
 // How far back the *adherence* comparison looks — deliberately shorter than the trend window
-// above. A multi-day binge that's already fully explained by a handful of over-goal days
-// still gets averaged away by ADHERENCE_THRESHOLD if it's spread across the full 21-30 day
-// trend window (e.g. 3 days at +1500 cal/day over a 30-day window averages to ~150 cal/day —
-// right at the noise floor — even with perfect logging coverage). Comparing against the
-// recent stretch where the deviation actually happened keeps a real, short-lived over/under-
-// eating episode from reading as "no adherence issue" just because it didn't last long.
-const ADHERENCE_LOOKBACK_DAYS = 10;
+// above, and matched to the same 7-day rolling average shown elsewhere on the dashboard (see
+// TrendSnapshotCard) so "recent" means the same thing in both places. A multi-day binge that's
+// already fully explained by a handful of over-goal days still gets averaged away by
+// ADHERENCE_THRESHOLD if it's spread across the full 21-30 day trend window (e.g. 3 days at
+// +1500 cal/day over a 30-day window averages to ~150 cal/day — right at the noise floor —
+// even with perfect logging coverage). Comparing against the recent week keeps a real,
+// short-lived over/under-eating episode from reading as "no issue" just because it didn't
+// last long, while also letting it drop out of the check within a week of actually resolving.
+const ADHERENCE_LOOKBACK_DAYS = 7;
+// Half-life (days) for recency-weighting the trend regression — a reading this many days
+// older than the latest one carries half the influence on the slope. Unweighted regression
+// treats a 9-day-old data point the same as today's, so a resolved spike-and-recovery episode
+// keeps dragging the slope for a long time after the user is actually back to baseline (a
+// median-smoothed week-long bump can still read as ~0.3+ lbs/week "gaining" a full week after
+// weight and eating have both leveled off). Weighting recent entries more heavily makes the
+// trend converge back to "on track" within days of an episode actually resolving, instead of
+// waiting for the episode to age out of the whole window.
+const TREND_HALF_LIFE_DAYS = 10;
 
 // Replace each reading with the median of itself and its nearest neighbors before trending.
 // A single-day water-retention/scale-error spike gets outvoted by the flat readings around
@@ -239,17 +250,21 @@ export function calculateAutoAdjustment(
     return { ...noAdjust, reason: `Only ${Math.round(daySpan)} days of data — need 21+`, daysSinceStart: Math.round(daySpan) };
   }
 
-  // Linear regression to find weekly rate of change
-  const n = entries.length;
+  // Recency-weighted linear regression to find weekly rate of change. Weighted (not plain
+  // OLS) least squares: minimize sum(w_i * (y_i - (a + b*x_i))^2), which gives the normal
+  // equations below with every sum weighted by w_i.
   const days = entries.map((e) => (e.date - firstDate) / (1000 * 60 * 60 * 24));
   const weights = medianSmooth(entries.map((e) => e.weight));
+  const lastDay = days[days.length - 1];
+  const w = days.map((d) => Math.pow(0.5, (lastDay - d) / TREND_HALF_LIFE_DAYS));
 
-  const sumX = days.reduce((a, b) => a + b, 0);
-  const sumY = weights.reduce((a, b) => a + b, 0);
-  const sumXY = days.reduce((acc, d, i) => acc + d * weights[i], 0);
-  const sumXX = days.reduce((acc, d) => acc + d * d, 0);
+  const sumW = w.reduce((a, b) => a + b, 0);
+  const sumWX = days.reduce((acc, d, i) => acc + w[i] * d, 0);
+  const sumWY = weights.reduce((acc, y, i) => acc + w[i] * y, 0);
+  const sumWXY = days.reduce((acc, d, i) => acc + w[i] * d * weights[i], 0);
+  const sumWXX = days.reduce((acc, d, i) => acc + w[i] * d * d, 0);
 
-  const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX); // lbs per day
+  const slope = (sumW * sumWXY - sumWX * sumWY) / (sumW * sumWXX - sumWX * sumWX); // lbs per day
   const avgWeeklyChange = slope * 7; // lbs per week
 
   const targetWeekly = TARGET_RATES[goal];
