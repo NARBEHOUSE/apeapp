@@ -695,28 +695,38 @@ export function Settings({ profile, onUpdateProfile, onSetMacroTargetHistory, pr
     }
   };
 
-  const handleSaveClaudeKey = async () => {
-    if (!googleUser?.email) return;
+  const [claudeError, setClaudeError] = useState<string | null>(null);
+
+  const handleSaveClaudeKey = async (): Promise<boolean> => {
+    if (!googleUser?.email) return false;
     try {
       if (claudeKey.trim()) {
         await saveApiKey(claudeKey.trim(), googleUser.email, requireAccessToken);
       } else {
         await deleteApiKey(googleUser.email, requireAccessToken);
       }
+      setClaudeError(null);
+      return true;
     } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
       console.error('Failed to save API key:', e);
+      setClaudeError(`Couldn't save: ${message}`);
       setClaudeStatus('invalid');
-      setTimeout(() => setClaudeStatus('idle'), 3000);
+      setTimeout(() => setClaudeStatus('idle'), 5000);
+      return false;
     }
   };
 
   const handleTestClaude = async () => {
     if (!claudeKey.trim() || !googleUser?.email) return;
     setClaudeStatus('testing');
-    await handleSaveClaudeKey();
-    const valid = await testClaudeKey(claudeKey.trim());
+    setClaudeError(null);
+    const saved = await handleSaveClaudeKey();
+    if (!saved) return; // error already surfaced by handleSaveClaudeKey
+    const { valid, error } = await testClaudeKey(claudeKey.trim());
     setClaudeStatus(valid ? 'valid' : 'invalid');
-    setTimeout(() => setClaudeStatus('idle'), 3000);
+    if (!valid && error) setClaudeError(error);
+    setTimeout(() => setClaudeStatus('idle'), 5000);
   };
 
   // Keep calories in sync whenever a macro is hand-edited (protein/carbs *4, fat *9)
@@ -1347,7 +1357,10 @@ export function Settings({ profile, onUpdateProfile, onSetMacroTargetHistory, pr
                     className="input-field pr-10"
                     placeholder="sk-ant-..., sk-or-..., AIza..., sk-..."
                     value={claudeKey}
-                    onChange={(e) => setClaudeKey(e.target.value)}
+                    onChange={(e) => {
+                      setClaudeKey(e.target.value);
+                      setClaudeError(null);
+                    }}
                     onBlur={handleSaveClaudeKey}
                   />
                   <button
@@ -1393,6 +1406,11 @@ export function Settings({ profile, onUpdateProfile, onSetMacroTargetHistory, pr
                     {reconnectingKey ? 'Reconnecting…' : 'Reconnect'}
                   </button>
                 </div>
+              )}
+              {claudeError && (
+                <p className="text-[0.6875rem] text-danger break-words">
+                  {claudeError}
+                </p>
               )}
             </div>
           </div>

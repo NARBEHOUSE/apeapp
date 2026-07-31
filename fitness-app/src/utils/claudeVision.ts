@@ -54,11 +54,11 @@ export async function analyzeFood(base64Image: string, _apiKey: string, userNote
   return JSON.parse(cleaned) as VisionResult;
 }
 
-export async function testClaudeKey(_apiKey: string): Promise<boolean> {
+export async function testClaudeKey(_apiKey: string): Promise<{ valid: boolean; error?: string }> {
   try {
     await callAI({ systemPrompt: '', userPrompt: 'Hi' });
-    return true;
-  } catch {
-    return false;
+    return { valid: true };
+  } catch (err) {
+    return { valid: false, error: err instanceof Error ? err.message : String(err) };
   }
 }
