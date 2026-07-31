@@ -6,14 +6,20 @@ export type AIProvider = 'anthropic' | 'openai' | 'openrouter' | 'gemini' | 'unk
 let _key = '';
 
 // --- Worker session tokens ---------------------------------------------------
-// A longer-lived (~7 day), app-scoped credential the client trades a live
-// Google access token for once, so reloading the page doesn't require a
-// fresh Google handshake just to read the encrypted key. Safe to cache in
-// localStorage: it grants no access outside this key store and is narrower
-// in scope than the Google OAuth token it's exchanged for. Signing out calls
+// A 7-day, app-scoped credential the client trades a live Google access
+// token for once, so reloading the page doesn't require a fresh Google
+// handshake just to read the encrypted key. Safe to cache in localStorage:
+// it grants no access outside this key store and is narrower in scope than
+// the Google OAuth token it's exchanged for. Signing out calls
 // revokeSession() below, which kills it server-side immediately (via the
 // Worker's per-user epoch check) rather than leaving it valid until the TTL
 // naturally expires — see cloudflare (donotupload to github)/apikeys-worker/worker.js.
+//
+// It's a *sliding* window, not a hard 7-day wall: every time it's used with
+// less than SESSION_RENEW_MARGIN_MS left, resolveAuth silently renews it for
+// another 7 days (see maybeRenewSession). So as long as the app gets opened
+// at least once within any 7-day span, this never expires in practice — the
+// wall is only ever hit after 7 straight days of not using the app at all.
 
 const SESSION_KEY = 'ape-worker-session';
 
@@ -82,12 +88,38 @@ async function mintSession(userId: string, googleAccessToken: string): Promise<S
   return session;
 }
 
+// Renew once less than this much time remains on the cached session — keeps
+// the window sliding forward on active use instead of hard-expiring on a
+// fixed schedule.
+const SESSION_RENEW_MARGIN_MS = 6 * 24 * 60 * 60 * 1000;
+
+// Best-effort, fire-and-forget: extends the session using the session token
+// itself (no Google contact needed). Silent no-op on failure — the still-
+// valid cached token keeps working until its original expiry regardless.
+function maybeRenewSession(userId: string, session: StoredSession) {
+  if (session.expiresAt - Date.now() > SESSION_RENEW_MARGIN_MS) return;
+  fetch(`${WORKER_BASE}/session`, {
+    method: 'POST',
+    headers: { 'X-User-ID': userId, Authorization: `Bearer ${session.token}` },
+  })
+    .then((res) => (res.ok ? (res.json() as Promise<{ sessionToken: string; expiresAt: number }>) : null))
+    .then((data) => {
+      if (data) storeSession({ token: data.sessionToken, email: userId, expiresAt: data.expiresAt });
+    })
+    .catch(() => {
+      // Worker unreachable or rejected the renewal — old token is untouched and still valid until it expires
+    });
+}
+
 // Bearer token for a /keys call: prefer a cached app session (no Google
 // contact needed at all) and only fetch a Google token — lazily, via the
 // caller-supplied getter — when there's no valid session cached yet.
 async function resolveAuth(userId: string, getGoogleToken: () => Promise<string>): Promise<string> {
   const cached = loadStoredSession(userId);
-  if (cached) return cached.token;
+  if (cached) {
+    maybeRenewSession(userId, cached);
+    return cached.token;
+  }
 
   const googleToken = await getGoogleToken();
   const session = await mintSession(userId, googleToken);
