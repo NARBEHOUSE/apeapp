@@ -8,6 +8,7 @@ import {
   clearStoredUser,
   getAccessToken,
   requireAccessToken,
+  silentAccessToken,
   type GoogleUser,
 } from '../utils/googleAuth';
 import {
@@ -18,7 +19,7 @@ import {
   restoreAllData,
   deleteAllAppData,
 } from '../utils/googleDrive';
-import { loadApiKey, clearKeyFromMemory } from '../utils/apiKeyManager';
+import { loadApiKey, clearKeyFromMemory, revokeSession } from '../utils/apiKeyManager';
 
 type SyncStatus = 'idle' | 'syncing' | 'synced' | 'error';
 
@@ -27,6 +28,8 @@ interface GoogleAuthContextType {
   isSignedIn: boolean;
   isLoading: boolean;
   keyLoaded: boolean;
+  keyLoadError: boolean;
+  reconnectApiKey: () => Promise<boolean>;
   signIn: () => Promise<boolean>;
   signOut: () => void;
   deleteCloudDataAndSignOut: () => Promise<void>;
@@ -40,6 +43,8 @@ const GoogleAuthContext = createContext<GoogleAuthContextType>({
   isSignedIn: false,
   isLoading: false,
   keyLoaded: false,
+  keyLoadError: false,
+  reconnectApiKey: async () => false,
   signIn: async () => false,
   signOut: () => {},
   deleteCloudDataAndSignOut: async () => {},
@@ -56,6 +61,7 @@ export function GoogleAuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<GoogleUser | null>(() => getStoredUser());
   const [isLoading, setIsLoading] = useState(false);
   const [keyLoaded, setKeyLoaded] = useState(false);
+  const [keyLoadError, setKeyLoadError] = useState(false);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('idle');
   const [lastSynced, setLastSynced] = useState<string | null>(
     () => localStorage.getItem('fitos-last-synced'),
@@ -65,18 +71,43 @@ export function GoogleAuthProvider({ children }: { children: ReactNode }) {
 
   // Load the user's API key from the Worker whenever the signed-in user changes.
   // On sign-out (user === null) the in-memory key is wiped immediately.
+  // loadApiKey only calls the token getter if there's no cached app session yet
+  // (see apiKeyManager.ts) — so on a normal reload this never even reaches
+  // Google. The getter itself is silent-only: an interactive Google popup
+  // triggered from this background effect (not a click) gets blocked by
+  // browsers anyway, so on failure we just flag it and let the UI offer a
+  // real reconnect button.
   useEffect(() => {
     if (!user) {
       clearKeyFromMemory();
       setKeyLoaded(false);
+      setKeyLoadError(false);
       return;
     }
     setKeyLoaded(false);
-    requireAccessToken()
-      .then((token) => loadApiKey(user.email, token))
+    setKeyLoadError(false);
+    loadApiKey(user.email, silentAccessToken)
       .then(() => setKeyLoaded(true))
-      .catch(() => setKeyLoaded(true));
+      .catch(() => {
+        setKeyLoaded(true);
+        setKeyLoadError(true);
+      });
   }, [user?.email]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Retries the key load with an interactive Google prompt. Must be called from a
+  // real click handler so the resulting popup isn't blocked.
+  const reconnectApiKey = useCallback(async (): Promise<boolean> => {
+    if (!user) return false;
+    try {
+      await loadApiKey(user.email, signInWithGoogle);
+      setKeyLoaded(true);
+      setKeyLoadError(false);
+      return true;
+    } catch (err) {
+      console.error('Failed to reconnect for API key reload:', err);
+      return false;
+    }
+  }, [user]);
 
   const markSynced = useCallback(() => {
     const now = new Date().toISOString();
@@ -147,6 +178,10 @@ export function GoogleAuthProvider({ children }: { children: ReactNode }) {
   }, [markSynced]);
 
   const signOut = useCallback(() => {
+    // Best-effort, not awaited — local sign-out shouldn't wait on the network.
+    // Kills the stored API-key session server-side immediately (see
+    // revokeSession) rather than leaving it valid until it naturally expires.
+    if (user) revokeSession(user.email).catch(() => {});
     clearStoredUser();
     setUser(null);
     setSyncStatus('idle');
@@ -156,7 +191,7 @@ export function GoogleAuthProvider({ children }: { children: ReactNode }) {
       clearInterval(syncTimerRef.current);
       syncTimerRef.current = null;
     }
-  }, []);
+  }, [user]);
 
   const deleteCloudDataAndSignOut = useCallback(async () => {
     try {
@@ -244,6 +279,8 @@ export function GoogleAuthProvider({ children }: { children: ReactNode }) {
         isSignedIn: !!user,
         isLoading,
         keyLoaded,
+        keyLoadError,
+        reconnectApiKey,
         signIn,
         signOut,
         deleteCloudDataAndSignOut,

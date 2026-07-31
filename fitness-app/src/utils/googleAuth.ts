@@ -53,6 +53,47 @@ let currentTokenIsCoachScoped = false;
 let pendingResolve: ((token: string) => void) | null = null;
 let pendingReject: ((error: Error) => void) | null = null;
 
+// The access token itself is also cached in sessionStorage so a page reload
+// within its ~1hr lifetime doesn't force a fresh round-trip to Google at all.
+// sessionStorage (not localStorage) so it never outlives the tab/app session.
+const TOKEN_CACHE_KEY = 'fitos-google-token-cache';
+
+function persistTokenCache() {
+  try {
+    if (!currentAccessToken) {
+      sessionStorage.removeItem(TOKEN_CACHE_KEY);
+      return;
+    }
+    sessionStorage.setItem(
+      TOKEN_CACHE_KEY,
+      JSON.stringify({
+        token: currentAccessToken,
+        expiresAt: tokenExpiresAt,
+        coachScoped: currentTokenIsCoachScoped,
+      }),
+    );
+  } catch {
+    // sessionStorage unavailable (private browsing, quota) — token just won't survive reload
+  }
+}
+
+(function restoreTokenCache() {
+  try {
+    const raw = sessionStorage.getItem(TOKEN_CACHE_KEY);
+    if (!raw) return;
+    const { token, expiresAt, coachScoped } = JSON.parse(raw);
+    if (token && typeof expiresAt === 'number' && Date.now() < expiresAt - 60_000) {
+      currentAccessToken = token;
+      tokenExpiresAt = expiresAt;
+      currentTokenIsCoachScoped = !!coachScoped;
+    } else {
+      sessionStorage.removeItem(TOKEN_CACHE_KEY);
+    }
+  } catch {
+    // ignore
+  }
+})();
+
 export function hasCoachScope(): boolean {
   return localStorage.getItem(COACH_SCOPE_KEY) === '1';
 }
@@ -68,6 +109,7 @@ function buildClientConfig(scope: string): TokenClientConfig {
         currentAccessToken = response.access_token;
         tokenExpiresAt = Date.now() + response.expires_in * 1000;
         currentTokenIsCoachScoped = scope === COACH_SCOPES;
+        persistTokenCache();
         pendingResolve?.(response.access_token);
       }
       pendingResolve = null;
@@ -185,6 +227,15 @@ export async function requireAccessToken(): Promise<string> {
   }
 }
 
+// Cached-or-silent only — never falls back to an interactive popup. Use this
+// from background effects (e.g. on page load) where an unsolicited popup
+// would just get blocked by the browser anyway.
+export async function silentAccessToken(): Promise<string> {
+  const cached = getAccessToken();
+  if (cached) return cached;
+  return silentRefresh();
+}
+
 export async function fetchGoogleUser(accessToken: string): Promise<GoogleUser> {
   const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
     headers: { Authorization: `Bearer ${accessToken}` },
@@ -218,4 +269,5 @@ export function clearStoredUser() {
   tokenExpiresAt = 0;
   tokenClient = null;
   currentTokenIsCoachScoped = false;
+  sessionStorage.removeItem(TOKEN_CACHE_KEY);
 }

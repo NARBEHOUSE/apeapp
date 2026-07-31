@@ -98,7 +98,7 @@ type Section = 'google' | 'coach' | 'theme' | 'api' | 'dashboard' | 'reports' | 
 const REST_OPTIONS = [0, 60, 90, 120];
 
 export function Settings({ profile, onUpdateProfile, onSetMacroTargetHistory, profiles, onDeleteProfile, onLogout }: Props) {
-  const { user: googleUser, isSignedIn: googleSignedIn, signIn: googleSignIn, signOut: googleSignOut, deleteCloudDataAndSignOut, syncStatus, lastSynced, syncNow, isLoading: googleLoading, keyLoaded } = useGoogleAuth();
+  const { user: googleUser, isSignedIn: googleSignedIn, signIn: googleSignIn, signOut: googleSignOut, deleteCloudDataAndSignOut, syncStatus, lastSynced, syncNow, isLoading: googleLoading, keyLoaded, keyLoadError, reconnectApiKey } = useGoogleAuth();
   const {
     myCoachRels, myClients, loading: coachLoading, pendingChanges,
     shareWithCoach, revokeCoachAccess, syncCoachFiles,
@@ -684,14 +684,24 @@ export function Settings({ profile, onUpdateProfile, onSetMacroTargetHistory, pr
   };
 
   // API Key handlers
+  const [reconnectingKey, setReconnectingKey] = useState(false);
+  const handleReconnectApiKey = async () => {
+    setReconnectingKey(true);
+    try {
+      const ok = await reconnectApiKey();
+      if (ok) setClaudeKey(getApiKey());
+    } finally {
+      setReconnectingKey(false);
+    }
+  };
+
   const handleSaveClaudeKey = async () => {
     if (!googleUser?.email) return;
     try {
-      const token = await requireAccessToken();
       if (claudeKey.trim()) {
-        await saveApiKey(claudeKey.trim(), googleUser.email, token);
+        await saveApiKey(claudeKey.trim(), googleUser.email, requireAccessToken);
       } else {
-        await deleteApiKey(googleUser.email, token);
+        await deleteApiKey(googleUser.email, requireAccessToken);
       }
     } catch (e) {
       console.error('Failed to save API key:', e);
@@ -1370,6 +1380,20 @@ export function Settings({ profile, onUpdateProfile, onSetMacroTargetHistory, pr
                   </span>
                 )}
               </div>
+              {keyLoadError && !claudeKey.trim() && googleSignedIn && (
+                <div className="flex items-center justify-between gap-2 p-2.5 rounded-lg bg-warning/10 border border-warning/20">
+                  <p className="text-[0.6875rem] text-text-secondary">
+                    Couldn't reload your saved key automatically — it's still safe in your account.
+                  </p>
+                  <button
+                    onClick={handleReconnectApiKey}
+                    disabled={reconnectingKey}
+                    className="btn-secondary px-3 py-1 text-xs whitespace-nowrap disabled:opacity-40"
+                  >
+                    {reconnectingKey ? 'Reconnecting…' : 'Reconnect'}
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         )}

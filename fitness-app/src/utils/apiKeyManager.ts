@@ -5,6 +5,122 @@ export type AIProvider = 'anthropic' | 'openai' | 'openrouter' | 'gemini' | 'unk
 // Decrypted key lives only in this variable — never written to any storage.
 let _key = '';
 
+// --- Worker session tokens ---------------------------------------------------
+// A longer-lived (~7 day), app-scoped credential the client trades a live
+// Google access token for once, so reloading the page doesn't require a
+// fresh Google handshake just to read the encrypted key. Safe to cache in
+// localStorage: it grants no access outside this key store and is narrower
+// in scope than the Google OAuth token it's exchanged for. Signing out calls
+// revokeSession() below, which kills it server-side immediately (via the
+// Worker's per-user epoch check) rather than leaving it valid until the TTL
+// naturally expires — see cloudflare (donotupload to github)/apikeys-worker/worker.js.
+
+const SESSION_KEY = 'ape-worker-session';
+
+interface StoredSession {
+  token: string;
+  email: string;
+  expiresAt: number;
+}
+
+function loadStoredSession(userId: string): StoredSession | null {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as StoredSession;
+    if (parsed.email !== userId || !parsed.token || Date.now() >= parsed.expiresAt) {
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function storeSession(session: StoredSession) {
+  try {
+    localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+  } catch {
+    // localStorage unavailable — session just won't survive reload
+  }
+}
+
+function clearStoredSession() {
+  localStorage.removeItem(SESSION_KEY);
+}
+
+// Call on sign-out. Tells the Worker to invalidate every session token it has
+// ever minted for this user (bumping its epoch — see worker.js), so a token
+// that already leaked stops working immediately instead of staying valid for
+// the rest of its TTL. Best-effort: local state is cleared either way.
+export async function revokeSession(userId: string): Promise<void> {
+  const cached = loadStoredSession(userId);
+  clearStoredSession();
+  if (!cached) return;
+  try {
+    await fetch(`${WORKER_BASE}/session`, {
+      method: 'DELETE',
+      headers: { 'X-User-ID': userId, Authorization: `Bearer ${cached.token}` },
+    });
+  } catch {
+    // Worker unreachable — local session is already gone regardless
+  }
+}
+
+// Mints a session token from a live Google access token. Returns null (rather
+// than throwing) if the Worker doesn't support /session yet, so callers can
+// fall back to using the Google token directly.
+async function mintSession(userId: string, googleAccessToken: string): Promise<StoredSession | null> {
+  const res = await fetch(`${WORKER_BASE}/session`, {
+    method: 'POST',
+    headers: { 'X-User-ID': userId, Authorization: `Bearer ${googleAccessToken}` },
+  });
+  if (!res.ok) return null;
+  const { sessionToken, expiresAt } = (await res.json()) as { sessionToken: string; expiresAt: number };
+  const session: StoredSession = { token: sessionToken, email: userId, expiresAt };
+  storeSession(session);
+  return session;
+}
+
+// Bearer token for a /keys call: prefer a cached app session (no Google
+// contact needed at all) and only fetch a Google token — lazily, via the
+// caller-supplied getter — when there's no valid session cached yet.
+async function resolveAuth(userId: string, getGoogleToken: () => Promise<string>): Promise<string> {
+  const cached = loadStoredSession(userId);
+  if (cached) return cached.token;
+
+  const googleToken = await getGoogleToken();
+  const session = await mintSession(userId, googleToken);
+  return session ? session.token : googleToken;
+}
+
+async function workerFetch(
+  path: string,
+  userId: string,
+  getGoogleToken: () => Promise<string>,
+  init: RequestInit,
+): Promise<Response> {
+  const withAuth = (bearer: string): RequestInit => ({
+    ...init,
+    headers: { ...init.headers, 'X-User-ID': userId, Authorization: `Bearer ${bearer}` },
+  });
+
+  let bearer = await resolveAuth(userId, getGoogleToken);
+  let res = await fetch(`${WORKER_BASE}${path}`, withAuth(bearer));
+
+  if (res.status === 401 || res.status === 403) {
+    // Cached session was rejected (expired/revoked) — drop it, re-auth with
+    // Google once, and retry.
+    clearStoredSession();
+    const googleToken = await getGoogleToken();
+    const session = await mintSession(userId, googleToken);
+    bearer = session ? session.token : googleToken;
+    res = await fetch(`${WORKER_BASE}${path}`, withAuth(bearer));
+  }
+
+  return res;
+}
+
 export function getApiKey(): string {
   return _key;
 }
@@ -58,10 +174,17 @@ interface EncryptedPayload {
   iv: string;
 }
 
-export async function saveApiKey(apiKey: string, userId: string, accessToken: string): Promise<void> {
+// getGoogleToken is called lazily — only when there's no cached app session
+// (see resolveAuth above) — so a normal save/load never has to touch Google
+// at all once a session has been minted once.
+export async function saveApiKey(
+  apiKey: string,
+  userId: string,
+  getGoogleToken: () => Promise<string>,
+): Promise<void> {
   const key = apiKey.trim();
   if (!key) {
-    return deleteApiKey(userId, accessToken);
+    return deleteApiKey(userId, getGoogleToken);
   }
 
   const salt = crypto.getRandomValues(new Uint8Array(16));
@@ -80,13 +203,9 @@ export async function saveApiKey(apiKey: string, userId: string, accessToken: st
     iv: toB64(iv),
   };
 
-  const res = await fetch(`${WORKER_BASE}/keys`, {
+  const res = await workerFetch('/keys', userId, getGoogleToken, {
     method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-User-ID': userId,
-      Authorization: `Bearer ${accessToken}`,
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
   if (!res.ok) throw new Error(`Worker error ${res.status}`);
@@ -96,16 +215,14 @@ export async function saveApiKey(apiKey: string, userId: string, accessToken: st
   localStorage.removeItem('fitos-claude-key');
 }
 
-export async function loadApiKey(userId: string, accessToken: string): Promise<boolean> {
-  const res = await fetch(`${WORKER_BASE}/keys`, {
-    headers: { 'X-User-ID': userId, Authorization: `Bearer ${accessToken}` },
-  });
+export async function loadApiKey(userId: string, getGoogleToken: () => Promise<string>): Promise<boolean> {
+  const res = await workerFetch('/keys', userId, getGoogleToken, { method: 'GET' });
 
   if (res.status === 404) {
     // One-time migration: if a key exists in the old localStorage format, push it to the Worker.
     const legacy = localStorage.getItem('ape-user-api-key') || localStorage.getItem('fitos-claude-key');
     if (legacy) {
-      await saveApiKey(legacy, userId, accessToken);
+      await saveApiKey(legacy, userId, getGoogleToken);
       return true;
     }
     _key = '';
@@ -125,17 +242,16 @@ export async function loadApiKey(userId: string, accessToken: string): Promise<b
   return true;
 }
 
-export async function deleteApiKey(userId: string, accessToken: string): Promise<void> {
-  await fetch(`${WORKER_BASE}/keys`, {
-    method: 'DELETE',
-    headers: { 'X-User-ID': userId, Authorization: `Bearer ${accessToken}` },
-  });
+export async function deleteApiKey(userId: string, getGoogleToken: () => Promise<string>): Promise<void> {
+  await workerFetch('/keys', userId, getGoogleToken, { method: 'DELETE' });
   _key = '';
   localStorage.removeItem('ape-user-api-key');
   localStorage.removeItem('fitos-claude-key');
 }
 
-// Call on sign-out to wipe the in-memory key without touching the Worker.
+// Call on sign-out to wipe the in-memory key and the cached app session
+// without touching the Worker's stored (encrypted) copy.
 export function clearKeyFromMemory(): void {
+  clearStoredSession();
   _key = '';
 }
