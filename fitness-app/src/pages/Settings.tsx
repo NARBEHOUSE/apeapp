@@ -43,7 +43,7 @@ import { ClientView } from '../components/coach/ClientView';
 import { CoachHistory as CoachHistoryComponent } from '../components/coach/CoachHistory';
 // USDA now uses Cloudflare Worker proxy — no user key needed
 import { testClaudeKey } from '../utils/claudeVision';
-import { saveApiKey, deleteApiKey, getApiKey, detectProvider } from '../utils/apiKeyManager';
+import { saveApiKey, deleteApiKey, getApiKey, detectProvider, getLastSessionError } from '../utils/apiKeyManager';
 import {
   exportAllData, downloadJSON, importData, clearAllData,
   exportProgram, importProgram, exportAllPrograms, importProgramsBundle,
@@ -140,8 +140,12 @@ export function Settings({ profile, onUpdateProfile, onSetMacroTargetHistory, pr
   const claudeEnabled = !!claudeKey.trim();
 
   // Once the Worker has responded on page load, populate the key field if it was empty.
+  const [sessionDiagError, setSessionDiagError] = useState<string | null>(null);
   useEffect(() => {
-    if (keyLoaded) setClaudeKey((prev) => prev || getApiKey());
+    if (keyLoaded) {
+      setClaudeKey((prev) => prev || getApiKey());
+      setSessionDiagError(getLastSessionError());
+    }
   }, [keyLoaded]);
   const [showUsdaKey, setShowUsdaKey] = useState(false);
   const [showClaudeKey, setShowClaudeKey] = useState(false);
@@ -691,6 +695,7 @@ export function Settings({ profile, onUpdateProfile, onSetMacroTargetHistory, pr
       const ok = await reconnectApiKey();
       if (ok) setClaudeKey(getApiKey());
     } finally {
+      setSessionDiagError(getLastSessionError());
       setReconnectingKey(false);
     }
   };
@@ -714,6 +719,8 @@ export function Settings({ profile, onUpdateProfile, onSetMacroTargetHistory, pr
       setClaudeStatus('invalid');
       setTimeout(() => setClaudeStatus('idle'), 5000);
       return false;
+    } finally {
+      setSessionDiagError(getLastSessionError());
     }
   };
 
@@ -1410,6 +1417,11 @@ export function Settings({ profile, onUpdateProfile, onSetMacroTargetHistory, pr
               {claudeError && (
                 <p className="text-[0.6875rem] text-danger break-words">
                   {claudeError}
+                </p>
+              )}
+              {sessionDiagError && (
+                <p className="text-[0.625rem] text-text-muted break-words">
+                  Persistence diagnostic: {sessionDiagError}
                 </p>
               )}
             </div>

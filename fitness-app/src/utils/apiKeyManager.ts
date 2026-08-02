@@ -73,15 +73,34 @@ export async function revokeSession(userId: string): Promise<void> {
   }
 }
 
+// Set whenever mintSession fails, so a failure that's otherwise silently
+// swallowed (see resolveAuth's fallback) is still visible somewhere.
+let _lastSessionError: string | null = null;
+
+export function getLastSessionError(): string | null {
+  return _lastSessionError;
+}
+
 // Mints a session token from a live Google access token. Returns null (rather
 // than throwing) if the Worker doesn't support /session yet, so callers can
 // fall back to using the Google token directly.
 async function mintSession(userId: string, googleAccessToken: string): Promise<StoredSession | null> {
-  const res = await fetch(`${WORKER_BASE}/session`, {
-    method: 'POST',
-    headers: { 'X-User-ID': userId, Authorization: `Bearer ${googleAccessToken}` },
-  });
-  if (!res.ok) return null;
+  let res: Response;
+  try {
+    res = await fetch(`${WORKER_BASE}/session`, {
+      method: 'POST',
+      headers: { 'X-User-ID': userId, Authorization: `Bearer ${googleAccessToken}` },
+    });
+  } catch (err) {
+    _lastSessionError = `Network error minting session: ${err instanceof Error ? err.message : String(err)}`;
+    return null;
+  }
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    _lastSessionError = `Session mint failed: HTTP ${res.status} ${body}`.trim();
+    return null;
+  }
+  _lastSessionError = null;
   const { sessionToken, expiresAt } = (await res.json()) as { sessionToken: string; expiresAt: number };
   const session: StoredSession = { token: sessionToken, email: userId, expiresAt };
   storeSession(session);
