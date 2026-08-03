@@ -199,6 +199,22 @@ export default function Dashboard({ profile, onUpdateProfile }: DashboardProps) 
     };
   }, [googleSignedIn, myCoachRels.length, syncCoachFiles, checkForCoachChanges]);
 
+  // Ticks forward on an interval and on tab refocus so date-derived values (weekly
+  // workout count, streak, etc.) don't stay stuck on a stale day if the app is left
+  // open across a day/week boundary without any data changing.
+  const [dateTick, setDateTick] = useState(0);
+  useEffect(() => {
+    const interval = setInterval(() => setDateTick((t) => t + 1), 60_000);
+    const handleVisibility = () => {
+      if (!document.hidden) setDateTick((t) => t + 1);
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, []);
+
   const activeProgram = profile.activeProgram
     ? programs.find((p) => p.id === profile.activeProgram!.programId)
     : null;
@@ -218,7 +234,12 @@ export default function Dashboard({ profile, onUpdateProfile }: DashboardProps) 
   const weeklyWorkoutCount = useMemo(() => {
     const weekDates = new Set(getWeekDates(today()));
     return sessions.filter((s) => weekDates.has(s.date) && s.status !== 'skipped').length;
-  }, [sessions]);
+  }, [sessions, dateTick]);
+
+  const weeklyWorkoutSkipped = useMemo(() => {
+    const weekDates = new Set(getWeekDates(today()));
+    return sessions.filter((s) => weekDates.has(s.date) && s.status === 'skipped').length;
+  }, [sessions, dateTick]);
 
   const weeklyWorkoutTarget = useMemo(() => {
     if (!activeProgram) return 0;
@@ -238,11 +259,11 @@ export default function Dashboard({ profile, onUpdateProfile }: DashboardProps) 
     if (freq === 'daily') return daysSince >= 1;
     if (freq === 'weekly') return daysSince >= 7;
     return daysSince >= 14;
-  }, [checkIns, dashConfig.checkInReminder, dashConfig.checkInFrequency]);
+  }, [checkIns, dashConfig.checkInReminder, dashConfig.checkInFrequency, dateTick]);
 
   const checkInCompletedToday = useMemo(() => {
     return checkIns.some((c) => c.date === today());
-  }, [checkIns]);
+  }, [checkIns, dateTick]);
 
   const macroTotals = useMemo(() => {
     return foodEntries.reduce(
@@ -282,7 +303,7 @@ export default function Dashboard({ profile, onUpdateProfile }: DashboardProps) 
       checkDate = cur.toISOString().split('T')[0];
     }
     return count;
-  }, [sessions, allFoodEntries, water, steps, measurements, checkIns]);
+  }, [sessions, allFoodEntries, water, steps, measurements, checkIns, dateTick]);
 
   const prsThisWeek = useMemo(() => {
     const weekDates = new Set(getWeekDates(today()));
@@ -313,7 +334,7 @@ export default function Dashboard({ profile, onUpdateProfile }: DashboardProps) 
       }
     }
     return prCount;
-  }, [sessions]);
+  }, [sessions, dateTick]);
 
   // Resolve lift exercise name to IDs from programs
   const liftExerciseIds = useMemo(() => {
@@ -634,18 +655,24 @@ export default function Dashboard({ profile, onUpdateProfile }: DashboardProps) 
       {/* Stats row */}
       <div className="flex items-center gap-4">
         {dashConfig.workoutCounter && activeProgram && (
-          <WeeklyRing completed={weeklyWorkoutCount} target={weeklyWorkoutTarget} />
+          <WeeklyRing completed={weeklyWorkoutCount} skipped={weeklyWorkoutSkipped} target={weeklyWorkoutTarget} />
         )}
-        <div className="flex-1 space-y-3">
-          <div className="flex items-center gap-3">
-            <Flame size={14} className="text-text-muted" />
-            <span className="text-sm"><span className="font-semibold">{streak}</span> <span className="text-text-muted">day streak</span></span>
+        {(dashConfig.streak || dashConfig.prs) && (
+          <div className="flex-1 space-y-3">
+            {dashConfig.streak && (
+              <div className="flex items-center gap-3">
+                <Flame size={14} className="text-text-muted" />
+                <span className="text-sm"><span className="font-semibold">{streak}</span> <span className="text-text-muted">day streak</span></span>
+              </div>
+            )}
+            {dashConfig.prs && (
+              <div className="flex items-center gap-3">
+                <Trophy size={14} className="text-text-muted" />
+                <span className="text-sm"><span className="font-semibold">{prsThisWeek}</span> <span className="text-text-muted">PRs this week</span></span>
+              </div>
+            )}
           </div>
-          <div className="flex items-center gap-3">
-            <Trophy size={14} className="text-text-muted" />
-            <span className="text-sm"><span className="font-semibold">{prsThisWeek}</span> <span className="text-text-muted">PRs this week</span></span>
-          </div>
-        </div>
+        )}
       </div>
 
       {/* Check-in Reminder */}

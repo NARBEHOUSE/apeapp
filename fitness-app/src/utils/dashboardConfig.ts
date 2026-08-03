@@ -17,6 +17,8 @@ export interface DashboardCardConfig {
   weightUnit: 'lbs' | 'kg';
   muscleVolume: boolean;
   weeklyInsights: boolean;
+  streak: boolean;
+  prs: boolean;
   cardOrder?: string[];
 }
 
@@ -41,6 +43,8 @@ const DEFAULTS: DashboardCardConfig = {
   weightUnit: 'lbs',
   muscleVolume: true,
   weeklyInsights: true,
+  streak: true,
+  prs: true,
 };
 
 export function getDashboardConfig(): DashboardCardConfig {

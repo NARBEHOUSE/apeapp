@@ -1727,6 +1727,46 @@ export function Settings({ profile, onUpdateProfile, onSetMacroTargetHistory, pr
               </button>
             </div>
 
+            {/* Streak toggle */}
+            <div className="flex items-center justify-between py-2">
+              <div>
+                <div className="text-sm font-medium">Day Streak</div>
+                <div className="text-[0.6875rem] text-text-muted">Consecutive days with logged activity</div>
+              </div>
+              <button
+                onClick={() => updateDashCards({ streak: !dashCards.streak })}
+                className={`w-11 h-6 rounded-full transition-colors relative ${
+                  dashCards.streak ? 'bg-accent-blue' : 'bg-surface-raised'
+                }`}
+              >
+                <div
+                  className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform ${
+                    dashCards.streak ? 'translate-x-5' : 'translate-x-0.5'
+                  }`}
+                />
+              </button>
+            </div>
+
+            {/* PRs toggle */}
+            <div className="flex items-center justify-between py-2">
+              <div>
+                <div className="text-sm font-medium">PRs This Week</div>
+                <div className="text-[0.6875rem] text-text-muted">Count of new personal records this week</div>
+              </div>
+              <button
+                onClick={() => updateDashCards({ prs: !dashCards.prs })}
+                className={`w-11 h-6 rounded-full transition-colors relative ${
+                  dashCards.prs ? 'bg-accent-blue' : 'bg-surface-raised'
+                }`}
+              >
+                <div
+                  className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform ${
+                    dashCards.prs ? 'translate-x-5' : 'translate-x-0.5'
+                  }`}
+                />
+              </button>
+            </div>
+
             {/* Check-in reminder toggle */}
             <div className="space-y-2">
               <div className="flex items-center justify-between py-2">
