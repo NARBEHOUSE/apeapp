@@ -382,7 +382,7 @@ export function Workout({ profile, onUpdateProfile }: Props) {
                     ...d,
                     exercises: d.exercises.map((e) =>
                       e.id === exerciseId
-                        ? { ...e, name: swap.name }
+                        ? { ...e, name: swap.name, progressionOverrideWeight: undefined, progressionOverrideReps: undefined }
                         : e
                     ),
                   }
@@ -403,6 +403,46 @@ export function Workout({ profile, onUpdateProfile }: Props) {
                     exercises: d.exercises.map((e) =>
                       e.id === exerciseId
                         ? { ...e, alternatives: [...(e.alternatives || []).filter((a) => a !== altName), altName] }
+                        : e
+                    ),
+                  }
+                : d
+            ),
+            updatedAt: new Date().toISOString(),
+          };
+          await saveProgram(updated);
+          await refreshPrograms();
+        } : undefined}
+        onApplyProgression={program && !isQuick ? async (exerciseId, weight, reps) => {
+          const updated = {
+            ...program,
+            days: program.days.map((d) =>
+              d.id === selectedDayId
+                ? {
+                    ...d,
+                    exercises: d.exercises.map((e) =>
+                      e.id === exerciseId
+                        ? { ...e, progressionOverrideWeight: weight, progressionOverrideReps: reps }
+                        : e
+                    ),
+                  }
+                : d
+            ),
+            updatedAt: new Date().toISOString(),
+          };
+          await saveProgram(updated);
+          await refreshPrograms();
+        } : undefined}
+        onConsumeProgressionOverride={program && !isQuick ? async (exerciseId) => {
+          const updated = {
+            ...program,
+            days: program.days.map((d) =>
+              d.id === selectedDayId
+                ? {
+                    ...d,
+                    exercises: d.exercises.map((e) =>
+                      e.id === exerciseId
+                        ? { ...e, progressionOverrideWeight: undefined, progressionOverrideReps: undefined }
                         : e
                     ),
                   }

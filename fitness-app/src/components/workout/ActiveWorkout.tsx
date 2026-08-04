@@ -61,6 +61,8 @@ interface Props {
   onSwapExercise?: (exerciseId: string, swap: LibraryExercise, permanent: boolean) => void;
   onAddAlternative?: (exerciseId: string, altName: string) => void;
   onUpdateName?: (name: string) => void;
+  onApplyProgression?: (exerciseId: string, weight: number, reps?: number) => void;
+  onConsumeProgressionOverride?: (exerciseId: string) => void;
 }
 
 const SET_TYPE_CYCLE: SetType[] = ['standard', 'warmup', 'dropset', 'myoreps', 'failure'];
@@ -108,6 +110,23 @@ function formatLastPerformance(sets: SetLog[], date: string, isTimed?: boolean):
   return `${completed.map((s) => `${s.weight}×${s.reps}`).join(', ')} · ${dateStr}`;
 }
 
+function progressionSignature(exerciseId: string, s: ProgressionSuggestion): string {
+  return `${exerciseId}:${s.type}:${s.suggestedWeight}`;
+}
+
+function loadDismissedProgressions(profileId: string): Set<string> {
+  try {
+    const raw = localStorage.getItem(`fitos-progression-dismissed:${profileId}`);
+    return raw ? new Set(JSON.parse(raw)) : new Set();
+  } catch { return new Set(); }
+}
+
+function dismissProgression(profileId: string, signature: string) {
+  const next = loadDismissedProgressions(profileId);
+  next.add(signature);
+  localStorage.setItem(`fitos-progression-dismissed:${profileId}`, JSON.stringify(Array.from(next)));
+}
+
 function ExerciseCard({
   exercise,
   exerciseIndex,
@@ -126,6 +145,9 @@ function ExerciseCard({
   effortMetric,
   onSkip,
   onRemove,
+  profileId,
+  onApplyProgression,
+  onConsumeProgressionOverride,
 }: {
   exercise: Exercise;
   exerciseIndex: number;
@@ -144,6 +166,9 @@ function ExerciseCard({
   onRemove?: () => void;
   progression: ProgressionSuggestion | null;
   effortMetric: 'none' | 'rir' | 'rpe';
+  profileId: string;
+  onApplyProgression?: (exerciseId: string, weight: number, reps?: number) => void;
+  onConsumeProgressionOverride?: (exerciseId: string) => void;
 }) {
   const [setCount, setSetCount] = useState(() => {
     const s = exercise.setScheme;
@@ -167,8 +192,20 @@ function ExerciseCard({
   const [timerElapsed, setTimerElapsed] = useState(0);
   const timerStartRef = useRef<number>(0);
   const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [progressionApplied, setProgressionApplied] = useState(false);
+  const [dismissedProgressions, setDismissedProgressions] = useState(() => loadDismissedProgressions(profileId));
 
   useEffect(() => () => { if (timerIntervalRef.current) clearInterval(timerIntervalRef.current); }, []);
+
+  // A pending progression override is consumed exactly once — it already seeded the
+  // `inputs` initializer above for this session, so clear it now to avoid reapplying.
+  useEffect(() => {
+    if (exercise.progressionOverrideWeight != null || exercise.progressionOverrideReps != null) {
+      onConsumeProgressionOverride?.(exercise.id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const swapSuggestions = exercise.alternatives || [];
   const weightUnit: WeightUnit = getDashboardConfig().weightUnit ?? 'lbs';
   const lastSets = lastPerformance?.sets.filter((s) => s.completed);
@@ -196,8 +233,10 @@ function ExerciseCard({
       : -1;
 
     return Array.from({ length: totalSets }, (_, i) => {
-      const targetWeight = weeklyTarget?.weight;
-      const targetReps = weeklyTarget?.reps;
+      // An accepted increase/deload suggestion wins over the program's own plan and
+      // last performance — the user explicitly asked for this weight/reps next time.
+      const targetWeight = exercise.progressionOverrideWeight ?? weeklyTarget?.weight;
+      const targetReps = exercise.progressionOverrideReps ?? weeklyTarget?.reps;
       const last = lastSets?.[i];
       const prev = previousSets?.[i];
       const baseWeight = targetWeight ?? last?.weight ?? prev?.weight ?? exercise.startingWeight;
@@ -642,19 +681,50 @@ function ExerciseCard({
           )}
 
           {/* Smart progression suggestion */}
-          {progression && (
-            <div className={`flex items-start gap-1.5 px-2 py-1.5 rounded-lg text-[0.625rem] leading-tight ${
-              progression.type === 'increase' ? 'bg-green-500/10 text-green-500' :
-              progression.type === 'deload' ? 'bg-warning/10 text-warning' :
-              progression.type === 'stall' ? 'bg-accent-blue/10 text-accent-blue' :
-              'bg-surface-raised text-text-muted'
+          {progression && !dismissedProgressions.has(progressionSignature(exercise.id, progression)) && (
+            <div className={`rounded-lg text-[0.625rem] leading-tight ${
+              progression.type === 'increase' ? 'bg-green-500/10 text-green-500' : 'bg-warning/10 text-warning'
             }`}>
-              <span className="shrink-0 mt-px">{
-                progression.type === 'increase' ? '↑' :
-                progression.type === 'deload' ? '↓' :
-                progression.type === 'stall' ? '→' : '·'
-              }</span>
-              <span>{progression.message}</span>
+              <div className="flex items-start gap-1.5 px-2 py-1.5">
+                <span className="shrink-0 mt-px">{progression.type === 'increase' ? '↑' : '↓'}</span>
+                <span className="flex-1">{progression.message}</span>
+              </div>
+              {progressionApplied ? (
+                <div className="flex items-center gap-1 px-2 pb-1.5 opacity-80">
+                  <Check size={10} />
+                  <span>Set to {progression.suggestedWeight} for next session</span>
+                </div>
+              ) : (
+                <div className="flex gap-1.5 px-2 pb-1.5">
+                  <button
+                    onClick={() => {
+                      onApplyProgression?.(exercise.id, progression.suggestedWeight);
+                      setProgressionApplied(true);
+                      toast(
+                        `${progression.type === 'increase' ? 'Bumped up' : 'Deload set'} to ${progression.suggestedWeight} for next session`,
+                        'success',
+                      );
+                    }}
+                    className={`flex-1 py-1 rounded-md text-[0.625rem] font-semibold flex items-center justify-center gap-1 active:scale-[0.98] transition-transform text-white ${
+                      progression.type === 'increase' ? 'bg-green-500' : 'bg-warning'
+                    }`}
+                  >
+                    <Check size={10} />
+                    Accept
+                  </button>
+                  <button
+                    onClick={() => {
+                      const sig = progressionSignature(exercise.id, progression);
+                      dismissProgression(profileId, sig);
+                      setDismissedProgressions((prev) => new Set(prev).add(sig));
+                    }}
+                    className="py-1 px-2.5 rounded-md bg-surface border border-border-light text-text-muted flex items-center justify-center gap-1 active:scale-[0.98] transition-transform"
+                  >
+                    <X size={10} />
+                    Decline
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
@@ -844,6 +914,8 @@ export function ActiveWorkout({
   onAddAlternative,
   onUpdateName,
   onRemoveExercise,
+  onApplyProgression,
+  onConsumeProgressionOverride,
 }: Props) {
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleValue, setTitleValue] = useState('');
@@ -1277,6 +1349,9 @@ export function ActiveWorkout({
               effortMetric={effortMetric}
               onSkip={() => handleSkipExercise(exercise.id)}
               onRemove={() => setRemoveTarget(exercise.id)}
+              profileId={profileId}
+              onApplyProgression={onApplyProgression}
+              onConsumeProgressionOverride={onConsumeProgressionOverride}
             />
           );
         })}

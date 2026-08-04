@@ -15,6 +15,7 @@ import type { WorkoutSession, Program } from '../../types';
 import { buildWorkoutCardData, renderWorkoutCard, shareOrDownload } from '../../utils/shareCards';
 import { ConfirmDialog } from '../shared/ConfirmDialog';
 import { getWeightUnit, toDisplayWeight, fromDisplayWeight, type WeightUnit } from '../../utils/units';
+import { estimateAdjustedOneRM } from '../../utils/progression';
 
 const BADGE_COLORS = [
   '#e8572a', '#f5a623', '#f5d623', '#2e9e6b',
@@ -631,7 +632,7 @@ export function WorkoutHistory({ sessions, programs, onDeleteSession, onUpdateSe
   }, [trainingSessions]);
 
   const [selectedExId, setSelectedExId] = useState<string | null>(null);
-  const [strengthMode, setStrengthMode] = useState<'weight' | '1rm'>('weight');
+  const [strengthMode, setStrengthMode] = useState<'weight' | 'index'>('weight');
 
   // Exercise → muscle group map (reused from programs)
   const exerciseMuscleMap = useMemo(() => {
@@ -785,20 +786,19 @@ export function WorkoutHistory({ sessions, programs, onDeleteSession, onUpdateSe
       .map((s) => {
         const sets = s.sets[effectiveExId].filter((st) => st.completed && !st.isWarmup && st.weight > 0 && st.reps > 0);
         const maxWeight = Math.max(...sets.map((st) => st.weight));
-        const max1RM = Math.max(...sets.map((st) => {
-          if (st.reps <= 1) return st.weight;
-          const r = Math.min(st.reps, 30);
-          return Math.round(st.weight * (36 / (37 - r)));
-        }));
+        // Best effort-adjusted 1RM across all working sets, not just the heaviest-weight
+        // one — a lighter set taken closer to failure can reflect more true strength
+        // than a heavier set with reps left in the tank.
+        const strengthIndex = Math.max(...sets.map((st) => estimateAdjustedOneRM(st.weight, st.reps, st.rir, st.rpe)));
         return {
           date: new Date(s.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
           maxWeight,
-          est1RM: max1RM,
+          strengthIndex,
         };
       });
   }, [trainingSessions, effectiveExId]);
 
-  const displayKey = strengthMode === 'weight' ? 'maxWeight' : 'est1RM';
+  const displayKey = strengthMode === 'weight' ? 'maxWeight' : 'strengthIndex';
   const pr = strengthData.length > 0 ? Math.max(...strengthData.map((d) => d[displayKey])) : null;
   const lastChange = strengthData.length >= 2
     ? strengthData[strengthData.length - 1][displayKey] - strengthData[strengthData.length - 2][displayKey]
@@ -807,7 +807,7 @@ export function WorkoutHistory({ sessions, programs, onDeleteSession, onUpdateSe
   const displayStrengthData = strengthData.map((d) => ({
     date: d.date,
     maxWeight: toDisplayWeight(d.maxWeight, weightUnit),
-    est1RM: toDisplayWeight(d.est1RM, weightUnit),
+    strengthIndex: toDisplayWeight(d.strengthIndex, weightUnit),
   }));
 
   const programMap = useMemo(() => {
@@ -1159,8 +1159,8 @@ export function WorkoutHistory({ sessions, programs, onDeleteSession, onUpdateSe
 
               {/* Chart */}
               <div className="card">
-                <div className="flex items-center justify-between mb-4">
-                  <h4 className="label">{strengthMode === 'weight' ? 'Max Weight' : 'Est. 1RM'} per Session</h4>
+                <div className="flex items-center justify-between mb-1">
+                  <h4 className="label">{strengthMode === 'weight' ? 'Max Weight' : 'Strength Index'} per Session</h4>
                   <div className="flex rounded-lg overflow-hidden border border-border">
                     <button
                       onClick={() => setStrengthMode('weight')}
@@ -1169,13 +1169,18 @@ export function WorkoutHistory({ sessions, programs, onDeleteSession, onUpdateSe
                       Max
                     </button>
                     <button
-                      onClick={() => setStrengthMode('1rm')}
-                      className={`px-2.5 py-1 text-[0.625rem] font-semibold transition-colors ${strengthMode === '1rm' ? 'bg-accent-blue text-white' : 'bg-surface-raised text-text-muted'}`}
+                      onClick={() => setStrengthMode('index')}
+                      className={`px-2.5 py-1 text-[0.625rem] font-semibold transition-colors ${strengthMode === 'index' ? 'bg-accent-blue text-white' : 'bg-surface-raised text-text-muted'}`}
                     >
-                      1RM
+                      Index
                     </button>
                   </div>
                 </div>
+                <p className="text-[0.625rem] text-text-muted mb-3">
+                  {strengthMode === 'index'
+                    ? 'Estimated 1RM, adjusted for reps and how hard each set was (RIR/RPE, when logged)'
+                    : 'Heaviest working set logged each session'}
+                </p>
                 {strengthData.length > 1 ? (
                   <div className="h-52">
                     <ResponsiveContainer width="100%" height="100%">

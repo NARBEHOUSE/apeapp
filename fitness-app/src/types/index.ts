@@ -191,6 +191,8 @@ export interface Exercise {
   progression?: ExerciseProgressionConfig;
   setScheme?: SetScheme;
   weeklyTargets?: WeeklyTarget[];
+  progressionOverrideWeight?: number;
+  progressionOverrideReps?: number;
   restTimerOverride?: number;
   exerciseType?: 'strength' | 'cardio';
   cardioType?: string;

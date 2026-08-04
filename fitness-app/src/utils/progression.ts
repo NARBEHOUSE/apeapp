@@ -249,6 +249,15 @@ export function estimate1RM(weight: number, reps: number): number {
   return round(weight * (36 / (37 - reps)));
 }
 
+// A set stopped short of failure understates true strength if scored on reps alone —
+// 8 reps with 3 left in the tank is closer to an 11-rep effort than a straight 8.
+// Folding reps-in-reserve (explicit RIR, or RPE converted via RIR ≈ 10 - RPE) into the
+// rep count before estimating 1RM makes the estimate reflect effort, not just output.
+export function estimateAdjustedOneRM(weight: number, reps: number, rir?: number, rpe?: number): number {
+  const reserve = rir != null ? Math.max(0, rir) : rpe != null ? Math.max(0, 10 - rpe) : 0;
+  return estimate1RM(weight, Math.min(reps + reserve, 30));
+}
+
 export function getPercentages1RM(oneRM: number): { pct: number; weight: number }[] {
   return [100, 95, 90, 85, 80, 75, 70, 65, 60].map((pct) => ({
     pct,
@@ -293,9 +302,9 @@ export function formatProgressionLabel(p: ExerciseProgression): string {
 // ── Smart Progression Analysis ──
 
 export interface ProgressionSuggestion {
-  type: 'increase' | 'stall' | 'deload' | 'maintain';
+  type: 'increase' | 'deload';
   message: string;
-  suggestedWeight?: number;
+  suggestedWeight: number;
   confidence: 'high' | 'medium';
 }
 
@@ -306,7 +315,10 @@ interface SessionPerformance {
   avgReps: number;
   totalSets: number;
   allRepsHit: boolean;
+  allRepsHitFloor: boolean;
   targetReps: number;
+  avgRir?: number;
+  avgRpe?: number;
 }
 
 function getExerciseHistory(
@@ -331,6 +343,11 @@ function getExerciseHistory(
 
       const ex = allExercises.get(exId);
       const repTarget = ex ? parseInt(ex.reps.split('-').pop()?.replace(/[^0-9]/g, '') || '0') || 0 : 0;
+      const repFloor = ex
+        ? (ex.progression?.repRangeMin || parseInt(ex.reps.split('-')[0]?.replace(/[^0-9]/g, '') || '0') || 0)
+        : 0;
+      const rirValues = sets.filter((s) => s.rir != null).map((s) => s.rir as number);
+      const rpeValues = sets.filter((s) => s.rpe != null).map((s) => s.rpe as number);
 
       history.push({
         date: session.date,
@@ -339,13 +356,58 @@ function getExerciseHistory(
         avgReps: sets.reduce((a, s) => a + s.reps, 0) / sets.length,
         totalSets: sets.length,
         allRepsHit: repTarget > 0 ? sets.every((s) => s.reps >= repTarget) : true,
+        allRepsHitFloor: repFloor > 0 ? sets.every((s) => s.reps >= repFloor) : true,
         targetReps: repTarget,
+        avgRir: rirValues.length > 0 ? rirValues.reduce((a, v) => a + v, 0) / rirValues.length : undefined,
+        avgRpe: rpeValues.length > 0 ? rpeValues.reduce((a, v) => a + v, 0) / rpeValues.length : undefined,
       });
       break;
     }
   }
 
   return history;
+}
+
+// undefined = no RIR/RPE logged for this session — caller must treat effort as unknown, not "not hard"/"not easy"
+function wasHardEffort(s: SessionPerformance): boolean | undefined {
+  if (s.avgRir == null && s.avgRpe == null) return undefined;
+  return (s.avgRir != null && s.avgRir <= 1) || (s.avgRpe != null && s.avgRpe >= 9);
+}
+
+function wasEasyEffort(s: SessionPerformance): boolean | undefined {
+  if (s.avgRir == null && s.avgRpe == null) return undefined;
+  return (s.avgRir != null && s.avgRir >= 3) || (s.avgRpe != null && s.avgRpe <= 6);
+}
+
+const MS_PER_WEEK = 7 * 24 * 60 * 60 * 1000;
+
+// Groups an exercise's full history into calendar-week buckets (relative to the most
+// recent session), not raw log-entry counts — so "3 sessions in the same week" can't
+// masquerade as "3 weeks of stagnation". Each bucket keeps its most representative
+// session (most completed sets, i.e. a normal working day rather than a one-off single).
+interface WeekBucket {
+  weeksAgo: number;
+  session: SessionPerformance;
+}
+
+function buildWeekBuckets(history: SessionPerformance[]): WeekBucket[] {
+  if (history.length === 0) return [];
+  const latest = new Date(`${history[history.length - 1].date}T00:00:00`).getTime();
+  const byWeek = new Map<number, SessionPerformance>();
+
+  for (const s of history) {
+    const weeksAgo = Math.floor((latest - new Date(`${s.date}T00:00:00`).getTime()) / MS_PER_WEEK);
+    const existing = byWeek.get(weeksAgo);
+    if (!existing || s.totalSets > existing.totalSets ||
+        (s.totalSets === existing.totalSets && s.maxWeight > existing.maxWeight)) {
+      byWeek.set(weeksAgo, s);
+    }
+  }
+
+  // oldest first
+  return Array.from(byWeek.entries())
+    .sort((a, b) => b[0] - a[0])
+    .map(([weeksAgo, session]) => ({ weeksAgo, session }));
 }
 
 export function analyzeExerciseProgression(
@@ -361,25 +423,55 @@ export function analyzeExerciseProgression(
   const compound = isCompoundExercise(exercise.name);
   const increment = compound ? 5 : 2.5;
 
-  // Detect stall: same max weight for 3+ sessions
+  // ── Deload: only after genuine multi-week stagnation or a real decline. ──
+  // Silence ("maintaining") is the default outcome everywhere else.
+  const weekBuckets = buildWeekBuckets(history);
+  if (weekBuckets.length >= 3) {
+    const last3 = weekBuckets.slice(-3);
+    const oldest = last3[0].session;
+    const newest = last3[2].session;
+    // Sparse logging (e.g. once a month) shouldn't read as a tight 3-week trend.
+    const sparse = last3[0].weeksAgo - last3[2].weeksAgo > 8;
+
+    // Same weight & reps, but it's gotten noticeably harder to produce the same
+    // numbers — a real early regression signal (fatigue/under-recovery) even when
+    // they're still technically hitting the prescribed reps, so this is checked
+    // independently of the "hit full target" bail below.
+    const quietRegression =
+      newest.maxWeight === oldest.maxWeight &&
+      Math.abs(newest.avgReps - oldest.avgReps) < 0.5 &&
+      wasEasyEffort(oldest) === true &&
+      wasHardEffort(newest) === true;
+
+    // Hit the full target most recently and effort isn't quietly climbing → doing
+    // fine (or ready to increase below); never deload.
+    const stuck =
+      !newest.allRepsHit &&
+      newest.maxWeight === oldest.maxWeight &&
+      !newest.allRepsHitFloor &&
+      newest.avgReps <= oldest.avgReps &&
+      wasEasyEffort(newest) !== true; // a miss on a deliberately easy day isn't a real stall signal
+
+    const regressing = !newest.allRepsHit && newest.maxWeight < oldest.maxWeight;
+
+    if (!sparse && (stuck || regressing || quietRegression)) {
+      const deloadWeight = round(newest.maxWeight * 0.85);
+      const message = quietRegression
+        ? `Same weight and reps for 3 weeks, but it's taking a lot more out of you. Consider a deload to ${deloadWeight}.`
+        : regressing
+          ? `Weight has trended down over the last 3 weeks. Consider deloading to ${deloadWeight}.`
+          : `Stuck at ${newest.maxWeight} for 3 weeks with reps not improving. Consider deloading to ${deloadWeight}.`;
+      return { type: 'deload', message, suggestedWeight: deloadWeight, confidence: 'high' };
+    }
+  }
+
+  // ── Increase: same weight, hitting all reps ──
   if (recent.length >= 3) {
     const lastThree = recent.slice(-3);
     const allSameWeight = lastThree.every((s) => s.maxWeight === lastThree[0].maxWeight);
-    const anyMissedReps = lastThree.some((s) => !s.allRepsHit);
+    const allHitReps = lastThree.every((s) => s.allRepsHit);
 
-    if (allSameWeight && anyMissedReps) {
-      // Stalled AND missing reps — suggest deload
-      const deloadWeight = round(last.maxWeight * 0.85);
-      return {
-        type: 'deload',
-        message: `Stalled at ${last.maxWeight} for 3 sessions with missed reps. Consider deloading to ${deloadWeight}.`,
-        suggestedWeight: deloadWeight,
-        confidence: 'high',
-      };
-    }
-
-    if (allSameWeight && !anyMissedReps) {
-      // Same weight but hitting all reps — ready to increase
+    if (allSameWeight && allHitReps) {
       const nextWeight = round(last.maxWeight + increment);
       return {
         type: 'increase',
@@ -390,29 +482,16 @@ export function analyzeExerciseProgression(
     }
   }
 
-  // Check if last session hit all reps — suggest increase
   if (last.allRepsHit && recent.length >= 2) {
     const prevSession = recent[recent.length - 2];
     if (last.maxWeight === prevSession.maxWeight && prevSession.allRepsHit) {
       const nextWeight = round(last.maxWeight + increment);
+      const clearlySubmaximal = wasEasyEffort(last) === true && wasEasyEffort(prevSession) === true;
       return {
         type: 'increase',
         message: `Ready to move up to ${nextWeight}`,
         suggestedWeight: nextWeight,
-        confidence: 'medium',
-      };
-    }
-  }
-
-  // Weight went down from previous session
-  if (recent.length >= 2) {
-    const prev = recent[recent.length - 2];
-    if (last.maxWeight < prev.maxWeight && !last.allRepsHit) {
-      return {
-        type: 'stall',
-        message: `Weight dropped from ${prev.maxWeight} to ${last.maxWeight}. Stay at ${last.maxWeight} until reps are solid.`,
-        suggestedWeight: last.maxWeight,
-        confidence: 'medium',
+        confidence: clearlySubmaximal ? 'high' : 'medium',
       };
     }
   }
