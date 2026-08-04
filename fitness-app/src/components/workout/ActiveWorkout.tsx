@@ -192,8 +192,9 @@ function ExerciseCard({
   const [timerElapsed, setTimerElapsed] = useState(0);
   const timerStartRef = useRef<number>(0);
   const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const [progressionApplied, setProgressionApplied] = useState(false);
-  const [dismissedProgressions, setDismissedProgressions] = useState(() => loadDismissedProgressions(profileId));
+  const [progressionResolved, setProgressionResolved] = useState(() =>
+    progression ? loadDismissedProgressions(profileId).has(progressionSignature(exercise.id, progression)) : false,
+  );
 
   useEffect(() => () => { if (timerIntervalRef.current) clearInterval(timerIntervalRef.current); }, []);
 
@@ -681,7 +682,7 @@ function ExerciseCard({
           )}
 
           {/* Smart progression suggestion */}
-          {progression && !dismissedProgressions.has(progressionSignature(exercise.id, progression)) && (
+          {progression && !progressionResolved && (
             <div className={`rounded-lg text-[0.625rem] leading-tight ${
               progression.type === 'increase' ? 'bg-green-500/10 text-green-500' : 'bg-warning/10 text-warning'
             }`}>
@@ -689,42 +690,40 @@ function ExerciseCard({
                 <span className="shrink-0 mt-px">{progression.type === 'increase' ? '↑' : '↓'}</span>
                 <span className="flex-1">{progression.message}</span>
               </div>
-              {progressionApplied ? (
-                <div className="flex items-center gap-1 px-2 pb-1.5 opacity-80">
+              <div className="flex gap-1.5 px-2 pb-1.5">
+                <button
+                  onClick={() => {
+                    // Apply to this session's remaining sets right now, not just the next time this exercise loads.
+                    setInputs((prev) => prev.map((inp, i) =>
+                      sessionSets[i]?.completed
+                        ? inp
+                        : { ...inp, weight: String(toDisplayWeight(progression.suggestedWeight, weightUnit)) }
+                    ));
+                    onApplyProgression?.(exercise.id, progression.suggestedWeight);
+                    setProgressionResolved(true);
+                    toast(
+                      `${progression.type === 'increase' ? 'Bumped up' : 'Deload set'} to ${progression.suggestedWeight} for this session`,
+                      'success',
+                    );
+                  }}
+                  className={`flex-1 py-1 rounded-md text-[0.625rem] font-semibold flex items-center justify-center gap-1 active:scale-[0.98] transition-transform text-white ${
+                    progression.type === 'increase' ? 'bg-green-500' : 'bg-warning'
+                  }`}
+                >
                   <Check size={10} />
-                  <span>Set to {progression.suggestedWeight} for next session</span>
-                </div>
-              ) : (
-                <div className="flex gap-1.5 px-2 pb-1.5">
-                  <button
-                    onClick={() => {
-                      onApplyProgression?.(exercise.id, progression.suggestedWeight);
-                      setProgressionApplied(true);
-                      toast(
-                        `${progression.type === 'increase' ? 'Bumped up' : 'Deload set'} to ${progression.suggestedWeight} for next session`,
-                        'success',
-                      );
-                    }}
-                    className={`flex-1 py-1 rounded-md text-[0.625rem] font-semibold flex items-center justify-center gap-1 active:scale-[0.98] transition-transform text-white ${
-                      progression.type === 'increase' ? 'bg-green-500' : 'bg-warning'
-                    }`}
-                  >
-                    <Check size={10} />
-                    Accept
-                  </button>
-                  <button
-                    onClick={() => {
-                      const sig = progressionSignature(exercise.id, progression);
-                      dismissProgression(profileId, sig);
-                      setDismissedProgressions((prev) => new Set(prev).add(sig));
-                    }}
-                    className="py-1 px-2.5 rounded-md bg-surface border border-border-light text-text-muted flex items-center justify-center gap-1 active:scale-[0.98] transition-transform"
-                  >
-                    <X size={10} />
-                    Decline
-                  </button>
-                </div>
-              )}
+                  Accept
+                </button>
+                <button
+                  onClick={() => {
+                    dismissProgression(profileId, progressionSignature(exercise.id, progression));
+                    setProgressionResolved(true);
+                  }}
+                  className="py-1 px-2.5 rounded-md bg-surface border border-border-light text-text-muted flex items-center justify-center gap-1 active:scale-[0.98] transition-transform"
+                >
+                  <X size={10} />
+                  Decline
+                </button>
+              </div>
             </div>
           )}
 
