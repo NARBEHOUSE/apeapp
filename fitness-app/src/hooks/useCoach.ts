@@ -11,7 +11,7 @@ import {
   createPhotoFolder,
   uploadPhotoToFolder,
   getOrCreateRootFolder,
-  getOrCreateCoachShareFolder,
+  getOrCreateCoachFolder,
   findSharedClientFolders,
   findDataFileInFolder,
   getFileParentFolder,
@@ -187,7 +187,9 @@ export function useCoach() {
         fileId, shareFolderId, photoFolderId, coachEmail,
         permission, role: 'client', createdAt: new Date().toISOString(),
       };
-      const updated = [...relationships, rel];
+      // Replace any existing relationship with this same coach instead of duplicating it
+      // (e.g. re-accepting an invite, or a duplicate pending invite for the same coach)
+      const updated = [...relationships.filter((r) => !(r.role === 'client' && r.coachEmail?.toLowerCase() === coachEmail.toLowerCase())), rel];
       saveRelationships(updated);
       setRelationships(updated);
       return fileId;
@@ -236,7 +238,7 @@ export function useCoach() {
         // Ensure photo folder exists inside the isolated share folder
         let photoFolderId = rel.photoFolderId;
         if (!photoFolderId) {
-          const shareFolderId = rel.shareFolderId || await getOrCreateCoachShareFolder(token);
+          const shareFolderId = rel.shareFolderId || await getOrCreateCoachFolder(token, rel.coachEmail || '');
           photoFolderId = await createPhotoFolder(token, shareFolderId);
           const updatedRel = { ...rel, photoFolderId, shareFolderId };
           const updatedRels = relationships.map((r) => r.fileId === rel.fileId ? updatedRel : r);
@@ -370,7 +372,10 @@ export function useCoach() {
       }
       await deleteFile(token, targetId);
     } catch { /* still remove locally */ }
-    const updated = relationships.filter((r) => r.fileId !== fileId);
+    // Remove only this one relationship, not every entry sharing this fileId —
+    // relationships should be unique per fileId, but never drop more than the one requested.
+    const idx = relationships.findIndex((r) => r.fileId === fileId);
+    const updated = idx === -1 ? relationships : relationships.filter((_, i) => i !== idx);
     saveRelationships(updated);
     setRelationships(updated);
   }, [relationships]);
@@ -407,7 +412,8 @@ export function useCoach() {
   }, [relationships]);
 
   const removeClient = useCallback((fileId: string) => {
-    const updated = relationships.filter((r) => !(r.role === 'coach' && r.fileId === fileId));
+    const idx = relationships.findIndex((r) => r.role === 'coach' && r.fileId === fileId);
+    const updated = idx === -1 ? relationships : relationships.filter((_, i) => i !== idx);
     saveRelationships(updated);
     setRelationships(updated);
   }, [relationships]);

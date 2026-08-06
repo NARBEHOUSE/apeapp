@@ -126,7 +126,6 @@ export async function deleteAllAppData(token: string): Promise<void> {
 
   cachedRootFolderId = null;
   cachedShareFolderId = null;
-  cachedPhotoFolderId = null;
 }
 
 export async function downloadSyncData(token: string, fileId: string): Promise<string> {
@@ -198,12 +197,37 @@ export async function getOrCreateCoachShareFolder(token: string): Promise<string
   return folder.id;
 }
 
+// Each coach gets their own subfolder under the root share folder so that
+// two different coaches for the same client never end up pointed at the same
+// Drive file/folder (which would leak one coach's data to the other, and would
+// make removing one coach relationship also remove the other since they'd
+// share a fileId).
+export async function getOrCreateCoachFolder(token: string, coachEmail: string): Promise<string> {
+  const rootId = await getOrCreateCoachShareFolder(token);
+  const folderName = `Coach - ${coachEmail.toLowerCase().replace(/'/g, "\\'")}`;
+
+  const res = await driveRequest(
+    token,
+    `https://www.googleapis.com/drive/v3/files?q=name='${folderName}' and '${rootId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false&fields=files(id)&pageSize=1`,
+  );
+  const data = await res.json();
+  if (data.files?.[0]) return data.files[0].id;
+
+  const createRes = await driveRequest(token, 'https://www.googleapis.com/drive/v3/files', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: folderName, mimeType: 'application/vnd.google-apps.folder', parents: [rootId] }),
+  });
+  const folder = await createRes.json();
+  return folder.id;
+}
+
 export async function createCoachShareFile(
   token: string,
   content: string,
   coachEmail: string,
 ): Promise<{ fileId: string; folderId: string }> {
-  const folderId = await getOrCreateCoachShareFolder(token);
+  const folderId = await getOrCreateCoachFolder(token, coachEmail);
 
   // Check for existing files — never create duplicates
   const existingRes = await driveRequest(token,
@@ -298,13 +322,11 @@ export async function revokeSharePermission(token: string, fileId: string, email
   );
 }
 
-// --- Coach photo folder (inside isolated Coach Share folder) ---
-
-let cachedPhotoFolderId: string | null = null;
+// --- Coach photo folder (inside each coach's isolated share folder) ---
+// No module-level cache here: each coach relationship has its own parentFolderId,
+// so caching a single folder id would leak one coach's photo folder onto another's.
 
 export async function createPhotoFolder(token: string, parentFolderId?: string): Promise<string> {
-  if (cachedPhotoFolderId) return cachedPhotoFolderId;
-
   const parentId = parentFolderId || await getOrCreateCoachShareFolder(token);
 
   const searchRes = await driveRequest(
@@ -313,8 +335,7 @@ export async function createPhotoFolder(token: string, parentFolderId?: string):
   );
   const searchData = await searchRes.json();
   if (searchData.files?.[0]) {
-    cachedPhotoFolderId = searchData.files[0].id;
-    return cachedPhotoFolderId!;
+    return searchData.files[0].id;
   }
 
   const res = await driveRequest(token, 'https://www.googleapis.com/drive/v3/files', {
@@ -323,7 +344,6 @@ export async function createPhotoFolder(token: string, parentFolderId?: string):
     body: JSON.stringify({ name: COACH_PHOTO_SUBFOLDER, mimeType: 'application/vnd.google-apps.folder', parents: [parentId] }),
   });
   const folder = await res.json();
-  cachedPhotoFolderId = folder.id;
   return folder.id;
 }
 
