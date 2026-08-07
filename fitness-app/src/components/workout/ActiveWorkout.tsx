@@ -700,6 +700,7 @@ function ExerciseCard({
                         : { ...inp, weight: String(toDisplayWeight(progression.suggestedWeight, weightUnit)) }
                     ));
                     onApplyProgression?.(exercise.id, progression.suggestedWeight);
+                    dismissProgression(profileId, progressionSignature(exercise.id, progression));
                     setProgressionResolved(true);
                     toast(
                       `${progression.type === 'increase' ? 'Bumped up' : 'Deload set'} to ${progression.suggestedWeight} for this session`,
