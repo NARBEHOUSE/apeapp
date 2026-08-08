@@ -16,6 +16,16 @@ import { buildWorkoutCardData, renderWorkoutCard, shareOrDownload } from '../../
 import { ConfirmDialog } from '../shared/ConfirmDialog';
 import { getWeightUnit, toDisplayWeight, fromDisplayWeight, type WeightUnit } from '../../utils/units';
 import { estimateAdjustedOneRM } from '../../utils/progression';
+import {
+  accumulateMuscleSets,
+  buildExerciseMuscleMap,
+  formatSets,
+  weeklyVolumeStatus,
+  HARD_SET_MAX_RIR,
+  WEEKLY_HARD_SETS_MEV,
+  WEEKLY_HARD_SETS_MAV,
+  type MuscleSetCounts,
+} from '../../utils/muscleVolume';
 
 const BADGE_COLORS = [
   '#e8572a', '#f5a623', '#f5d623', '#2e9e6b',
@@ -635,71 +645,30 @@ export function WorkoutHistory({ sessions, programs, onDeleteSession, onUpdateSe
   const [strengthMode, setStrengthMode] = useState<'weight' | 'index'>('weight');
 
   // Exercise → muscle group map (reused from programs)
-  const exerciseMuscleMap = useMemo(() => {
-    const map: Record<string, { primaries: string[]; secondary: string[] }> = {};
-    for (const prog of programs) {
-      for (const day of prog.days) {
-        for (const ex of day.exercises) {
-          if (ex.muscle) {
-            const primaries = ex.muscle.split(',').map((m) => m.trim()).filter(Boolean);
-            const sec = ex.secondaryMuscles;
-            const secondary = Array.isArray(sec) ? sec : (sec || '').split(',').map((m) => m.trim()).filter(Boolean);
-            map[ex.id] = { primaries, secondary };
-          }
-        }
-      }
-    }
-    return map;
-  }, [programs]);
+  const exerciseMuscleMap = useMemo(() => buildExerciseMuscleMap(programs), [programs]);
 
-  // Per-session muscle volume breakdown (last 30 sessions)
+  // Per-session hard-set breakdown (last 30 sessions)
   const sessionMuscleMetrics = useMemo(() => {
     return trainingSessions
       .slice()
       .reverse()
       .slice(-30)
-      .map((s) => {
-        const label = new Date(s.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-        const muscleVolumes: Record<string, number> = {};
-        for (const [exId, sets] of Object.entries(s.sets)) {
-          const workingSets = sets.filter((st) => st.completed && !st.isWarmup);
-          if (workingSets.length === 0) continue;
-          const info = exerciseMuscleMap[exId];
-          if (!info?.primaries?.length) continue;
-          const vol = workingSets.reduce((a, st) => a + st.weight * st.reps, 0);
-          for (const p of info.primaries) {
-            if (p) muscleVolumes[p] = (muscleVolumes[p] || 0) + vol;
-          }
-          for (const sec of info.secondary) {
-            if (sec) muscleVolumes[sec] = (muscleVolumes[sec] || 0) + Math.round(vol * 0.5);
-          }
-        }
-        return { label, muscleVolumes };
-      });
+      .map((s) => ({
+        label: new Date(s.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        muscles: accumulateMuscleSets(s, exerciseMuscleMap, {}),
+      }));
   }, [trainingSessions, exerciseMuscleMap]);
 
-  // Per-week muscle volume breakdown (last 12 weeks)
+  // Per-week hard-set breakdown (last 12 weeks)
   const weeklyMuscleMetrics = useMemo(() => {
-    const weeks: Record<string, { label: string; muscleVolumes: Record<string, number> }> = {};
+    const weeks: Record<string, { label: string; muscles: Record<string, MuscleSetCounts> }> = {};
     for (const s of trainingSessions) {
       const date = new Date(s.date + 'T00:00:00');
       const ws = new Date(date);
       ws.setDate(date.getDate() - date.getDay());
       const key = `${ws.getFullYear()}-${String(ws.getMonth() + 1).padStart(2, '0')}-${String(ws.getDate()).padStart(2, '0')}`;
-      if (!weeks[key]) weeks[key] = { label: ws.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), muscleVolumes: {} };
-      for (const [exId, sets] of Object.entries(s.sets)) {
-        const workingSets = sets.filter((st) => st.completed && !st.isWarmup);
-        if (workingSets.length === 0) continue;
-        const info = exerciseMuscleMap[exId];
-        if (!info?.primaries?.length) continue;
-        const vol = workingSets.reduce((a, st) => a + st.weight * st.reps, 0);
-        for (const p of info.primaries) {
-          if (p) weeks[key].muscleVolumes[p] = (weeks[key].muscleVolumes[p] || 0) + vol;
-        }
-        for (const sec of info.secondary) {
-          if (sec) weeks[key].muscleVolumes[sec] = (weeks[key].muscleVolumes[sec] || 0) + Math.round(vol * 0.5);
-        }
-      }
+      if (!weeks[key]) weeks[key] = { label: ws.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), muscles: {} };
+      accumulateMuscleSets(s, exerciseMuscleMap, weeks[key].muscles);
     }
     return Object.entries(weeks)
       .sort(([a], [b]) => a.localeCompare(b))
@@ -707,17 +676,28 @@ export function WorkoutHistory({ sessions, programs, onDeleteSession, onUpdateSe
       .map(([, d]) => d);
   }, [trainingSessions, exerciseMuscleMap]);
 
+  const volumeData = volumeGranularity === 'session' ? sessionMuscleMetrics : weeklyMuscleMetrics;
+
   // Muscles with data for the current granularity
   const availableMuscles = useMemo(() => {
-    const data = volumeGranularity === 'session' ? sessionMuscleMetrics : weeklyMuscleMetrics;
     const muscles = new Set<string>();
-    for (const d of data) {
-      for (const [m, v] of Object.entries(d.muscleVolumes)) {
-        if (v > 0) muscles.add(m);
+    for (const d of volumeData) {
+      for (const [m, c] of Object.entries(d.muscles)) {
+        if (c.sets > 0) muscles.add(m);
       }
     }
     return [...muscles].sort();
-  }, [sessionMuscleMetrics, weeklyMuscleMetrics, volumeGranularity]);
+  }, [volumeData]);
+
+  // Effort logging is opt-in per program, so without a single RIR/RPE value there is
+  // no way to tell a hard set from an easy one. Fall back to plain working-set counts
+  // rather than showing a chart of zeroes.
+  const hasEffortData = useMemo(
+    () => volumeData.some((d) => Object.values(d.muscles).some((c) => c.rated > 0)),
+    [volumeData],
+  );
+  const setMetric: keyof MuscleSetCounts = hasEffortData ? 'hard' : 'sets';
+  const setLabel = hasEffortData ? 'hard sets' : 'working sets';
 
   const effectiveMuscle = (selectedMuscle && availableMuscles.includes(selectedMuscle))
     ? selectedMuscle
@@ -725,24 +705,30 @@ export function WorkoutHistory({ sessions, programs, onDeleteSession, onUpdateSe
 
   // Chart data for selected muscle
   const muscleChartData = useMemo(() => {
-    const data = volumeGranularity === 'session' ? sessionMuscleMetrics : weeklyMuscleMetrics;
-    return data.map((d) => ({
-      label: d.label,
-      volume: Math.round(effectiveMuscle ? (d.muscleVolumes[effectiveMuscle] || 0) : 0),
-    }));
-  }, [volumeGranularity, sessionMuscleMetrics, weeklyMuscleMetrics, effectiveMuscle]);
+    return volumeData.map((d) => {
+      const counts = effectiveMuscle ? d.muscles[effectiveMuscle] : undefined;
+      return { label: d.label, value: Math.round((counts?.[setMetric] ?? 0) * 10) / 10 };
+    });
+  }, [volumeData, effectiveMuscle, setMetric]);
 
   // Muscle summary for current/previous period (for the breakdown list)
   const muscleSummary = useMemo(() => {
-    const data = volumeGranularity === 'session' ? sessionMuscleMetrics : weeklyMuscleMetrics;
-    const recent = data.slice(-1)[0]?.muscleVolumes || {};
-    const prev = data.slice(-2, -1)[0]?.muscleVolumes || {};
+    const recent = volumeData.slice(-1)[0]?.muscles || {};
+    const prev = volumeData.slice(-2, -1)[0]?.muscles || {};
     return availableMuscles.map((m) => ({
       muscle: m,
-      volume: Math.round(recent[m] || 0),
-      prevVolume: Math.round(prev[m] || 0),
-    })).sort((a, b) => b.volume - a.volume);
-  }, [availableMuscles, sessionMuscleMetrics, weeklyMuscleMetrics, volumeGranularity]);
+      value: recent[m]?.[setMetric] ?? 0,
+      sets: recent[m]?.sets ?? 0,
+      prevValue: prev[m]?.[setMetric] ?? 0,
+    })).sort((a, b) => b.value - a.value || b.sets - a.sets);
+  }, [availableMuscles, volumeData, setMetric]);
+
+  // Weekly bars scale against the MAV landmark so every muscle reads against the same
+  // 10–20 set band; session bars just scale to the biggest mover.
+  const summaryScaleMax = useMemo(() => {
+    const peak = Math.max(...muscleSummary.map((d) => (hasEffortData ? d.sets : d.value)), 1);
+    return volumeGranularity === 'weekly' ? Math.max(WEEKLY_HARD_SETS_MAV * 1.25, peak) : peak;
+  }, [muscleSummary, volumeGranularity, hasEffortData]);
 
   const exerciseNameMap = useMemo(() => {
     const map: Record<string, string> = {};
@@ -1017,10 +1003,13 @@ export function WorkoutHistory({ sessions, programs, onDeleteSession, onUpdateSe
                 <div className="flex items-center justify-between mb-4">
                   <div>
                     <h4 className="label leading-none">
-                      {effectiveMuscle} Volume
-                      <span className="text-[0.625rem] font-normal text-text-muted ml-1.5">({weightUnit})</span>
+                      {effectiveMuscle} {hasEffortData ? 'Hard Sets' : 'Working Sets'}
                     </h4>
-                    <p className="text-[0.625rem] text-text-muted mt-0.5">Weight × reps per {volumeGranularity === 'session' ? 'session' : 'week'}</p>
+                    <p className="text-[0.625rem] text-text-muted mt-0.5">
+                      {hasEffortData
+                        ? `Sets within ${HARD_SET_MAX_RIR} reps of failure per ${volumeGranularity === 'session' ? 'session' : 'week'}`
+                        : `Completed working sets per ${volumeGranularity === 'session' ? 'session' : 'week'}`}
+                    </p>
                   </div>
                   <div className="flex rounded-lg overflow-hidden border border-border">
                     <button
@@ -1038,16 +1027,16 @@ export function WorkoutHistory({ sessions, programs, onDeleteSession, onUpdateSe
                   </div>
                 </div>
 
-                {muscleChartData.filter((d) => d.volume > 0).length > 1 ? (
+                {muscleChartData.filter((d) => d.value > 0).length > 1 ? (
                   volumeGranularity === 'weekly' ? (
                     <SVGBarChart
                       key={`${effectiveMuscle}-weekly`}
-                      data={muscleChartData.map((d) => ({ label: d.label, value: toDisplayWeight(d.volume, weightUnit) }))}
+                      data={muscleChartData}
                       color="#e8572a"
                       height={208}
-                      yAxisWidth={50}
-                      formatY={(v) => v >= 1000 ? `${Math.round(v / 1000)}k` : String(v)}
-                      formatValue={(v) => `${v.toLocaleString()} ${weightUnit}`}
+                      yAxisWidth={28}
+                      formatY={(v) => String(Math.round(v))}
+                      formatValue={(v) => `${formatSets(v)} ${setLabel}`}
                     />
                   ) : (
                     <div className="h-52">
@@ -1055,12 +1044,12 @@ export function WorkoutHistory({ sessions, programs, onDeleteSession, onUpdateSe
                         <LineChart data={muscleChartData}>
                           <CartesianGrid stroke="var(--color-border)" strokeDasharray="3 3" />
                           <XAxis dataKey="label" tick={{ fill: 'var(--color-text-muted)', fontSize: Math.round(10 * fontScale) }} axisLine={{ stroke: 'var(--color-border)' }} tickLine={false} />
-                          <YAxis tick={{ fill: 'var(--color-text-muted)', fontSize: Math.round(10 * fontScale) }} axisLine={false} tickLine={false} width={50} domain={['auto', 'auto']} />
+                          <YAxis tick={{ fill: 'var(--color-text-muted)', fontSize: Math.round(10 * fontScale) }} axisLine={false} tickLine={false} width={28} domain={[0, 'auto']} allowDecimals={false} />
                           <Tooltip content={({ active, payload, label }) => {
                             if (!active || !payload?.length) return null;
-                            return <div className="bg-surface-raised border border-border-light rounded-lg px-3 py-2 text-xs shadow-lg"><p className="text-text-secondary mb-0.5">{label as string}</p><p className="font-bold text-accent-orange">{toDisplayWeight(Number(payload[0].value), weightUnit).toLocaleString()} {weightUnit}</p></div>;
+                            return <div className="bg-surface-raised border border-border-light rounded-lg px-3 py-2 text-xs shadow-lg"><p className="text-text-secondary mb-0.5">{label as string}</p><p className="font-bold text-accent-orange">{formatSets(Number(payload[0].value))} {setLabel}</p></div>;
                           }} />
-                          <Line type="monotone" dataKey="volume" stroke="#e8572a" strokeWidth={2} dot={{ fill: '#e8572a', r: 3 }} activeDot={{ fill: '#e8572a', r: 5 }} connectNulls={false} />
+                          <Line type="monotone" dataKey="value" stroke="#e8572a" strokeWidth={2} dot={{ fill: '#e8572a', r: 3 }} activeDot={{ fill: '#e8572a', r: 5 }} connectNulls={false} />
                         </LineChart>
                       </ResponsiveContainer>
                     </div>
@@ -1074,11 +1063,17 @@ export function WorkoutHistory({ sessions, programs, onDeleteSession, onUpdateSe
               {muscleSummary.length > 0 && (
                 <div className="card space-y-2">
                   <h4 className="label">All Muscle Groups</h4>
-                  <p className="text-[0.625rem] text-text-muted -mt-1">vs. previous {volumeGranularity === 'session' ? 'session' : 'week'}</p>
+                  <p className="text-[0.625rem] text-text-muted -mt-1">
+                    {hasEffortData ? 'Hard sets' : 'Working sets'} this {volumeGranularity === 'session' ? 'session' : 'week'} vs. previous
+                    {volumeGranularity === 'weekly' && ` · ticks at ${WEEKLY_HARD_SETS_MEV} and ${WEEKLY_HARD_SETS_MAV} sets/week`}
+                  </p>
                   {muscleSummary.map((m) => {
-                    const maxVol = Math.max(...muscleSummary.map((d) => d.volume), 1);
-                    const pct = (m.volume / maxVol) * 100;
-                    const trend = m.prevVolume > 0 ? Math.round(((m.volume - m.prevVolume) / m.prevVolume) * 100) : null;
+                    const pct = Math.min(100, (m.value / summaryScaleMax) * 100);
+                    // Faded tail = sets that were logged but left too far from failure to count.
+                    const tailPct = hasEffortData ? Math.min(100, (m.sets / summaryScaleMax) * 100) - pct : 0;
+                    const trend = m.prevValue > 0 ? Math.round(((m.value - m.prevValue) / m.prevValue) * 100) : null;
+                    const status = volumeGranularity === 'weekly' ? weeklyVolumeStatus(m.value) : null;
+                    const barColor = effectiveMuscle === m.muscle ? '#e8572a' : 'var(--color-border-light)';
                     return (
                       <div key={m.muscle}>
                         <div className="flex items-center justify-between text-xs mb-0.5">
@@ -1089,7 +1084,13 @@ export function WorkoutHistory({ sessions, programs, onDeleteSession, onUpdateSe
                             {m.muscle}
                           </button>
                           <span className="text-text-muted tabular-nums">
-                            {toDisplayWeight(m.volume, weightUnit).toLocaleString()} {weightUnit}
+                            {status && (
+                              <span className={`mr-1.5 text-[0.625rem] ${status === 'productive' ? 'text-green-500' : status === 'high' ? 'text-accent-orange' : 'text-text-muted'}`}>
+                                {status === 'productive' ? 'in range' : status === 'high' ? 'above MAV' : 'below MEV'}
+                              </span>
+                            )}
+                            {formatSets(m.value)}
+                            {hasEffortData && m.sets > m.value ? `/${formatSets(m.sets)}` : ''} sets
                             {trend != null && (
                               <span className={`ml-1.5 ${trend > 0 ? 'text-green-500' : trend < 0 ? 'text-danger' : 'text-text-muted'}`}>
                                 {trend > 0 ? '+' : ''}{trend}%
@@ -1097,15 +1098,27 @@ export function WorkoutHistory({ sessions, programs, onDeleteSession, onUpdateSe
                             )}
                           </span>
                         </div>
-                        <div className="h-1.5 rounded-full bg-surface-raised overflow-hidden">
-                          <div
-                            className="h-full rounded-full transition-all"
-                            style={{ width: `${pct}%`, backgroundColor: effectiveMuscle === m.muscle ? '#e8572a' : 'var(--color-border)' }}
-                          />
+                        <div className="relative flex h-1.5 rounded-full bg-surface-raised overflow-hidden">
+                          <div className="h-full transition-all" style={{ width: `${pct}%`, backgroundColor: barColor }} />
+                          {tailPct > 0 && (
+                            <div className="h-full transition-all opacity-40" style={{ width: `${tailPct}%`, backgroundColor: barColor }} />
+                          )}
+                          {volumeGranularity === 'weekly' && [WEEKLY_HARD_SETS_MEV, WEEKLY_HARD_SETS_MAV].map((tick) => (
+                            <span
+                              key={tick}
+                              className="absolute inset-y-0 w-px bg-text-muted/50"
+                              style={{ left: `${(tick / summaryScaleMax) * 100}%` }}
+                            />
+                          ))}
                         </div>
                       </div>
                     );
                   })}
+                  {!hasEffortData && (
+                    <p className="text-[0.625rem] text-text-muted pt-1.5 mt-1 border-t border-border">
+                      Turn on RIR or RPE tracking in your program to separate hard sets from easy ones.
+                    </p>
+                  )}
                 </div>
               )}
             </>
