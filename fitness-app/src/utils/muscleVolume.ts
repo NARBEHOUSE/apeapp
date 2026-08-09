@@ -9,10 +9,6 @@ import type { Program, WorkoutSession } from '../types';
  */
 export const HARD_SET_MAX_RIR = 3;
 
-/** Generic weekly hard-set landmarks per muscle (minimum effective / maximum adaptive). */
-export const WEEKLY_HARD_SETS_MEV = 10;
-export const WEEKLY_HARD_SETS_MAV = 20;
-
 /**
  * A muscle worked indirectly gets half a set of credit, matching the half-volume
  * split already used for secondary muscles elsewhere in the app.
@@ -171,14 +167,6 @@ export function effortBand(rir: number): EffortBand {
   if (rir < 0.5) return 'failure';
   if (rir <= HARD_SET_MAX_RIR) return 'productive';
   return 'far';
-}
-
-export type VolumeStatus = 'below' | 'productive' | 'high';
-
-export function weeklyVolumeStatus(hardSets: number): VolumeStatus {
-  if (hardSets < WEEKLY_HARD_SETS_MEV) return 'below';
-  if (hardSets <= WEEKLY_HARD_SETS_MAV) return 'productive';
-  return 'high';
 }
 
 /** Set counts are fractional when a muscle is only worked indirectly. */

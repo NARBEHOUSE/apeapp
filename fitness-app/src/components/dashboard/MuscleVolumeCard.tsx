@@ -10,10 +10,7 @@ import {
   hasRatedSets,
   avgRir,
   effortBand,
-  weeklyVolumeStatus,
   formatSets,
-  WEEKLY_HARD_SETS_MEV,
-  WEEKLY_HARD_SETS_MAV,
 } from '../../utils/muscleVolume';
 
 interface Props {
@@ -61,8 +58,8 @@ export function MuscleVolumeCard({ sessions, programs }: Props) {
   if (muscleData.length === 0) return null;
 
   const topMuscles = expanded ? muscleData : muscleData.slice(0, 4);
-  // Scale against the MAV landmark so every muscle reads against the same 10–20 band.
-  const scaleMax = Math.max(WEEKLY_HARD_SETS_MAV * 1.25, ...muscleData.map((d) => (hasEffortData ? d.sets : d.value)));
+  // Scaled relative to the biggest mover, not to a target the app has no basis to set.
+  const scaleMax = Math.max(1, ...muscleData.map((d) => (hasEffortData ? d.sets : d.value)));
 
   return (
     <div className="card">
@@ -80,16 +77,12 @@ export function MuscleVolumeCard({ sessions, programs }: Props) {
           // Faded tail = sets logged but left too far from failure to count.
           const tailPct = hasEffortData ? Math.min(100, (m.sets / scaleMax) * 100) - pct : 0;
           const band = m.rir != null ? effortBand(m.rir) : null;
-          const status = weeklyVolumeStatus(m.value);
 
           return (
             <div key={m.muscle}>
               <div className="flex items-center justify-between text-xs mb-0.5">
                 <span className="font-medium capitalize">{m.muscle}</span>
                 <span className="text-text-muted tabular-nums">
-                  <span className={`mr-1.5 text-[0.625rem] ${status === 'productive' ? 'text-green-500' : status === 'high' ? 'text-accent' : 'text-text-muted'}`}>
-                    {status === 'productive' ? 'in range' : status === 'high' ? 'above MAV' : 'below MEV'}
-                  </span>
                   {formatSets(m.value)}
                   {hasEffortData && m.sets > m.value ? `/${formatSets(m.sets)}` : ''} sets
                   {m.rir != null && (
@@ -99,12 +92,9 @@ export function MuscleVolumeCard({ sessions, programs }: Props) {
                   )}
                 </span>
               </div>
-              <div className="relative flex h-2 rounded-full bg-surface-raised overflow-hidden">
+              <div className="flex h-2 rounded-full bg-surface-raised overflow-hidden">
                 <div className="h-full bg-accent transition-all" style={{ width: `${pct}%` }} />
                 {tailPct > 0 && <div className="h-full bg-accent opacity-40 transition-all" style={{ width: `${tailPct}%` }} />}
-                {[WEEKLY_HARD_SETS_MEV, WEEKLY_HARD_SETS_MAV].map((tick) => (
-                  <span key={tick} className="absolute inset-y-0 w-px bg-text-muted/50" style={{ left: `${(tick / scaleMax) * 100}%` }} />
-                ))}
               </div>
             </div>
           );

@@ -22,10 +22,7 @@ import {
   formatSets,
   avgRir,
   effortBand,
-  weeklyVolumeStatus,
   HARD_SET_MAX_RIR,
-  WEEKLY_HARD_SETS_MEV,
-  WEEKLY_HARD_SETS_MAV,
   type MuscleSetCounts,
 } from '../../utils/muscleVolume';
 
@@ -734,12 +731,12 @@ export function WorkoutHistory({ sessions, programs, onDeleteSession, onUpdateSe
   // Tonnage is kept purely as a "nice to see" figure alongside the set counts.
   const selectedTonnage = muscleSummary.find((m) => m.muscle === effectiveMuscle)?.volume ?? 0;
 
-  // Weekly bars scale against the MAV landmark so every muscle reads against the same
-  // 10–20 set band; session bars just scale to the biggest mover.
-  const summaryScaleMax = useMemo(() => {
-    const peak = Math.max(...muscleSummary.map((d) => (hasEffortData ? d.sets : d.value)), 1);
-    return volumeGranularity === 'weekly' ? Math.max(WEEKLY_HARD_SETS_MAV * 1.25, peak) : peak;
-  }, [muscleSummary, volumeGranularity, hasEffortData]);
+  // Bars are scaled relative to the biggest mover, so they compare muscles against each
+  // other rather than against a target the app has no basis to set.
+  const summaryScaleMax = useMemo(
+    () => Math.max(...muscleSummary.map((d) => (hasEffortData ? d.sets : d.value)), 1),
+    [muscleSummary, hasEffortData],
+  );
 
   const exerciseNameMap = useMemo(() => {
     const map: Record<string, string> = {};
@@ -1077,14 +1074,12 @@ export function WorkoutHistory({ sessions, programs, onDeleteSession, onUpdateSe
                   <h4 className="label">All Muscle Groups</h4>
                   <p className="text-[0.625rem] text-text-muted -mt-1">
                     {hasEffortData ? 'Hard sets and average reps in reserve' : 'Working sets'} this {volumeGranularity === 'session' ? 'session' : 'week'}
-                    {volumeGranularity === 'weekly' && ` · ticks at ${WEEKLY_HARD_SETS_MEV} and ${WEEKLY_HARD_SETS_MAV} sets/week`}
                   </p>
                   {muscleSummary.map((m) => {
                     const pct = Math.min(100, (m.value / summaryScaleMax) * 100);
                     // Faded tail = sets that were logged but left too far from failure to count.
                     const tailPct = hasEffortData ? Math.min(100, (m.sets / summaryScaleMax) * 100) - pct : 0;
                     const band = m.rir != null ? effortBand(m.rir) : null;
-                    const status = volumeGranularity === 'weekly' ? weeklyVolumeStatus(m.value) : null;
                     const barColor = effectiveMuscle === m.muscle ? '#e8572a' : 'var(--color-border-light)';
                     return (
                       <div key={m.muscle}>
@@ -1096,11 +1091,6 @@ export function WorkoutHistory({ sessions, programs, onDeleteSession, onUpdateSe
                             {m.muscle}
                           </button>
                           <span className="text-text-muted tabular-nums">
-                            {status && (
-                              <span className={`mr-1.5 text-[0.625rem] ${status === 'productive' ? 'text-green-500' : status === 'high' ? 'text-accent-orange' : 'text-text-muted'}`}>
-                                {status === 'productive' ? 'in range' : status === 'high' ? 'above MAV' : 'below MEV'}
-                              </span>
-                            )}
                             {formatSets(m.value)}
                             {hasEffortData && m.sets > m.value ? `/${formatSets(m.sets)}` : ''} sets
                             {m.rir != null && (
@@ -1110,18 +1100,11 @@ export function WorkoutHistory({ sessions, programs, onDeleteSession, onUpdateSe
                             )}
                           </span>
                         </div>
-                        <div className="relative flex h-1.5 rounded-full bg-surface-raised overflow-hidden">
+                        <div className="flex h-1.5 rounded-full bg-surface-raised overflow-hidden">
                           <div className="h-full transition-all" style={{ width: `${pct}%`, backgroundColor: barColor }} />
                           {tailPct > 0 && (
                             <div className="h-full transition-all opacity-40" style={{ width: `${tailPct}%`, backgroundColor: barColor }} />
                           )}
-                          {volumeGranularity === 'weekly' && [WEEKLY_HARD_SETS_MEV, WEEKLY_HARD_SETS_MAV].map((tick) => (
-                            <span
-                              key={tick}
-                              className="absolute inset-y-0 w-px bg-text-muted/50"
-                              style={{ left: `${(tick / summaryScaleMax) * 100}%` }}
-                            />
-                          ))}
                         </div>
                       </div>
                     );
