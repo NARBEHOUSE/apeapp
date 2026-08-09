@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback } from 'react';
 import { useSpeech } from './useSpeech';
 import { parseWorkoutIntent, parseFoodIntent, type WorkoutVoiceContext, type WorkoutIntent, type FoodIntentItem } from '../utils/voiceIntentParser';
 import { searchFoods } from '../utils/usda';
@@ -38,7 +38,6 @@ export function useVoiceMode({
   const [isProcessing, setIsProcessing] = useState(false);
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const confirmListenerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleTranscript = useCallback(async (transcript: string) => {
     if (!enabled || !transcript.trim()) return;
@@ -97,7 +96,7 @@ export function useVoiceMode({
                   };
                 }
               }
-            } catch {}
+            } catch { /* USDA lookup failed — fall through to the estimates below */ }
             // Fallback to Claude's own estimates when USDA fails or returns empty macros
             return {
               item,

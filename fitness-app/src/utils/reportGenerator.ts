@@ -1,4 +1,4 @@
-import type { WorkoutSession, FoodEntry, Measurement, Program, Profile, ProgressPhoto, CheckInEntry } from '../types';
+import type { Profile, ProgressPhoto, CheckInEntry } from '../types';
 import { DEFAULT_CHECKIN_QUESTIONS } from '../types';
 import { getSessionsByProfile } from '../db/workouts';
 import { getFoodEntriesByProfile } from '../db/nutrition';
@@ -885,7 +885,6 @@ export async function generatePDFReport(data: ReportData): Promise<void> {
     },
     margin: { left: 14, right: 14 },
   });
-  cy = ((doc as any).lastAutoTable?.finalY ?? cy) + 6;
 
   // ── TRAINING ──
   doc.addPage(); cy = 14;
@@ -1161,7 +1160,6 @@ export async function generatePDFReport(data: ReportData): Promise<void> {
       alternateRowStyles: { fillColor: '#f7f7f7' },
       margin: { left: 14, right: 14 },
     });
-    cy = ((doc as any).lastAutoTable?.finalY ?? cy) + 6;
   }
 
   // ── PROGRESS PHOTOS ──

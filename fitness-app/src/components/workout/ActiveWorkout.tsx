@@ -8,7 +8,6 @@ import {
   X,
   Plus,
   SkipForward,
-  MessageSquare,
   Heart,
   Trash2,
   Play,
@@ -16,7 +15,7 @@ import {
   Pencil,
 } from 'lucide-react';
 import type { WorkoutSession, WorkoutDay, SetLog, Exercise, ExerciseLastPerformance, CardioEntry, Program, SetType } from '../../types';
-import { searchExerciseLibrary, getSimilarExercises, type LibraryExercise } from '../../data/exerciseLibrary';
+import { searchExerciseLibrary, type LibraryExercise } from '../../data/exerciseLibrary';
 import { saveCustomExercise, searchCustomExercises, getExerciseVideo, updateExerciseVideo } from '../../db/customExercises';
 import { RestTimer } from './RestTimer';
 import { VoiceMicButton } from '../shared/VoiceMicButton';
@@ -134,7 +133,6 @@ function ExerciseCard({
   previousSets,
   lastPerformance,
   weeklyTarget,
-  prs,
   onComplete,
   onUpdate,
   onSwap,

@@ -55,7 +55,7 @@ interface Props {
   log: CoachLogEntry[];
 }
 
-export function ClientView({ data: initialData, fileId, onPushChanges, onCheckClientResponse, onAcknowledgeResponse, onRefresh, onClose, coachEmail, coachPicture, coachName, log }: Props) {
+export function ClientView({ data: initialData, fileId, onPushChanges, onAcknowledgeResponse, onRefresh, onClose, coachEmail, coachPicture, coachName, log }: Props) {
   const fontScale = useFontScale();
   const [data, setData] = useState<ClientData>(initialData);
   const [refreshing, setRefreshing] = useState(false);
@@ -679,7 +679,6 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onCheckCl
             {recentWorkouts.length === 0 ? (
               <p className="text-sm text-text-muted text-center py-8">No workouts</p>
             ) : recentWorkouts.map((w) => {
-              const setCount = Object.values(w.sets).reduce((a, s) => a + s.filter((x) => x.completed).length, 0);
               const dur = w.endTime ? Math.round((w.endTime - w.startTime) / 60000) : null;
               const isExp = expandedWorkout === w.id;
               const dayInfo = dayLabelMap[w.dayId];

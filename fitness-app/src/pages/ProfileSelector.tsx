@@ -30,7 +30,7 @@ export function ProfileSelector({ profiles, onSelect, onCreate, onDelete, onRefr
   const [step, setStep] = useState<Step>('list');
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const importRef = useRef<HTMLInputElement>(null);
-  const { isSignedIn, isLoading: googleLoading, signIn: googleSignIn, signOut: googleSignOut, deleteCloudDataAndSignOut, user: googleUser } = useGoogleAuth();
+  const { isSignedIn, isLoading: googleLoading, signIn: googleSignIn, signOut: googleSignOut, user: googleUser } = useGoogleAuth();
 
   const handleGoogleSignIn = async () => {
     const success = await googleSignIn();

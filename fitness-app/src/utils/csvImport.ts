@@ -391,7 +391,7 @@ function parseMFSteps(text: string, profileId: string): { steps: StepEntry[]; er
 
 // ── MacroFactor: Micronutrients ──
 
-function parseMFMicronutrients(text: string, profileId: string): { micros: Map<string, Record<string, number>>; errors: string[] } {
+function parseMFMicronutrients(text: string, _profileId: string): { micros: Map<string, Record<string, number>>; errors: string[] } {
   const rows = parseCSV(text, ',');
   if (rows.length < 2) return { micros: new Map(), errors: ['No data rows found'] };
   const headers = rows[0];
@@ -425,7 +425,7 @@ function parseMFFoodLibrary(text: string, profileId: string): { count: number; e
   const headers = rows[0].map((h) => h.toLowerCase());
   const col = (name: string) => headers.findIndex((h) => h.includes(name));
   const colExact = (name: string) => headers.findIndex((h) => h === name || h.startsWith(name + ' (') || h.startsWith(name + ','));
-  const iName = col('food name'), iServSize = col('serving size'), iServQty = col('serving qty');
+  const iName = col('food name'), iServSize = col('serving size');
   const iCal = col('calories (kcal)') >= 0 ? col('calories (kcal)') : col('calories');
   const iProt = colExact('protein');
   const iCarbs = colExact('carbs');

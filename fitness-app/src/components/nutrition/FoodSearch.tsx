@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
-import { Search, Loader2, ChevronRight, Barcode, Globe, Database, Clock, Camera, ArrowLeft } from 'lucide-react';
+import { Search, Loader2, ChevronRight, Barcode, Clock, ArrowLeft } from 'lucide-react';
 import { ManualEntry } from './ManualEntry';
 import { searchFoodsWithFallback, lookupBarcodeWithFallback } from '../../utils/usda';
 import { FOOD_DATABASE, type BuiltInFood } from '../../data/foods';
@@ -100,7 +100,6 @@ function convertBuiltIn(food: BuiltInFood): LocalResult {
 export function FoodSearch({ onAdd, onClose, profileId, defaultTab, saveOnly = false, multiMode = false, startWithScan = false, onSaveToLibrary, dailyTotals, macroTargets }: FoodSearchProps) {
 
   const [plate, setPlate] = useState<PlateItem[]>([]);
-  const [tab, setTab] = useState<SearchTab>(defaultTab || 'search');
   const [query, setQuery] = useState('');
   const [barcodeQuery, setBarcodeQuery] = useState('');
 

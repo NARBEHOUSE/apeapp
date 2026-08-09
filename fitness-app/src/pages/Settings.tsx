@@ -30,8 +30,6 @@ import {
   CloudOff,
   UserPlus,
   UserX,
-  Copy as CopyIcon,
-  Send,
   RotateCcw,
   History,
 } from 'lucide-react';
@@ -46,7 +44,7 @@ import { testClaudeKey } from '../utils/claudeVision';
 import { saveApiKey, deleteApiKey, getApiKey, detectProvider, getLastSessionError } from '../utils/apiKeyManager';
 import {
   exportAllData, downloadJSON, importData, clearAllData,
-  exportProgram, importProgram, exportAllPrograms, importProgramsBundle,
+  exportAllPrograms, importProgramsBundle,
   exportCustomFoods, importCustomFoods,
 } from '../utils/exportImport';
 import { importCSV, importMacroFactorXLSX, getSourceLabel, type ImportResult } from '../utils/csvImport';
@@ -55,7 +53,7 @@ import { getDashboardConfig, saveDashboardConfig, type DashboardCardConfig } fro
 import { getActiveThemeId, setActiveTheme, THEMES, type ThemeId } from '../utils/themes';
 import { getActiveFontSize, setActiveFontSize, type FontSize } from '../utils/fontSize';
 import { markBackupDone, getLastBackupDate } from '../utils/backupReminder';
-import { generateReport, generateCSV, generateHTMLReport, generatePDFReport, downloadFile, openReportForPrint } from '../utils/reportGenerator';
+import { generateReport, generateCSV, generateHTMLReport, generatePDFReport, downloadFile } from '../utils/reportGenerator';
 import {
   calculateMacros,
   calculateTDEE,
@@ -78,7 +76,6 @@ import { getAllPrograms } from '../db/programs';
 import { deleteWorkoutSession, getSessionsByProfile } from '../db/workouts';
 import { deleteFoodEntry, getFoodEntriesByProfile } from '../db/nutrition';
 import { deleteStepEntry, getStepsByProfile } from '../db/steps';
-import { ConfirmDialog } from '../components/shared/ConfirmDialog';
 import { Modal } from '../components/shared/Modal';
 import { ImageCropper } from '../components/shared/ImageCropper';
 import { toast } from '../components/shared/Toast';
@@ -98,23 +95,18 @@ type Section = 'google' | 'coach' | 'theme' | 'api' | 'dashboard' | 'reports' | 
 
 const REST_OPTIONS = [0, 60, 90, 120];
 
-export function Settings({ profile, onUpdateProfile, onSetMacroTargetHistory, profiles, onDeleteProfile, onLogout }: Props) {
+export function Settings({ profile, onUpdateProfile, onSetMacroTargetHistory, profiles, onLogout }: Props) {
   const { user: googleUser, isSignedIn: googleSignedIn, signIn: googleSignIn, signOut: googleSignOut, deleteCloudDataAndSignOut, syncStatus, lastSynced, syncNow, isLoading: googleLoading, keyLoaded, keyLoadError, reconnectApiKey } = useGoogleAuth();
   const {
     myCoachRels, myClients, loading: coachLoading, pendingChanges,
-    shareWithCoach, revokeCoachAccess, syncCoachFiles,
+    revokeCoachAccess, syncCoachFiles,
     addClient, removeClient, discoverClients, getClientData, pushChangesToClient,
     checkForClientResponse, acknowledgeClientResponse, backupClientData, getLog,
     pendingInvites, blockList,
     checkPendingInvites, inviteClient, acceptInvite, declineInvite, blockAndDeclineInvite, unblockCoach,
   } = useCoach();
 
-  const [coachEmail, setCoachEmail] = useState('');
-  const [coachPermission, setCoachPermission] = useState<'full' | 'readonly'>('full');
-  const [clientCode, setClientCode] = useState('');
-  const [addingClient, setAddingClient] = useState(false);
   const [viewingClient, setViewingClient] = useState<{ fileId: string; data: Record<string, unknown> } | null>(null);
-  const [coachNote, setCoachNote] = useState('');
   const [showCoachHistory, setShowCoachHistory] = useState(false);
   const [inviteClientEmail, setInviteClientEmail] = useState('');
   const [invitePermissions, setInvitePermissions] = useState<Record<string, 'full' | 'readonly'>>({});
@@ -136,7 +128,6 @@ export function Settings({ profile, onUpdateProfile, onSetMacroTargetHistory, pr
   }, [expanded, googleUser?.email]);
 
   // API Keys
-  const [usdaKey, setUsdaKey] = useState(() => localStorage.getItem('fitos-usda-key') || '');
   const [claudeKey, setClaudeKey] = useState(() => getApiKey());
   const claudeEnabled = !!claudeKey.trim();
 
@@ -148,14 +139,12 @@ export function Settings({ profile, onUpdateProfile, onSetMacroTargetHistory, pr
       setSessionDiagError(getLastSessionError());
     }
   }, [keyLoaded]);
-  const [showUsdaKey, setShowUsdaKey] = useState(false);
   const [showClaudeKey, setShowClaudeKey] = useState(false);
-  const [usdaStatus, setUsdaStatus] = useState<'idle' | 'testing' | 'valid' | 'invalid'>('idle');
   const [claudeStatus, setClaudeStatus] = useState<'idle' | 'testing' | 'valid' | 'invalid'>('idle');
 
   // Profile editing
   const [editName, setEditName] = useState(profile.name);
-  const [editGoal, setEditGoal] = useState(profile.goal);
+  const [editGoal] = useState(profile.goal);
   const [editUnits, setEditUnits] = useState(profile.units);
   const [editMeasurementUnit, setEditMeasurementUnit] = useState(profile.measurementUnit);
   const [editRestTimer, setEditRestTimer] = useState(profile.restTimerDuration);
@@ -2555,7 +2544,7 @@ export function Settings({ profile, onUpdateProfile, onSetMacroTargetHistory, pr
                     const date = new Date().toISOString().split('T')[0];
                     await downloadJSON(data, `ape-programs-${date}.json`);
                     toast('Programs exported!', 'success');
-                  } catch (err) {
+                  } catch {
                     toast('Export failed', 'error');
                   }
                 }}
@@ -2604,7 +2593,7 @@ export function Settings({ profile, onUpdateProfile, onSetMacroTargetHistory, pr
                       const date = new Date().toISOString().split('T')[0];
                       await downloadJSON(data, `ape-food-library-${date}.json`);
                       toast('Food library exported!', 'success');
-                    } catch (err) {
+                    } catch {
                       toast('Export failed', 'error');
                     }
                   }}

@@ -6,7 +6,6 @@ import {
   getCoachSuggestions,
   getCachedCoachResponse,
   cacheCoachResponse,
-  clearCoachCache,
   type CoachResponse,
   type CoachSuggestion,
 } from '../../utils/aiCoach';

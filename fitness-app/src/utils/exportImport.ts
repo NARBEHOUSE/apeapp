@@ -1,7 +1,7 @@
 import JSZip from 'jszip';
 import { getDB } from '../db';
 import { saveFoodToHistory } from '../db/foodHistory';
-import { getRecipes, saveRecipe, type Recipe } from '../db/recipes';
+import { getRecipes, saveRecipe } from '../db/recipes';
 import type { Program, FoodEntry, Profile } from '../types';
 
 export async function exportProgram(programId: string): Promise<string> {

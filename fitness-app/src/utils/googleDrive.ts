@@ -279,7 +279,7 @@ export async function createCoachShareFile(
   } catch (err) {
     if (err instanceof Error && err.message.includes('Failed to share')) throw err;
     console.error('Permission grant error:', err);
-    throw new Error(`Failed to share with ${coachEmail}. Check the email address.`);
+    throw new Error(`Failed to share with ${coachEmail}. Check the email address.`, { cause: err });
   }
 
   return { fileId, folderId };

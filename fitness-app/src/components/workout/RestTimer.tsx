@@ -20,7 +20,7 @@ function playCompletionSound() {
       osc.start(start);
       osc.stop(start + 0.25);
     });
-  } catch {}
+  } catch { /* audio unavailable — the timer still works without a chime */ }
 }
 
 function requestNotificationPermission() {
@@ -33,7 +33,7 @@ function sendRestCompleteNotification() {
   if ('Notification' in window && Notification.permission === 'granted') {
     try {
       new Notification('Rest Complete', { body: 'Time for your next set!', icon: '/icons/icon-192.png', tag: 'rest-timer', requireInteraction: false });
-    } catch {}
+    } catch { /* notification blocked — non-critical */ }
   }
 }
 

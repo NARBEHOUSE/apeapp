@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { Plus, Trash2, ChevronUp, ChevronDown, Search, AlertCircle, Pencil } from 'lucide-react';
 import type { Recipe, RecipeIngredient } from '../../db/recipes';
-import { searchSavedFoods, saveFoodToHistory, type SavedFood } from '../../db/foodHistory';
+import { searchSavedFoods, saveFoodToHistory } from '../../db/foodHistory';
 import { FOOD_DATABASE } from '../../data/foods';
 import { searchFoods as searchUSDAFoods } from '../../utils/usda';
 import { getFoodEmoji } from '../../utils/foodEmoji';

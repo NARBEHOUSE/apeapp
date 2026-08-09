@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import {
   ArrowLeft,
   Plus,
@@ -7,18 +7,15 @@ import {
   History,
   Pencil,
   Loader2,
-  Calendar,
   Target,
   ChevronRight,
   ChevronDown,
   ChevronUp,
-  X,
   Library,
-  Clock,
   CheckCircle2,
   SkipForward,
 } from 'lucide-react';
-import type { Profile, Program, WorkoutSession, WorkoutDay as WorkoutDayType, ActiveProgramEnrollment, ProgramCompletion, ExerciseFeedback, Exercise } from '../types';
+import type { Profile, Program, WorkoutSession, WorkoutDay as WorkoutDayType, ActiveProgramEnrollment, ProgramCompletion, Exercise } from '../types';
 import { useWorkout } from '../hooks/useWorkout';
 import { duplicateProgram, deleteProgram, saveProgram } from '../db/programs';
 import { getAllPRs } from '../db/workouts';
@@ -102,7 +99,6 @@ function EnrollModalContent({ program, enrollWeeks, setEnrollWeeks, enrollment, 
 
 export function Workout({ profile, onUpdateProfile }: Props) {
   const location = useLocation();
-  const navigate = useNavigate();
   const {
     programs,
     sessions,
@@ -142,9 +138,6 @@ export function Workout({ profile, onUpdateProfile }: Props) {
   const enrollment = profile.activeProgram;
   const activeProgram = enrollment ? programs.find((p) => p.id === enrollment.programId) : null;
 
-  // Next workout day calculation
-  const nextDayIndex = enrollment ? ((enrollment.lastCompletedDayIndex + 1) % (activeProgram?.days.length || 1)) : 0;
-  const nextDay = activeProgram?.days[nextDayIndex];
   // Skip rest days
   const getNextTrainingDay = () => {
     if (!activeProgram) return null;
@@ -221,7 +214,7 @@ export function Workout({ profile, onUpdateProfile }: Props) {
   }, [enrollment, activeProgram, weeksElapsed, sessionsInProgram, profile, onUpdateProfile]);
 
   // Start a workout for a day
-  const handleStartDay = useCallback((day: WorkoutDayType, dayIndex: number) => {
+  const handleStartDay = useCallback((day: WorkoutDayType, _dayIndex: number) => {
     if (!enrollment) return;
     const programId = enrollment.programId;
     setSelectedProgramId(programId);

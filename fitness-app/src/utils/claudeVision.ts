@@ -50,7 +50,7 @@ export async function analyzeFood(base64Image: string, _apiKey: string, userNote
 
   const { text } = await callAI({ systemPrompt: SYSTEM_PROMPT, userPrompt: userText, imageBase64: base64Image });
 
-  let cleaned = text.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim();
+  const cleaned = text.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim();
   return JSON.parse(cleaned) as VisionResult;
 }
 

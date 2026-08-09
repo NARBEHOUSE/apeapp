@@ -32,9 +32,6 @@ import { ProgressionEditor } from './ProgressionEditor';
 import { SetSchemeEditor } from './SetSchemeEditor';
 import {
   getGoalDefaults,
-  isCompoundExercise,
-  formatProgressionLabel,
-  type ExerciseProgression,
 } from '../../utils/progression';
 import { EXERCISE_LIBRARY } from '../../data/exerciseLibrary';
 
@@ -790,7 +787,7 @@ function DayEditor({
   );
 }
 
-export function ProgramEditor({ program, fitnessGoal, onSave, onClose }: Props) {
+export function ProgramEditor({ program, onSave, onClose }: Props) {
   const [editedProgram, setEditedProgram] = useState<Program>(() => ({
     ...program,
     days: program.days.map((d) => ({

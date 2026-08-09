@@ -28,7 +28,7 @@ import type {
   ExerciseProgressionConfig,
 } from '../../types';
 import { ProgressionEditor } from './ProgressionEditor';
-import { ColorPicker, getRandomColor, getNextColor } from '../shared/ColorPicker';
+import { ColorPicker, getNextColor } from '../shared/ColorPicker';
 import {
   getGoalDefaults,
   formatProgressionLabel,

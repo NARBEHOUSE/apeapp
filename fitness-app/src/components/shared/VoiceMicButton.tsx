@@ -1,4 +1,4 @@
-import { Mic, MicOff, Loader2 } from 'lucide-react';
+import { Mic, Loader2 } from 'lucide-react';
 import { useSpeech } from '../../hooks/useSpeech';
 import { useEffect, useRef } from 'react';
 import { toast } from './Toast';
@@ -28,7 +28,6 @@ export function VoiceMicButton({ onTranscript, position = 'nutrition', disabled,
   if (!isSupported) return null;
 
   const posClass = position === 'workout' ? 'bottom-32 right-4' : 'bottom-20 right-4';
-  const isActive = isListening || isProcessing;
 
   return (
     <button

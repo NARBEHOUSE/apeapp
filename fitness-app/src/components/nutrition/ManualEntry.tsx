@@ -4,7 +4,7 @@ import type { FoodEntry } from '../../types';
 import { FoodAutocomplete, type SelectedFood } from './FoodAutocomplete';
 import { saveFoodToHistory } from '../../db/foodHistory';
 import { macroStatusColor } from '../../utils/macroColors';
-import { type ServingUnit, SERVING_UNITS, servingToGrams, gramsToServing, convertServingUnit, normaliseServingUnit } from '../../utils/units';
+import { type ServingUnit, SERVING_UNITS, servingToGrams, convertServingUnit, normaliseServingUnit } from '../../utils/units';
 
 interface DailyTotals {
   calories: number;
@@ -99,7 +99,7 @@ export function ManualEntry({ onAdd, onClose, profileId, dailyTotals, macroTarge
 
   // Base rates from selected food (per gram) — used to recalculate when serving size changes
   const [basePer100g, setBasePer100g] = useState<BasePer100g | null>(null);
-  const [baseServingGrams, setBaseServingGrams] = useState<number>(0);
+  const [, setBaseServingGrams] = useState<number>(0);
 
   const [databaseCalories, setDatabaseCalories] = useState<number | null>(null);
 

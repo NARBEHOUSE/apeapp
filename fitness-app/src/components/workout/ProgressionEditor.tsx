@@ -6,7 +6,6 @@ import {
   isCompoundExercise,
   calculateWeeklyTargets,
   generateBlankTargets,
-  formatProgressionLabel,
   type ExerciseProgression,
 } from '../../utils/progression';
 

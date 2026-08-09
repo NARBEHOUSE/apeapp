@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Check, X, ChevronDown, ChevronUp, MessageSquare, Dumbbell, Target } from 'lucide-react';
+import { Check, X, MessageSquare, Dumbbell, Target } from 'lucide-react';
 import type { PendingCoachChanges, CoachChangeItem, CoachChangeResponse, Profile, MacroTargets, Program } from '../../types';
 import { toast } from '../shared/Toast';
 

@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
 import {
-  ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Plus, Search, Camera,
+  ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Plus, Search,
   Loader2, Star, Trash2, BookmarkPlus, Bookmark, GripVertical, Clock, Pencil, AlertCircle, AlignLeft, AlignRight, Copy,
 } from 'lucide-react';
 import {
@@ -12,7 +12,6 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import type { Profile, FoodEntry } from '../types';
 import { useNutrition } from '../hooks/useNutrition';
-import { getFoodEntriesByDate } from '../db/nutrition';
 import { formatDate, today } from '../utils/dateHelpers';
 import { type ServingUnit, SERVING_UNITS, servingToGrams, convertServingUnit, normaliseServingUnit } from '../utils/units';
 import { macroStatusColor, macroStatusBg } from '../utils/macroColors';
@@ -31,7 +30,6 @@ import { ManualEntry } from '../components/nutrition/ManualEntry';
 import { FoodSearch } from '../components/nutrition/FoodSearch';
 import { MealBuilder } from '../components/nutrition/MealBuilder';
 import { IngredientEditor } from '../components/nutrition/IngredientEditor';
-import { AIFoodScanner } from '../components/nutrition/AIFoodScanner';
 import { QuickAddSheet } from '../components/nutrition/QuickAddSheet';
 import { RecipeEditor } from '../components/nutrition/RecipeEditor';
 import { NutritionCharts } from '../components/nutrition/NutritionCharts';
@@ -91,21 +89,6 @@ function formatHourLabel(h: number): string {
   return h < 12 ? `${h}am` : `${h - 12}pm`;
 }
 
-function generateTimeOptions(): { value: string; label: string }[] {
-  const options: { value: string; label: string }[] = [];
-  for (let h = 0; h < 24; h++) {
-    for (let m = 0; m < 60; m += 15) {
-      const value = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-      const hour12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
-      const ampm = h < 12 ? 'am' : 'pm';
-      const label = m === 0 ? `${hour12}${ampm}` : `${hour12}:${String(m).padStart(2, '0')}${ampm}`;
-      options.push({ value, label });
-    }
-  }
-  return options;
-}
-
-const TIME_OPTIONS = generateTimeOptions();
 
 function currentTimeExact(): string {
   const now = new Date();
@@ -290,7 +273,7 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
   const [editFoodC, setEditFoodC] = useState('');
   const [editFoodF, setEditFoodF] = useState('');
   const [editFoodServing, setEditFoodServing] = useState('');
-  const [editFoodUnit, setEditFoodUnit] = useState('g');
+  const [, setEditFoodUnit] = useState('g');
   const [editFoodFiber, setEditFoodFiber] = useState('');
   const [editFoodQuery, setEditFoodQuery] = useState('');
   const [editFoodBarcode, setEditFoodBarcode] = useState('');
@@ -369,14 +352,6 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
   const [editEntryServings, setEditEntryServings] = useState('');
   const [editEntryIngredients, setEditEntryIngredients] = useState<MealIngredient[]>([]);
 
-  const [saveMealName, setSaveMealName] = useState('');
-  const [saveMealCal, setSaveMealCal] = useState('');
-  const [saveMealProtein, setSaveMealProtein] = useState('');
-  const [saveMealCarbs, setSaveMealCarbs] = useState('');
-  const [saveMealFat, setSaveMealFat] = useState('');
-  const [saveMealFiber, setSaveMealFiber] = useState('');
-  const [saveMealServing, setSaveMealServing] = useState('1');
-  const [saveMealUnit, setSaveMealUnit] = useState('serving');
 
   const [editingMeal, setEditingMeal] = useState<SavedMeal | null>(null);
 
@@ -550,20 +525,6 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
   function handleAddFromLibrary(food: SavedFood) {
     addEntry({ date: selectedDate, name: food.name, brand: food.brand, servingSize: food.servingSize || 1, servingUnit: food.servingUnit || 'g', servingsConsumed: 1, calories: food.calories, protein: food.protein, carbs: food.carbs, fat: food.fat, fiber: food.fiber, source: food.source || 'manual', mealType: 'snack' });
     toast(`Added ${food.name}`, 'success');
-  }
-
-  function openMealBuilder() {
-    setAddAtTime(null);
-    setModal('add');
-  }
-
-  function handleSaveMeal() {
-    if (!saveMealName.trim()) return;
-    addSavedMeal(profile.id, { name: saveMealName.trim(), emoji: getFoodEmoji(saveMealName), calories: parseFloat(saveMealCal) || 0, protein: parseFloat(saveMealProtein) || 0, carbs: parseFloat(saveMealCarbs) || 0, fat: parseFloat(saveMealFat) || 0, fiber: parseFloat(saveMealFiber) || undefined, servingSize: parseFloat(saveMealServing) || 1, servingUnit: saveMealUnit });
-    setSavedMeals(getSavedMeals(profile.id));
-    setSaveMealName(''); setSaveMealCal(''); setSaveMealProtein(''); setSaveMealCarbs(''); setSaveMealFat(''); setSaveMealFiber(''); setSaveMealServing('1'); setSaveMealUnit('serving');
-    setModal(null);
-    toast('Saved to My Foods', 'success');
   }
 
   function handleMealBuilderSave(meal: Omit<SavedMeal, 'id' | 'profileId' | 'createdAt'>, ingredients?: MealIngredient[]) {

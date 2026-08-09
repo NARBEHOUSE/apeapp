@@ -1,4 +1,4 @@
-import { Copy, Trash2, Dumbbell, Target, Calendar, ChevronRight, Share2, Upload, Pencil } from 'lucide-react';
+import { Copy, Trash2, Dumbbell, ChevronRight, Share2, Upload, Pencil } from 'lucide-react';
 import { useState } from 'react';
 import { ConfirmDialog } from '../shared/ConfirmDialog';
 import type { Program } from '../../types';

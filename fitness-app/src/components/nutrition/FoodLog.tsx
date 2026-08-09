@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { Star, Trash2, Coffee, Sun, Moon, Cookie } from 'lucide-react';
+import { Star, Trash2 } from 'lucide-react';
 import type { FoodEntry } from '../../types';
 
 interface FoodLogProps {
@@ -7,13 +7,6 @@ interface FoodLogProps {
   onDelete: (id: string) => void;
   onToggleFavorite: (id: string) => void;
 }
-
-const mealConfig: { type: FoodEntry['mealType']; label: string; icon: typeof Coffee }[] = [
-  { type: 'breakfast', label: 'Breakfast', icon: Coffee },
-  { type: 'lunch', label: 'Lunch', icon: Sun },
-  { type: 'dinner', label: 'Dinner', icon: Moon },
-  { type: 'snack', label: 'Snacks', icon: Cookie },
-];
 
 interface SwipeableEntryProps {
   entry: FoodEntry;

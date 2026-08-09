@@ -77,7 +77,6 @@ export default function TrendSnapshotCard({
   measurements,
   sessions,
   units,
-  onDayClick,
   measurementUnit,
   measurementKey,
   liftExerciseIds,

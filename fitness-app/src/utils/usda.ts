@@ -68,7 +68,7 @@ import { searchOFF, lookupBarcodeOFF } from './openFoodFacts';
 export type FoodWithSource = ParsedFood & { source?: 'usda' | 'off' };
 
 export async function searchFoodsWithFallback(query: string): Promise<FoodWithSource[]> {
-  let usdaResults: ParsedFood[] = [];
+  let usdaResults: ParsedFood[];
   try {
     usdaResults = await searchFoods(query);
   } catch {
@@ -87,7 +87,7 @@ export async function searchFoodsWithFallback(query: string): Promise<FoodWithSo
 }
 
 export async function lookupBarcodeWithFallback(upc: string): Promise<FoodWithSource | null> {
-  let usda: ParsedFood | null = null;
+  let usda: ParsedFood | null;
   try {
     usda = await lookupBarcode(upc);
   } catch {
