@@ -213,7 +213,7 @@ function ExerciseCard({
   const [inputs, setInputs] = useState<SetInput[]>(() => {
     // Try to restore persisted inputs first
     const persisted = loadWorkoutInputs();
-    if (persisted?.[exercise.id]) return persisted[exercise.id].map((p: any) => ({
+    if (persisted?.[exercise.id]) return persisted[exercise.id].map((p) => ({
       weight: p.weight || '', reps: p.reps || '', duration: p.duration || '', effort: p.effort || '',
       setType: (p.setType || (p.isWarmup ? 'warmup' : 'standard')) as SetType,
     }));

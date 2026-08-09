@@ -84,7 +84,7 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onAcknowl
   useEffect(() => {
     const doRefresh = () =>
       onRefresh(fileId).then((fresh) => {
-        if (fresh && !(fresh as any).error) { setData(fresh); setResponses(fresh.clientResponse || null); setLastRefreshed(new Date()); }
+        if (fresh && !(fresh as { error?: string }).error) { setData(fresh); setResponses(fresh.clientResponse || null); setLastRefreshed(new Date()); }
       });
 
     doRefresh();
@@ -350,8 +350,8 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onAcknowl
   async function handleRefresh() {
     setRefreshing(true);
     const fresh = await onRefresh(fileId);
-    if (fresh && !(fresh as any).error) { setData(fresh); setResponses(fresh.clientResponse || null); setLastRefreshed(new Date()); toast('Refreshed', 'success'); }
-    else toast((fresh as any)?.error || 'Failed to refresh', 'error');
+    if (fresh && !(fresh as { error?: string }).error) { setData(fresh); setResponses(fresh.clientResponse || null); setLastRefreshed(new Date()); toast('Refreshed', 'success'); }
+    else toast((fresh as { error?: string } | null)?.error || 'Failed to refresh', 'error');
     setRefreshing(false);
   }
 

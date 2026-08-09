@@ -353,7 +353,7 @@ export async function findSharedClientFolders(token: string): Promise<{ folderId
       `https://www.googleapis.com/drive/v3/files?q=name='${COACH_SHARE_FOLDER}' and mimeType='application/vnd.google-apps.folder' and sharedWithMe=true and trashed=false&fields=files(id,owners)&pageSize=50`
     );
     const data = await res.json();
-    return (data.files || []).map((f: any) => ({
+    return (data.files || []).map((f: { id: string; owners?: { emailAddress?: string; displayName?: string }[] }) => ({
       folderId: f.id,
       ownerEmail: f.owners?.[0]?.emailAddress || '',
       ownerName: f.owners?.[0]?.displayName || '',

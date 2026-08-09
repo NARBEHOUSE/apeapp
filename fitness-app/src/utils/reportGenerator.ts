@@ -8,6 +8,15 @@ import { getStepsByProfile } from '../db/steps';
 import { getDB } from '../db';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { type WindowWithSavePicker, isPickerAbort } from './fileSystemAccess';
+
+// jsPDF and its autotable plugin both ship members at runtime that their published types
+// omit: the dash-pattern setter, and the geometry autotable hangs off the document after
+// drawing each table (used to know where the next block starts).
+type PdfDocExtras = {
+  setLineDashPattern(pattern: number[], phase: number): void;
+  lastAutoTable?: { finalY: number };
+};
 
 export type ReportPeriod = 'week' | 'month' | 'custom';
 
@@ -672,9 +681,9 @@ export async function generatePDFReport(data: ReportData): Promise<void> {
       const ty = yAt(targetLine);
       doc.setDrawColor(180, 180, 180);
       doc.setLineWidth(0.4);
-      (doc as any).setLineDashPattern([1.5, 1.5], 0);
+      (doc as unknown as PdfDocExtras).setLineDashPattern([1.5, 1.5], 0);
       doc.line(plotX, ty, plotX + plotW, ty);
-      (doc as any).setLineDashPattern([], 0);
+      (doc as unknown as PdfDocExtras).setLineDashPattern([], 0);
       doc.setFontSize(5); doc.setTextColor('#999999');
       doc.text('target', plotX + plotW - 1, ty - 1, { align: 'right' });
     }
@@ -682,11 +691,11 @@ export async function generatePDFReport(data: ReportData): Promise<void> {
     for (const s of series) {
       const [cr, cg, cb] = hex(s.color);
       doc.setDrawColor(cr, cg, cb); doc.setFillColor(cr, cg, cb); doc.setLineWidth(0.6);
-      if (s.dashed) (doc as any).setLineDashPattern([1.5, 1.5], 0);
+      if (s.dashed) (doc as unknown as PdfDocExtras).setLineDashPattern([1.5, 1.5], 0);
       for (let i = 1; i < s.points.length; i++) {
         doc.line(xAt(i - 1), yAt(s.points[i - 1].value), xAt(i), yAt(s.points[i].value));
       }
-      if (s.dashed) (doc as any).setLineDashPattern([], 0);
+      if (s.dashed) (doc as unknown as PdfDocExtras).setLineDashPattern([], 0);
       for (let i = 0; i < s.points.length; i++) doc.circle(xAt(i), yAt(s.points[i].value), 0.6, 'F');
     }
 
@@ -792,7 +801,7 @@ export async function generatePDFReport(data: ReportData): Promise<void> {
     columnStyles: { 0: { fontStyle: 'normal', textColor: '#666666' }, 2: { fontStyle: 'normal', textColor: '#666666' } },
     margin: { left: 14, right: 14 },
   });
-  cy = ((doc as any).lastAutoTable?.finalY ?? cy) + 6;
+  cy = ((doc as unknown as PdfDocExtras).lastAutoTable?.finalY ?? cy) + 6;
 
   // ── NUTRITION ──
   cy = ensureY(cy, 40);
@@ -828,7 +837,7 @@ export async function generatePDFReport(data: ReportData): Promise<void> {
     alternateRowStyles: { fillColor: '#f7f7f7' },
     margin: { left: 14, right: 14 },
   });
-  cy = ((doc as any).lastAutoTable?.finalY ?? cy) + 6;
+  cy = ((doc as unknown as PdfDocExtras).lastAutoTable?.finalY ?? cy) + 6;
 
   // Weekly averages
   const weeklyMap: Record<string, DailyNutrition[]> = {};
@@ -859,7 +868,7 @@ export async function generatePDFReport(data: ReportData): Promise<void> {
       alternateRowStyles: { fillColor: '#f7f7f7' },
       margin: { left: 14, right: 14 },
     });
-    cy = ((doc as any).lastAutoTable?.finalY ?? cy) + 6;
+    cy = ((doc as unknown as PdfDocExtras).lastAutoTable?.finalY ?? cy) + 6;
   }
 
   // Daily nutrition table
@@ -900,7 +909,7 @@ export async function generatePDFReport(data: ReportData): Promise<void> {
     alternateRowStyles: { fillColor: '#f7f7f7' },
     margin: { left: 14, right: 14 },
   });
-  cy = ((doc as any).lastAutoTable?.finalY ?? cy) + 8;
+  cy = ((doc as unknown as PdfDocExtras).lastAutoTable?.finalY ?? cy) + 8;
 
   // Workout details (exercise breakdown per session)
   sectionHead('WORKOUT DETAILS', cy); cy += 8;
@@ -990,7 +999,7 @@ export async function generatePDFReport(data: ReportData): Promise<void> {
       const last = measurements.entries[measurements.entries.length - 1];
       const allKeys = Array.from(new Set([...Object.keys(first.measurements), ...Object.keys(last.measurements)]));
       const fmtKey = (k: string) => k.replace(/([A-Z])/g, ' $1').replace(/\b\w/g, (c) => c.toUpperCase());
-      cy = ((doc as any).lastAutoTable?.finalY ?? cy) + 8;
+      cy = ((doc as unknown as PdfDocExtras).lastAutoTable?.finalY ?? cy) + 8;
       cy = ensureY(cy, 20);
       doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5); doc.setTextColor('#666666');
       doc.text(`Measurements: ${fmtDate(first.date)} → ${fmtDate(last.date)}`, 14, cy); cy += 4;
@@ -1016,7 +1025,7 @@ export async function generatePDFReport(data: ReportData): Promise<void> {
         },
         margin: { left: 14, right: 14 },
       });
-      cy = ((doc as any).lastAutoTable?.finalY ?? cy) + 6;
+      cy = ((doc as unknown as PdfDocExtras).lastAutoTable?.finalY ?? cy) + 6;
     }
 
     // Full measurements history
@@ -1051,7 +1060,7 @@ export async function generatePDFReport(data: ReportData): Promise<void> {
         alternateRowStyles: { fillColor: '#f7f7f7' },
         margin: { left: 14, right: 14 },
       });
-      cy = ((doc as any).lastAutoTable?.finalY ?? cy) + 6;
+      cy = ((doc as unknown as PdfDocExtras).lastAutoTable?.finalY ?? cy) + 6;
     }
   }
 
@@ -1080,7 +1089,7 @@ export async function generatePDFReport(data: ReportData): Promise<void> {
       alternateRowStyles: { fillColor: '#f7f7f7' },
       margin: { left: 14, right: pw / 2 + 2 },
     });
-    cy = ((doc as any).lastAutoTable?.finalY ?? cy) + 6;
+    cy = ((doc as unknown as PdfDocExtras).lastAutoTable?.finalY ?? cy) + 6;
   }
 
   // ── CHECK-INS ──
@@ -1112,7 +1121,7 @@ export async function generatePDFReport(data: ReportData): Promise<void> {
       },
       margin: { left: 14, right: 14 },
     });
-    cy = ((doc as any).lastAutoTable?.finalY ?? cy) + 6;
+    cy = ((doc as unknown as PdfDocExtras).lastAutoTable?.finalY ?? cy) + 6;
 
     // Trend chart for key metrics
     if (checkIns.entries.length > 2) {
@@ -1203,12 +1212,12 @@ export async function generatePDFReport(data: ReportData): Promise<void> {
 
   if ('showSaveFilePicker' in window) {
     try {
-      const handle = await (window as any).showSaveFilePicker({ suggestedName: filename, types: [{ description: 'PDF', accept: { 'application/pdf': ['.pdf'] } }] });
+      const handle = await (window as unknown as WindowWithSavePicker).showSaveFilePicker({ suggestedName: filename, types: [{ description: 'PDF', accept: { 'application/pdf': ['.pdf'] } }] });
       const w = await handle.createWritable();
       await w.write(doc.output('blob'));
       await w.close();
       return;
-    } catch (e: any) { if (e?.name === 'AbortError') return; }
+    } catch (e) { if (isPickerAbort(e)) return; }
   }
   doc.save(filename);
 }
@@ -1230,12 +1239,12 @@ export async function downloadFile(content: string, filename: string, mimeType: 
   if ('showSaveFilePicker' in window) {
     try {
       const ext = MIME_EXTENSIONS[mimeType] || '';
-      const handle = await (window as any).showSaveFilePicker({ suggestedName: filename, types: ext ? [{ description: filename, accept: { [mimeType]: [ext] } }] : undefined });
+      const handle = await (window as unknown as WindowWithSavePicker).showSaveFilePicker({ suggestedName: filename, types: ext ? [{ description: filename, accept: { [mimeType]: [ext] } }] : undefined });
       const w = await handle.createWritable();
       await w.write(blob);
       await w.close();
       return;
-    } catch (e: any) { if (e?.name === 'AbortError') return; }
+    } catch (e) { if (isPickerAbort(e)) return; }
   }
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');

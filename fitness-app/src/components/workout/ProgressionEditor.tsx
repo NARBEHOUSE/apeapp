@@ -93,7 +93,7 @@ export function ProgressionEditor({ exercise, goalType, durationWeeks, onUpdate 
     onUpdate({ weeklyTargets: undefined });
   };
 
-  const updateWeek = (weekIndex: number, field: keyof WeeklyTarget, value: any) => {
+  const updateWeek = (weekIndex: number, field: keyof WeeklyTarget, value: WeeklyTarget[keyof WeeklyTarget]) => {
     const targets = [...(storedTargets || calculatedTargets)];
     targets[weekIndex] = { ...targets[weekIndex], [field]: value };
     onUpdate({ weeklyTargets: targets });

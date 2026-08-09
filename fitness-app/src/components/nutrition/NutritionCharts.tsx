@@ -103,6 +103,8 @@ function aggregateByDate(entries: FoodEntry[]): Map<string, DayData> {
   return map;
 }
 
+type CustomTooltipPayload = { name: string; value: number; color: string }[] | undefined;
+
 function CustomTooltip({ active, payload, label, isCalories }: {
   active?: boolean;
   payload?: { name: string; value: number; color: string }[];
@@ -374,7 +376,7 @@ export function NutritionCharts({ profileId, targets, fiberTarget = 30 }: Nutrit
           <CartesianGrid strokeDasharray="3 3" stroke={COLORS.grid} vertical={false} />
           <XAxis dataKey="label" tick={{ fill: COLORS.text, fontSize: Math.round(10 * fontScale) }} axisLine={false} tickLine={false} interval={xInterval} />
           <YAxis tick={{ fill: COLORS.text, fontSize: Math.round(10 * fontScale) }} axisLine={false} tickLine={false} width={38} />
-          <Tooltip content={(p: any) => <CustomTooltip {...p} isCalories />} cursor={{ fill: 'transparent' }} />
+          <Tooltip content={(p) => <CustomTooltip active={p.active} payload={p.payload as unknown as CustomTooltipPayload} label={p.label as string} isCalories />} cursor={{ fill: 'transparent' }} />
           <ReferenceLine y={targets.calories} stroke={COLORS.target} strokeDasharray="5 5" label={{ value: 'Target', fill: COLORS.text, fontSize: Math.round(9 * fontScale), position: 'insideTopRight' }} />
           <Line type="monotone" dataKey="calories" name="Calories" stroke={COLORS.calories} strokeWidth={2} dot={false} connectNulls />
         </LineChart>

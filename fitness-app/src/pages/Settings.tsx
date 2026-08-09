@@ -47,7 +47,7 @@ import {
   exportAllPrograms, importProgramsBundle,
   exportCustomFoods, importCustomFoods,
 } from '../utils/exportImport';
-import { importCSV, importMacroFactorXLSX, getSourceLabel, type ImportResult } from '../utils/csvImport';
+import { importCSV, importMacroFactorXLSX, getSourceLabel, type ImportResult, type ImportSource } from '../utils/csvImport';
 import { getDB } from '../db';
 import { getDashboardConfig, saveDashboardConfig, type DashboardCardConfig } from '../utils/dashboardConfig';
 import { getActiveThemeId, setActiveTheme, THEMES, type ThemeId } from '../utils/themes';
@@ -566,7 +566,7 @@ export function Settings({ profile, onUpdateProfile, onSetMacroTargetHistory, pr
     if (storeName && entry.importedIds.length > 0) {
       const db = await getDB();
       for (const id of entry.importedIds) {
-        try { await (db as any).delete(storeName, id); } catch { /* already gone */ }
+        try { await (db as unknown as { delete(store: string, key: string): Promise<void> }).delete(storeName, id); } catch { /* already gone */ }
       }
     }
     const updated = importHistory.filter((e) => e.id !== entry.id);
@@ -2774,7 +2774,7 @@ export function Settings({ profile, onUpdateProfile, onSetMacroTargetHistory, pr
                         <div className="flex items-center justify-between gap-2">
                           <div className="min-w-0">
                             <div className="font-medium truncate capitalize">
-                              {getSourceLabel(entry.source as any)} — {entry.type}
+                              {getSourceLabel(entry.source as ImportSource)} — {entry.type}
                             </div>
                             <div className="text-text-muted">
                               {entry.count} {entry.type === 'workouts' ? 'sessions' : entry.type === 'measurements' ? 'measurements' : entry.type === 'steps' ? 'step entries' : 'entries'}

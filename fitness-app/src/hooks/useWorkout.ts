@@ -8,11 +8,22 @@ import type { Program } from '../types';
 const ACTIVE_SESSION_KEY = 'fitos-active-workout';
 const ACTIVE_INPUTS_KEY = 'fitos-active-workout-inputs';
 
-export function saveWorkoutInputs(inputs: Record<string, { weight: string; reps: string; effort: string }[]>) {
+// In-progress set entries parked in localStorage so a reload mid-workout doesn't lose them.
+// Everything past weight/reps/effort is optional because older saved sessions predate it.
+export interface PersistedSetInput {
+  weight: string;
+  reps: string;
+  effort: string;
+  duration?: string;
+  setType?: string;
+  isWarmup?: boolean;
+}
+
+export function saveWorkoutInputs(inputs: Record<string, PersistedSetInput[]>) {
   localStorage.setItem(ACTIVE_INPUTS_KEY, JSON.stringify(inputs));
 }
 
-export function loadWorkoutInputs(): Record<string, { weight: string; reps: string; effort: string }[]> | null {
+export function loadWorkoutInputs(): Record<string, PersistedSetInput[]> | null {
   try {
     const raw = localStorage.getItem(ACTIVE_INPUTS_KEY);
     return raw ? JSON.parse(raw) : null;

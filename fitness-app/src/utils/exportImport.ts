@@ -2,6 +2,7 @@ import JSZip from 'jszip';
 import { getDB } from '../db';
 import { saveFoodToHistory } from '../db/foodHistory';
 import { getRecipes, saveRecipe } from '../db/recipes';
+import { type WindowWithSavePicker, isPickerAbort } from './fileSystemAccess';
 import type { Program, FoodEntry, Profile } from '../types';
 
 export async function exportProgram(programId: string): Promise<string> {
@@ -222,7 +223,7 @@ export async function downloadJSON(data: string, filename: string): Promise<void
 
   if ('showSaveFilePicker' in window) {
     try {
-      const handle = await (window as any).showSaveFilePicker({
+      const handle = await (window as unknown as WindowWithSavePicker).showSaveFilePicker({
         suggestedName: filename,
         types: [
           { description: 'JSON File', accept: { 'application/json': ['.json'] } },
@@ -232,8 +233,8 @@ export async function downloadJSON(data: string, filename: string): Promise<void
       await writable.write(blob);
       await writable.close();
       return;
-    } catch (e: any) {
-      if (e?.name === 'AbortError') return;
+    } catch (e) {
+      if (isPickerAbort(e)) return;
     }
   }
 
@@ -586,7 +587,7 @@ data.json contains your profile, macro targets, workout history, and measurement
 
   if ('showSaveFilePicker' in window) {
     try {
-      const handle = await (window as any).showSaveFilePicker({
+      const handle = await (window as unknown as WindowWithSavePicker).showSaveFilePicker({
         suggestedName: zipFilename,
         types: [
           { description: 'ZIP Archive', accept: { 'application/zip': ['.zip'] } },
@@ -596,8 +597,8 @@ data.json contains your profile, macro targets, workout history, and measurement
       await writable.write(blob);
       await writable.close();
       return;
-    } catch (e: any) {
-      if (e?.name === 'AbortError') return;
+    } catch (e) {
+      if (isPickerAbort(e)) return;
     }
   }
 
