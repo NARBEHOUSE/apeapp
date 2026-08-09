@@ -20,6 +20,8 @@ import {
   accumulateMuscleSets,
   buildExerciseMuscleMap,
   formatSets,
+  avgRir,
+  effortBand,
   weeklyVolumeStatus,
   HARD_SET_MAX_RIR,
   WEEKLY_HARD_SETS_MEV,
@@ -711,17 +713,22 @@ export function WorkoutHistory({ sessions, programs, onDeleteSession, onUpdateSe
     });
   }, [volumeData, effectiveMuscle, setMetric]);
 
-  // Muscle summary for current/previous period (for the breakdown list)
+  // Muscle summary for the current period (for the breakdown list). Deliberately not
+  // compared against the previous period: on a split, consecutive sessions train
+  // different muscles, so a session-over-session delta mostly reports which day of the
+  // rotation it was rather than any real change.
   const muscleSummary = useMemo(() => {
     const recent = volumeData.slice(-1)[0]?.muscles || {};
-    const prev = volumeData.slice(-2, -1)[0]?.muscles || {};
-    return availableMuscles.map((m) => ({
-      muscle: m,
-      value: recent[m]?.[setMetric] ?? 0,
-      sets: recent[m]?.sets ?? 0,
-      prevValue: prev[m]?.[setMetric] ?? 0,
-      volume: recent[m]?.volume ?? 0,
-    })).sort((a, b) => b.value - a.value || b.sets - a.sets);
+    return availableMuscles.map((m) => {
+      const counts = recent[m];
+      return {
+        muscle: m,
+        value: counts?.[setMetric] ?? 0,
+        sets: counts?.sets ?? 0,
+        volume: counts?.volume ?? 0,
+        rir: counts ? avgRir(counts) : null,
+      };
+    }).sort((a, b) => b.value - a.value || b.sets - a.sets);
   }, [availableMuscles, volumeData, setMetric]);
 
   // Tonnage is kept purely as a "nice to see" figure alongside the set counts.
@@ -1069,14 +1076,14 @@ export function WorkoutHistory({ sessions, programs, onDeleteSession, onUpdateSe
                 <div className="card space-y-2">
                   <h4 className="label">All Muscle Groups</h4>
                   <p className="text-[0.625rem] text-text-muted -mt-1">
-                    {hasEffortData ? 'Hard sets' : 'Working sets'} this {volumeGranularity === 'session' ? 'session' : 'week'} vs. previous
+                    {hasEffortData ? 'Hard sets and average reps in reserve' : 'Working sets'} this {volumeGranularity === 'session' ? 'session' : 'week'}
                     {volumeGranularity === 'weekly' && ` · ticks at ${WEEKLY_HARD_SETS_MEV} and ${WEEKLY_HARD_SETS_MAV} sets/week`}
                   </p>
                   {muscleSummary.map((m) => {
                     const pct = Math.min(100, (m.value / summaryScaleMax) * 100);
                     // Faded tail = sets that were logged but left too far from failure to count.
                     const tailPct = hasEffortData ? Math.min(100, (m.sets / summaryScaleMax) * 100) - pct : 0;
-                    const trend = m.prevValue > 0 ? Math.round(((m.value - m.prevValue) / m.prevValue) * 100) : null;
+                    const band = m.rir != null ? effortBand(m.rir) : null;
                     const status = volumeGranularity === 'weekly' ? weeklyVolumeStatus(m.value) : null;
                     const barColor = effectiveMuscle === m.muscle ? '#e8572a' : 'var(--color-border-light)';
                     return (
@@ -1096,9 +1103,9 @@ export function WorkoutHistory({ sessions, programs, onDeleteSession, onUpdateSe
                             )}
                             {formatSets(m.value)}
                             {hasEffortData && m.sets > m.value ? `/${formatSets(m.sets)}` : ''} sets
-                            {trend != null && (
-                              <span className={`ml-1.5 ${trend > 0 ? 'text-green-500' : trend < 0 ? 'text-danger' : 'text-text-muted'}`}>
-                                {trend > 0 ? '+' : ''}{trend}%
+                            {m.rir != null && (
+                              <span className={`ml-1.5 ${band === 'productive' ? 'text-green-500' : band === 'failure' ? 'text-[#f5a623]' : 'text-text-muted'}`}>
+                                {m.rir.toFixed(1)} RIR
                               </span>
                             )}
                           </span>

@@ -8,6 +8,8 @@ import {
   muscleSetsForSessions,
   totalSetCounts,
   hasRatedSets,
+  avgRir,
+  effortBand,
   weeklyVolumeStatus,
   formatSets,
   WEEKLY_HARD_SETS_MEV,
@@ -24,44 +26,37 @@ interface MuscleRow {
   /** Hard sets, or plain working sets when nothing is rated. */
   value: number;
   sets: number;
-  prevValue: number;
+  /** Average proximity to failure across the week's rated sets. */
+  rir: number | null;
 }
 
 export function MuscleVolumeCard({ sessions, programs }: Props) {
   const [expanded, setExpanded] = useState(false);
   const weightUnit = getWeightUnit();
   const weekDates = useMemo(() => new Set(getWeekDates(today())), []);
-  const prevWeekDates = useMemo(() => {
-    const d = new Date(today() + 'T00:00:00');
-    d.setDate(d.getDate() - 7);
-    return new Set(getWeekDates(d.toISOString().split('T')[0]));
-  }, []);
 
   // Build exercise -> muscle group map from all programs
   const exerciseMuscleMap = useMemo(() => buildExerciseMuscleMap(programs), [programs]);
 
   const { muscleData, hasEffortData, tonnage } = useMemo(() => {
     const weekSessions = sessions.filter((s) => weekDates.has(s.date));
-    const prevSessions = sessions.filter((s) => prevWeekDates.has(s.date) && !weekDates.has(s.date));
-
     const current = muscleSetsForSessions(weekSessions, exerciseMuscleMap);
-    const prev = muscleSetsForSessions(prevSessions, exerciseMuscleMap);
 
     // Effort logging is opt-in, so fall back to plain working sets when nothing is rated.
-    const rated = hasRatedSets([...Object.values(current), ...Object.values(prev)]);
+    const rated = hasRatedSets(Object.values(current));
     const metric = rated ? 'hard' : 'sets';
 
-    const rows: MuscleRow[] = [...new Set([...Object.keys(current), ...Object.keys(prev)])].map((muscle) => ({
+    const rows: MuscleRow[] = Object.entries(current).map(([muscle, counts]) => ({
       muscle,
-      value: current[muscle]?.[metric] ?? 0,
-      sets: current[muscle]?.sets ?? 0,
-      prevValue: prev[muscle]?.[metric] ?? 0,
+      value: counts[metric],
+      sets: counts.sets,
+      rir: avgRir(counts),
     }));
     rows.sort((a, b) => b.value - a.value || b.sets - a.sets);
     // Tonnage across the week, counted once per set rather than per muscle credited.
     const tonnage = totalSetCounts(weekSessions).volume;
     return { muscleData: rows, hasEffortData: rated, tonnage };
-  }, [sessions, weekDates, prevWeekDates, exerciseMuscleMap]);
+  }, [sessions, weekDates, exerciseMuscleMap]);
 
   if (muscleData.length === 0) return null;
 
@@ -84,7 +79,7 @@ export function MuscleVolumeCard({ sessions, programs }: Props) {
           const pct = Math.min(100, (m.value / scaleMax) * 100);
           // Faded tail = sets logged but left too far from failure to count.
           const tailPct = hasEffortData ? Math.min(100, (m.sets / scaleMax) * 100) - pct : 0;
-          const trend = m.prevValue > 0 ? Math.round(((m.value - m.prevValue) / m.prevValue) * 100) : null;
+          const band = m.rir != null ? effortBand(m.rir) : null;
           const status = weeklyVolumeStatus(m.value);
 
           return (
@@ -97,9 +92,9 @@ export function MuscleVolumeCard({ sessions, programs }: Props) {
                   </span>
                   {formatSets(m.value)}
                   {hasEffortData && m.sets > m.value ? `/${formatSets(m.sets)}` : ''} sets
-                  {trend != null && (
-                    <span className={`ml-1 ${trend > 0 ? 'text-green-500' : trend < 0 ? 'text-danger' : 'text-text-muted'}`}>
-                      {trend > 0 ? '+' : ''}{trend}%
+                  {m.rir != null && (
+                    <span className={`ml-1.5 ${band === 'productive' ? 'text-green-500' : band === 'failure' ? 'text-[#f5a623]' : 'text-text-muted'}`}>
+                      {m.rir.toFixed(1)} RIR
                     </span>
                   )}
                 </span>

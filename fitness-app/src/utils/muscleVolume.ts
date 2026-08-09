@@ -8,7 +8,6 @@ import type { Program, WorkoutSession } from '../types';
  * RIR 0-3 is the same range as RPE 7-10.
  */
 export const HARD_SET_MAX_RIR = 3;
-export const HARD_SET_MIN_RPE = 7;
 
 /** Generic weekly hard-set landmarks per muscle (minimum effective / maximum adaptive). */
 export const WEEKLY_HARD_SETS_MEV = 10;
@@ -20,12 +19,14 @@ export const WEEKLY_HARD_SETS_MAV = 20;
  */
 const SECONDARY_CREDIT = 0.5;
 
-export type SetEffort = 'hard' | 'submaximal' | 'unrated';
-
-export function classifySetEffort(set: { rir?: number; rpe?: number }): SetEffort {
-  if (typeof set.rir === 'number') return set.rir <= HARD_SET_MAX_RIR ? 'hard' : 'submaximal';
-  if (typeof set.rpe === 'number') return set.rpe >= HARD_SET_MIN_RPE ? 'hard' : 'submaximal';
-  return 'unrated';
+/**
+ * Reps in reserve for a set, normalising RPE (where 10 is failure) onto the RIR scale
+ * so both effort metrics feed the same maths. Null when the set carries neither.
+ */
+export function rirOf(set: { rir?: number; rpe?: number }): number | null {
+  if (typeof set.rir === 'number') return Math.max(0, set.rir);
+  if (typeof set.rpe === 'number') return Math.max(0, 10 - set.rpe);
+  return null;
 }
 
 export interface MuscleSetCounts {
@@ -35,6 +36,12 @@ export interface MuscleSetCounts {
   hard: number;
   /** Working sets that carried an RIR/RPE value at all — effort logging is opt-in. */
   rated: number;
+  /**
+   * Sum of reps-in-reserve across rated sets; divide by `rated` for average proximity
+   * to failure. Counting hard sets alone is lossy, because hypertrophy keeps improving
+   * as sets end closer to failure rather than switching on at a threshold.
+   */
+  rirSum: number;
   /**
    * Tonnage (weight × reps, in lbs). Kept as a secondary "nice to see" figure only —
    * it rewards heavy low-rep work and ignores proximity to failure, so it should never
@@ -61,7 +68,7 @@ export function buildExerciseMuscleMap(programs: Program[]): ExerciseMuscleMap {
   return map;
 }
 
-const emptyCounts = (): MuscleSetCounts => ({ sets: 0, hard: 0, rated: 0, volume: 0 });
+const emptyCounts = (): MuscleSetCounts => ({ sets: 0, hard: 0, rated: 0, rirSum: 0, volume: 0 });
 
 /** Fold one session's completed working sets into a muscle → set-count tally. */
 export function accumulateMuscleSets(
@@ -77,11 +84,15 @@ export function accumulateMuscleSets(
 
     let hard = 0;
     let rated = 0;
+    let rirSum = 0;
     let volume = 0;
     for (const st of working) {
-      const effort = classifySetEffort(st);
-      if (effort !== 'unrated') rated++;
-      if (effort === 'hard') hard++;
+      const rir = rirOf(st);
+      if (rir != null) {
+        rated++;
+        rirSum += rir;
+        if (rir <= HARD_SET_MAX_RIR) hard++;
+      }
       volume += st.weight * st.reps;
     }
 
@@ -91,6 +102,7 @@ export function accumulateMuscleSets(
       tally.sets += working.length * share;
       tally.hard += hard * share;
       tally.rated += rated * share;
+      tally.rirSum += rirSum * share;
       tally.volume += volume * share;
     };
 
@@ -123,9 +135,12 @@ export function totalSetCounts(sessions: WorkoutSession[]): MuscleSetCounts {
         if (!st.completed || st.isWarmup) continue;
         total.sets++;
         total.volume += st.weight * st.reps;
-        const effort = classifySetEffort(st);
-        if (effort !== 'unrated') total.rated++;
-        if (effort === 'hard') total.hard++;
+        const rir = rirOf(st);
+        if (rir != null) {
+          total.rated++;
+          total.rirSum += rir;
+          if (rir <= HARD_SET_MAX_RIR) total.hard++;
+        }
       }
     }
   }
@@ -136,6 +151,26 @@ export function totalSetCounts(sessions: WorkoutSession[]): MuscleSetCounts {
 export function hasRatedSets(counts: Iterable<MuscleSetCounts>): boolean {
   for (const c of counts) if (c.rated > 0) return true;
   return false;
+}
+
+/** Mean reps in reserve across rated sets, or null when nothing was rated. */
+export function avgRir(counts: MuscleSetCounts): number | null {
+  return counts.rated > 0 ? counts.rirSum / counts.rated : null;
+}
+
+export type EffortBand = 'failure' | 'productive' | 'far';
+
+/**
+ * Where an average RIR sits on the proximity-to-failure dose-response. Hypertrophy
+ * keeps improving as sets end closer to failure across roughly 0-5 RIR and falls off
+ * more steeply beyond that (Robinson et al., Sports Medicine 2024) — so training past
+ * HARD_SET_MAX_RIR leaves growth on the table, while averaging true failure is a
+ * recoverability problem rather than a win.
+ */
+export function effortBand(rir: number): EffortBand {
+  if (rir < 0.5) return 'failure';
+  if (rir <= HARD_SET_MAX_RIR) return 'productive';
+  return 'far';
 }
 
 export type VolumeStatus = 'below' | 'productive' | 'high';

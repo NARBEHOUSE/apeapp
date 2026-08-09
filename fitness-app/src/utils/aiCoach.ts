@@ -6,6 +6,7 @@ import {
   muscleSetsForSessions,
   totalSetCounts,
   hasRatedSets,
+  avgRir,
   weeklyVolumeStatus,
 } from './muscleVolume';
 
@@ -45,6 +46,9 @@ interface CoachDataSnapshot {
     effortTracked: boolean;
     /** Weekly sets per muscle, to be read against the 10–20 set landmark band. */
     setsPerMuscleThisWeek: Record<string, number>;
+    /** Average reps in reserve this week — how close to failure the sets actually got. */
+    avgRirThisWeek: number | null;
+    avgRirLastWeek: number | null;
     musclesBelowMEV: string[];
     musclesAboveMAV: string[];
     /** Weight × reps, in lbs. Context only — never the basis for a volume judgement. */
@@ -123,6 +127,8 @@ export function buildDataSnapshot(
   const weekCounts = totalSetCounts(weekSessions);
   const prevCounts = totalSetCounts(prevSessions);
   const effortTracked = hasRatedSets([weekCounts, prevCounts]);
+
+  const roundOrNull = (n: number | null) => (n == null ? null : Math.round(n * 10) / 10);
 
   const weekMuscleSets = muscleSetsForSessions(weekSessions, buildExerciseMuscleMap(programs));
   const setsPerMuscleThisWeek: Record<string, number> = {};
@@ -246,6 +252,8 @@ export function buildDataSnapshot(
       workingSetsThisWeek: weekCounts.sets,
       effortTracked,
       setsPerMuscleThisWeek,
+      avgRirThisWeek: roundOrNull(avgRir(weekCounts)),
+      avgRirLastWeek: roundOrNull(avgRir(prevCounts)),
       musclesBelowMEV,
       musclesAboveMAV,
       tonnageThisWeek: Math.round(weekCounts.volume),
@@ -313,6 +321,7 @@ Rules:
 - Focus on: calorie/macro adjustments, training volume, deload timing, consistency patterns, step/activity trends
 - Training volume means HARD SETS per muscle per week — sets taken within 3 reps of failure (RIR 0-3 / RPE 7-10). Judge training by set counts, never by tonnage
 - Weekly landmarks per muscle: under 10 sets is below MEV (minimum effective volume), 10-20 is the productive range, over 20 approaches MRV. Use musclesBelowMEV and musclesAboveMAV to suggest concrete set changes (e.g. "add 3 sets of calves per week")
+- avgRirThisWeek is how close to failure their sets actually got. Hypertrophy improves continuously as RIR drops toward 0, so an average above 3 means they are leaving growth on the table and should push sets closer to failure before adding volume. An average under about 0.5 means they train at failure constantly, which is a fatigue and recovery risk rather than a win
 - tonnageThisWeek/tonnageLastWeek are context only — a tonnage swing on its own is not a reason to change anything, since heavier low-rep work inflates it
 - If effortTracked is false the user logs no RIR/RPE, so hard-set counts read as 0. Fall back to workingSetsThisWeek and suggest turning on effort tracking rather than claiming they trained too easy
 - If micronutrient data is available and shows notable patterns (low iron, low fiber, high sodium, low vitamin D), mention it
