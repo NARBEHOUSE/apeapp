@@ -80,8 +80,10 @@ function SessionCard({
         .reduce((acc, s) => acc + s.weight * s.reps, 0),
     0
   );
-  const durationMs = (session.endTime || Date.now()) - session.startTime;
-  const durationMin = Math.round(durationMs / 60000);
+  // A session with no endTime was never finished, so its duration is unknown. Measuring
+  // against the current time instead would report the time elapsed since it started,
+  // which keeps growing for abandoned sessions and changes on every re-render.
+  const durationMin = session.endTime ? Math.round((session.endTime - session.startTime) / 60000) : null;
   const hasCardio = (session.cardio?.length ?? 0) > 0;
   const isCardioOnly = totalSets === 0 && hasCardio;
   const cardioTotalMin = session.cardio?.reduce((s, c) => s + c.durationMin, 0) ?? 0;
@@ -159,8 +161,12 @@ function SessionCard({
               <span className="text-text-muted">Skipped</span>
             ) : (
               <>
-                <span className="text-text-muted">|</span>
-                <span>{durationMin} min</span>
+                {durationMin != null && (
+                  <>
+                    <span className="text-text-muted">|</span>
+                    <span>{durationMin} min</span>
+                  </>
+                )}
                 <span className="text-text-muted">|</span>
                 {isCardioOnly ? (
                   <span>{session.cardio!.map((c) => c.type).join(', ')}</span>
@@ -398,7 +404,7 @@ function SessionCard({
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    let updatedSets = { ...session.sets };
+                    const updatedSets = { ...session.sets };
 
                     // Remove deleted exercises
                     for (const exId of deleteExercises) {
@@ -512,24 +518,6 @@ function SessionCard({
   );
 }
 
-const CustomTooltip = ({
-  active,
-  payload,
-  label,
-}: {
-  active?: boolean;
-  payload?: Array<{ value: number }>;
-  label?: string;
-}) => {
-  if (!active || !payload?.length) return null;
-  return (
-    <div className="bg-surface-raised border border-border-light rounded-lg px-3 py-2 text-xs shadow-lg">
-      <p className="text-text-secondary">{label}</p>
-      <p className="font-bold text-accent-orange">{payload[0].value} sets</p>
-    </div>
-  );
-};
-
 const StrengthTooltip = ({
   active,
   payload,
@@ -549,16 +537,6 @@ const StrengthTooltip = ({
   );
 };
 
-type VolumeMetric = 'volume' | 'sets' | 'duration' | 'intensity';
-
-const VOLUME_METRIC_META: Record<VolumeMetric, { label: string; unit: string; color: string }> = {
-  volume:    { label: 'Volume',    unit: 'lbs',     color: '#e8572a' },
-  sets:      { label: 'Sets',      unit: 'sets',    color: '#e8572a' },
-  duration:  { label: 'Duration',  unit: 'min',     color: '#22c55e' },
-  intensity: { label: 'Intensity', unit: 'lbs/min', color: '#5b6ef5' },
-};
-
-
 interface HistorySearchable {
   day?: { tag: string };
   haystack: string;
@@ -575,7 +553,6 @@ export function WorkoutHistory({ sessions, programs, onDeleteSession, onUpdateSe
   const fontScale = useFontScale();
   const weightUnit = getWeightUnit();
   const [activeTab, setActiveTab] = useState<'history' | 'volume' | 'strength'>('history');
-  const [volumeMetric, setVolumeMetric] = useState<VolumeMetric>('volume');
   const [volumeGranularity, setVolumeGranularity] = useState<'session' | 'weekly'>('session');
   const [selectedMuscle, setSelectedMuscle] = useState<string | null>(null);
   const [historySearch, setHistorySearch] = useState('');
@@ -589,56 +566,6 @@ export function WorkoutHistory({ sessions, programs, onDeleteSession, onUpdateSe
   // show up as hollow zero-value data points; the raw `sessions` list (incl. skips) still
   // feeds the History tab feed below.
   const trainingSessions = useMemo(() => sessions.filter((s) => s.status !== 'skipped'), [sessions]);
-
-  // Per-session metrics (last 30, chronological)
-  const sessionMetrics = useMemo(() => {
-    return trainingSessions
-      .slice()
-      .reverse()
-      .slice(-30)
-      .map((s) => {
-        const workSets = Object.values(s.sets).flat().filter((st) => st.completed && !st.isWarmup);
-        const volume = Math.round(workSets.reduce((sum, st) => sum + st.weight * st.reps, 0));
-        const sets = workSets.length;
-        const durationMin = s.endTime ? Math.round((s.endTime - s.startTime) / 60000) : null;
-        const intensity = (durationMin && durationMin > 0) ? Math.round(volume / durationMin) : null;
-        return {
-          label: new Date(s.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-          volume,
-          sets,
-          duration: durationMin,
-          intensity,
-        };
-      });
-  }, [trainingSessions]);
-
-  // Weekly aggregated metrics (last 12 weeks, chronological)
-  const weeklyMetrics = useMemo(() => {
-    const weeks: Record<string, { volume: number; sets: number; totalDur: number; durCount: number }> = {};
-    for (const s of trainingSessions) {
-      const date = new Date(s.date + 'T00:00:00');
-      const ws = new Date(date);
-      ws.setDate(date.getDate() - date.getDay());
-      const key = `${ws.getFullYear()}-${String(ws.getMonth() + 1).padStart(2, '0')}-${String(ws.getDate()).padStart(2, '0')}`;
-      const workSets = Object.values(s.sets).flat().filter((st) => st.completed && !st.isWarmup);
-      const vol = workSets.reduce((sum, st) => sum + st.weight * st.reps, 0);
-      const dur = s.endTime ? (s.endTime - s.startTime) / 60000 : null;
-      if (!weeks[key]) weeks[key] = { volume: 0, sets: 0, totalDur: 0, durCount: 0 };
-      weeks[key].volume += vol;
-      weeks[key].sets += workSets.length;
-      if (dur != null) { weeks[key].totalDur += dur; weeks[key].durCount++; }
-    }
-    return Object.entries(weeks)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .slice(-12)
-      .map(([week, d]) => ({
-        label: new Date(week + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-        volume: Math.round(d.volume),
-        sets: d.sets,
-        duration: d.durCount > 0 ? Math.round(d.totalDur) : null,
-        intensity: (d.durCount > 0 && d.totalDur > 0) ? Math.round(d.volume / d.totalDur) : null,
-      }));
-  }, [trainingSessions]);
 
   const [selectedExId, setSelectedExId] = useState<string | null>(null);
   const [strengthMode, setStrengthMode] = useState<'weight' | 'index'>('weight');

@@ -1,6 +1,6 @@
 import { callAI } from './aiAdapter';
 import type { WorkoutSession, FoodEntry, Measurement, CheckInEntry, StepEntry, MacroTargets, Profile, Program } from '../types';
-import { getWeekDates, today } from './dateHelpers';
+import { today } from './dateHelpers';
 import {
   buildExerciseMuscleMap,
   muscleSetsForSessions,
@@ -344,7 +344,7 @@ export async function getCoachSuggestions(snapshot: CoachDataSnapshot, _apiKey: 
 ${JSON.stringify(snapshot, null, 2)}`;
 
   const { text: rawText } = await callAI({ systemPrompt: SYSTEM_PROMPT, userPrompt: userMessage });
-  let text = rawText.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim();
+  const text = rawText.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim();
   const parsed = JSON.parse(text);
 
   return {
