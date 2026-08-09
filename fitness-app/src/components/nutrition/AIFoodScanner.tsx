@@ -87,21 +87,8 @@ export function AIFoodScanner({ onAdd, onClose }: AIFoodScannerProps) {
     }
   };
 
-  if (!apiKey) {
-    return (
-      <div className="text-center py-8 space-y-3">
-        <Camera size={40} className="mx-auto text-text-muted" />
-        <h4 className="text-lg font-bold">AI Food Scanner</h4>
-        <p className="text-text-secondary text-sm max-w-xs mx-auto">
-          Add your AI API key in Settings to enable AI-powered food scanning.
-        </p>
-        <button type="button" onClick={onClose} className="btn-secondary mt-4">
-          Close
-        </button>
-      </div>
-    );
-  }
-
+// Declared above the early return below: hooks must run in the same order on every
+  // render, and this component returns early when no API key is configured.
   const handleCapture = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -124,6 +111,21 @@ export function AIFoodScanner({ onAdd, onClose }: AIFoodScannerProps) {
       setAnalyzing(false);
     }
   }, [apiKey, userNotes]);
+
+  if (!apiKey) {
+    return (
+      <div className="text-center py-8 space-y-3">
+        <Camera size={40} className="mx-auto text-text-muted" />
+        <h4 className="text-lg font-bold">AI Food Scanner</h4>
+        <p className="text-text-secondary text-sm max-w-xs mx-auto">
+          Add your AI API key in Settings to enable AI-powered food scanning.
+        </p>
+        <button type="button" onClick={onClose} className="btn-secondary mt-4">
+          Close
+        </button>
+      </div>
+    );
+  }
 
   function updateFood(idx: number, field: keyof DetectedFood, value: string | number) {
     setFoods((prev) =>

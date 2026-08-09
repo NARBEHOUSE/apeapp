@@ -665,7 +665,8 @@ export async function importCSV(text: string, profileId: string): Promise<Import
     const result = parseMFScaleWeight(text, profileId);
     const existing = await db.getAllFromIndex('measurements', 'by-profile', profileId);
     const existingDates = new Set(existing.map((m) => m.date));
-    let imported = 0, skipped = 0;
+    let imported = 0;
+    const skipped = 0; // this importer merges rather than skipping existing dates
     const importedIds: string[] = [];
     for (const m of result.measurements) {
       if (existingDates.has(m.date)) {

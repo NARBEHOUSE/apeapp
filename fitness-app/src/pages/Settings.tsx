@@ -79,7 +79,7 @@ import { deleteStepEntry, getStepsByProfile } from '../db/steps';
 import { Modal } from '../components/shared/Modal';
 import { ImageCropper } from '../components/shared/ImageCropper';
 import { toast } from '../components/shared/Toast';
-import { formatShortDate, daysAgo } from '../utils/dateHelpers';
+import { formatShortDate, daysAgo, today as todayISO } from '../utils/dateHelpers';
 import { getMacroTargetsForDate, getTargetEffectiveDate } from '../utils/macroTargetHistory';
 
 interface Props {
@@ -270,10 +270,6 @@ export function Settings({ profile, onUpdateProfile, onSetMacroTargetHistory, pr
   // temporary correction has walked weight back to the plan's trajectory yet.
   const [latestWeightLbs, setLatestWeightLbs] = useState<number | null>(null);
 
-  useEffect(() => {
-    checkAutoAdjust();
-  }, [profile.id]);
-
   const checkAutoAdjust = async () => {
     if (!profile.bodyStats) return;
     setAdjustLoading(true);
@@ -302,7 +298,7 @@ export function Settings({ profile, onUpdateProfile, onSetMacroTargetHistory, pr
         trackedCalories,
         {
           prescribedFor: (date) => getMacroTargetsForDate(profile, date).calories,
-          targetChangedOn: getTargetEffectiveDate(profile, today),
+          targetChangedOn: getTargetEffectiveDate(profile, todayISO()),
         }
       );
       setAutoAdjustResult(result);
@@ -322,6 +318,10 @@ export function Settings({ profile, onUpdateProfile, onSetMacroTargetHistory, pr
     }
     setAdjustLoading(false);
   };
+
+  useEffect(() => {
+    checkAutoAdjust();
+  }, [profile.id]);
 
   const applyAutoAdjust = () => {
     if (!autoAdjustResult?.shouldAdjust) return;
