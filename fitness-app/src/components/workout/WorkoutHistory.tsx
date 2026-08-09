@@ -720,8 +720,12 @@ export function WorkoutHistory({ sessions, programs, onDeleteSession, onUpdateSe
       value: recent[m]?.[setMetric] ?? 0,
       sets: recent[m]?.sets ?? 0,
       prevValue: prev[m]?.[setMetric] ?? 0,
+      volume: recent[m]?.volume ?? 0,
     })).sort((a, b) => b.value - a.value || b.sets - a.sets);
   }, [availableMuscles, volumeData, setMetric]);
+
+  // Tonnage is kept purely as a "nice to see" figure alongside the set counts.
+  const selectedTonnage = muscleSummary.find((m) => m.muscle === effectiveMuscle)?.volume ?? 0;
 
   // Weekly bars scale against the MAV landmark so every muscle reads against the same
   // 10–20 set band; session bars just scale to the biggest mover.
@@ -1009,6 +1013,7 @@ export function WorkoutHistory({ sessions, programs, onDeleteSession, onUpdateSe
                       {hasEffortData
                         ? `Sets within ${HARD_SET_MAX_RIR} reps of failure per ${volumeGranularity === 'session' ? 'session' : 'week'}`
                         : `Completed working sets per ${volumeGranularity === 'session' ? 'session' : 'week'}`}
+                      {selectedTonnage > 0 && ` · ${toDisplayWeight(selectedTonnage, weightUnit).toLocaleString()} ${weightUnit} moved`}
                     </p>
                   </div>
                   <div className="flex rounded-lg overflow-hidden border border-border">

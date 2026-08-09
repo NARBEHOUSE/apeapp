@@ -1,6 +1,13 @@
 import { callAI } from './aiAdapter';
 import type { WorkoutSession, FoodEntry, Measurement, CheckInEntry, StepEntry, MacroTargets, Profile, Program } from '../types';
 import { getWeekDates, today } from './dateHelpers';
+import {
+  buildExerciseMuscleMap,
+  muscleSetsForSessions,
+  totalSetCounts,
+  hasRatedSets,
+  weeklyVolumeStatus,
+} from './muscleVolume';
 
 export interface CoachSuggestion {
   id: string;
@@ -31,8 +38,18 @@ interface CoachDataSnapshot {
   training: {
     workoutsThisWeek: number;
     workoutsLastWeek: number;
-    volumeThisWeek: number;
-    volumeLastWeek: number;
+    hardSetsThisWeek: number;
+    hardSetsLastWeek: number;
+    workingSetsThisWeek: number;
+    /** False when the user logs no RIR/RPE, which makes the hard-set counts meaningless. */
+    effortTracked: boolean;
+    /** Weekly sets per muscle, to be read against the 10–20 set landmark band. */
+    setsPerMuscleThisWeek: Record<string, number>;
+    musclesBelowMEV: string[];
+    musclesAboveMAV: string[];
+    /** Weight × reps, in lbs. Context only — never the basis for a volume judgement. */
+    tonnageThisWeek: number;
+    tonnageLastWeek: number;
     programName?: string;
     stalledExercises: string[];
   };
@@ -101,10 +118,23 @@ export function buildDataSnapshot(
   const weekSessions = sessions.filter((s) => last7.has(s.date));
   const prevSessions = sessions.filter((s) => prev7.has(s.date) && !last7.has(s.date));
 
-  const calcVolume = (sess: WorkoutSession[]) =>
-    sess.reduce((sum, s) =>
-      sum + Object.values(s.sets).reduce((vs, sets) =>
-        vs + sets.filter((st) => st.completed).reduce((a, st) => a + st.weight * st.reps, 0), 0), 0);
+  // Hard sets per muscle per week is what drives hypertrophy, so the coach reasons
+  // about set counts against the volume landmarks rather than about tonnage.
+  const weekCounts = totalSetCounts(weekSessions);
+  const prevCounts = totalSetCounts(prevSessions);
+  const effortTracked = hasRatedSets([weekCounts, prevCounts]);
+
+  const weekMuscleSets = muscleSetsForSessions(weekSessions, buildExerciseMuscleMap(programs));
+  const setsPerMuscleThisWeek: Record<string, number> = {};
+  const musclesBelowMEV: string[] = [];
+  const musclesAboveMAV: string[] = [];
+  for (const [muscle, counts] of Object.entries(weekMuscleSets)) {
+    const n = Math.round((effortTracked ? counts.hard : counts.sets) * 10) / 10;
+    setsPerMuscleThisWeek[muscle] = n;
+    const status = weeklyVolumeStatus(n);
+    if (status === 'below') musclesBelowMEV.push(muscle);
+    else if (status === 'high') musclesAboveMAV.push(muscle);
+  }
 
   // Detect stalled exercises (same max weight 3+ sessions)
   const exerciseMaxes: Record<string, number[]> = {};
@@ -211,8 +241,15 @@ export function buildDataSnapshot(
     training: {
       workoutsThisWeek: weekSessions.length,
       workoutsLastWeek: prevSessions.length,
-      volumeThisWeek: Math.round(calcVolume(weekSessions)),
-      volumeLastWeek: Math.round(calcVolume(prevSessions)),
+      hardSetsThisWeek: weekCounts.hard,
+      hardSetsLastWeek: prevCounts.hard,
+      workingSetsThisWeek: weekCounts.sets,
+      effortTracked,
+      setsPerMuscleThisWeek,
+      musclesBelowMEV,
+      musclesAboveMAV,
+      tonnageThisWeek: Math.round(weekCounts.volume),
+      tonnageLastWeek: Math.round(prevCounts.volume),
       programName: activeProgram?.name,
       stalledExercises,
     },
@@ -274,6 +311,10 @@ Rules:
 - NEVER give medical advice, diagnose conditions, or recommend supplements
 - NEVER reference injuries, pain, or medical symptoms
 - Focus on: calorie/macro adjustments, training volume, deload timing, consistency patterns, step/activity trends
+- Training volume means HARD SETS per muscle per week — sets taken within 3 reps of failure (RIR 0-3 / RPE 7-10). Judge training by set counts, never by tonnage
+- Weekly landmarks per muscle: under 10 sets is below MEV (minimum effective volume), 10-20 is the productive range, over 20 approaches MRV. Use musclesBelowMEV and musclesAboveMAV to suggest concrete set changes (e.g. "add 3 sets of calves per week")
+- tonnageThisWeek/tonnageLastWeek are context only — a tonnage swing on its own is not a reason to change anything, since heavier low-rep work inflates it
+- If effortTracked is false the user logs no RIR/RPE, so hard-set counts read as 0. Fall back to workingSetsThisWeek and suggest turning on effort tracking rather than claiming they trained too easy
 - If micronutrient data is available and shows notable patterns (low iron, low fiber, high sodium, low vitamin D), mention it
 - If step data is available, comment on activity level trends
 - If data is insufficient, say so rather than guessing

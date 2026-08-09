@@ -4,6 +4,8 @@ import type { WorkoutSession, FoodEntry, Measurement, CheckInEntry, MacroTargets
 import { getWeekDates, today, localDateStr, formatShortDate } from '../../utils/dateHelpers';
 import { macroStatusColor } from '../../utils/macroColors';
 import { GOAL_LABELS } from '../../utils/tdee';
+import { totalSetCounts, hasRatedSets, formatSets } from '../../utils/muscleVolume';
+import { toDisplayWeight, type WeightUnit } from '../../utils/units';
 
 interface Props {
   sessions: WorkoutSession[];
@@ -79,16 +81,14 @@ export function WeeklyInsights({ sessions, allFoodEntries, measurements, checkIn
     const weekSessions = sessions.filter((s) => weekDates.has(s.date));
     const prevWeekSessions = sessions.filter((s) => prevWeekDates.has(s.date));
 
-    const weekVolume = weekSessions.reduce((sum, s) =>
-      sum + Object.values(s.sets).reduce((vs, sets) =>
-        vs + sets.filter((st) => st.completed && !st.isWarmup).reduce((a, st) => a + st.weight * st.reps, 0), 0), 0);
-    const prevVolume = prevWeekSessions.reduce((sum, s) =>
-      sum + Object.values(s.sets).reduce((vs, sets) =>
-        vs + sets.filter((st) => st.completed && !st.isWarmup).reduce((a, st) => a + st.weight * st.reps, 0), 0), 0);
-
-    const weekSets = weekSessions.reduce((sum, s) =>
-      sum + Object.values(s.sets).reduce((vs, sets) =>
-        vs + sets.filter((st) => st.completed).length, 0), 0);
+    // Hard sets — sets taken close to failure — drive hypertrophy far better than
+    // tonnage does, so they are the headline training number.
+    const weekCounts = totalSetCounts(weekSessions);
+    const prevCounts = totalSetCounts(prevWeekSessions);
+    const hasEffortData = hasRatedSets([weekCounts, prevCounts]);
+    const weekVolume = hasEffortData ? weekCounts.hard : weekCounts.sets;
+    const prevVolume = hasEffortData ? prevCounts.hard : prevCounts.sets;
+    const weekSets = weekCounts.sets;
 
     // --- Nutrition ---
     const weekFood = allFoodEntries.filter((f) => weekDates.has(f.date));
@@ -151,7 +151,7 @@ export function WeeklyInsights({ sessions, allFoodEntries, measurements, checkIn
       ? prevWeights.reduce((sum, m) => sum + m.weight!, 0) / prevWeights.length
       : null;
     const weightChange = avgWeight != null && prevAvgWeight != null ? avgWeight - prevAvgWeight : null;
-    const weightUnit = units === 'metric' ? 'kg' : 'lbs';
+    const weightUnit: WeightUnit = units === 'metric' ? 'kg' : 'lbs';
     const weighInsThisWeek = weekWeights.length;
 
     // --- Check-ins ---
@@ -182,6 +182,9 @@ export function WeeklyInsights({ sessions, allFoodEntries, measurements, checkIn
       totalSets: weekSets,
       volume: weekVolume,
       prevVolume,
+      hasEffortData,
+      tonnage: weekCounts.volume,
+      prevTonnage: prevCounts.volume,
       avgCalories,
       avgProtein,
       avgCarbs,
@@ -215,7 +218,9 @@ export function WeeklyInsights({ sessions, allFoodEntries, measurements, checkIn
     m.push({
       label: 'Training',
       value: `${insights.workouts} workouts`,
-      subtext: `${insights.totalSets} sets · ${Math.round(insights.volume).toLocaleString()} ${insights.weightUnit}`,
+      subtext: insights.hasEffortData
+        ? `${formatSets(insights.volume)} hard of ${insights.totalSets} sets`
+        : `${insights.totalSets} working sets`,
       trend: volTrend,
       trendGood: volTrend === 'up',
       icon: Dumbbell,
@@ -385,9 +390,16 @@ export function WeeklyInsights({ sessions, allFoodEntries, measurements, checkIn
             ) : null}
             {insights.volume > 0 || insights.prevVolume > 0 ? (
               <ComparisonRow
-                label="Volume"
+                label={insights.hasEffortData ? 'Hard sets' : 'Working sets'}
                 current={Math.round(insights.volume)}
                 previous={Math.round(insights.prevVolume)}
+              />
+            ) : null}
+            {insights.tonnage > 0 || insights.prevTonnage > 0 ? (
+              <ComparisonRow
+                label="Tonnage"
+                current={Math.round(toDisplayWeight(insights.tonnage, insights.weightUnit))}
+                previous={Math.round(toDisplayWeight(insights.prevTonnage, insights.weightUnit))}
                 suffix={insights.weightUnit}
               />
             ) : null}

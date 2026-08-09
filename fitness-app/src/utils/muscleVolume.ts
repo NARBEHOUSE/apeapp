@@ -35,6 +35,12 @@ export interface MuscleSetCounts {
   hard: number;
   /** Working sets that carried an RIR/RPE value at all — effort logging is opt-in. */
   rated: number;
+  /**
+   * Tonnage (weight × reps, in lbs). Kept as a secondary "nice to see" figure only —
+   * it rewards heavy low-rep work and ignores proximity to failure, so it should never
+   * be the headline volume number.
+   */
+  volume: number;
 }
 
 export type ExerciseMuscleMap = Record<string, { primaries: string[]; secondary: string[] }>;
@@ -55,7 +61,7 @@ export function buildExerciseMuscleMap(programs: Program[]): ExerciseMuscleMap {
   return map;
 }
 
-const emptyCounts = (): MuscleSetCounts => ({ sets: 0, hard: 0, rated: 0 });
+const emptyCounts = (): MuscleSetCounts => ({ sets: 0, hard: 0, rated: 0, volume: 0 });
 
 /** Fold one session's completed working sets into a muscle → set-count tally. */
 export function accumulateMuscleSets(
@@ -71,10 +77,12 @@ export function accumulateMuscleSets(
 
     let hard = 0;
     let rated = 0;
+    let volume = 0;
     for (const st of working) {
       const effort = classifySetEffort(st);
       if (effort !== 'unrated') rated++;
       if (effort === 'hard') hard++;
+      volume += st.weight * st.reps;
     }
 
     const credit = (muscle: string, share: number) => {
@@ -83,12 +91,51 @@ export function accumulateMuscleSets(
       tally.sets += working.length * share;
       tally.hard += hard * share;
       tally.rated += rated * share;
+      tally.volume += volume * share;
     };
 
     for (const p of info.primaries) credit(p, 1);
     for (const s of info.secondary) credit(s, SECONDARY_CREDIT);
   }
   return into;
+}
+
+/** Roll a set of sessions into one muscle → set-count tally. */
+export function muscleSetsForSessions(
+  sessions: WorkoutSession[],
+  muscleMap: ExerciseMuscleMap,
+): Record<string, MuscleSetCounts> {
+  const into: Record<string, MuscleSetCounts> = {};
+  for (const s of sessions) accumulateMuscleSets(s, muscleMap, into);
+  return into;
+}
+
+/**
+ * Whole-body set totals. No muscle attribution, so each set is counted exactly once
+ * and the numbers stay whole — unlike the per-muscle tallies, which double-count by
+ * design so every muscle sees its own credit.
+ */
+export function totalSetCounts(sessions: WorkoutSession[]): MuscleSetCounts {
+  const total = emptyCounts();
+  for (const s of sessions) {
+    for (const sets of Object.values(s.sets)) {
+      for (const st of sets) {
+        if (!st.completed || st.isWarmup) continue;
+        total.sets++;
+        total.volume += st.weight * st.reps;
+        const effort = classifySetEffort(st);
+        if (effort !== 'unrated') total.rated++;
+        if (effort === 'hard') total.hard++;
+      }
+    }
+  }
+  return total;
+}
+
+/** True when at least one set carries an RIR/RPE value, i.e. hard sets are meaningful. */
+export function hasRatedSets(counts: Iterable<MuscleSetCounts>): boolean {
+  for (const c of counts) if (c.rated > 0) return true;
+  return false;
 }
 
 export type VolumeStatus = 'below' | 'productive' | 'high';
