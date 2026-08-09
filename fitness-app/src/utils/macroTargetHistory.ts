@@ -21,3 +21,10 @@ export function getMacroTargetsForDate(profile: Profile, date: string): MacroTar
 export function getFitnessGoalForDate(profile: Profile, date: string): FitnessGoal | undefined {
   return findEntryForDate(profile, date)?.fitnessGoal ?? profile.bodyStats?.fitnessGoal;
 }
+
+// The date the targets applying on `date` took effect — i.e. how long the user has actually
+// been eating to the current prescription. Undefined for profiles with no tracked history.
+// Used to avoid re-judging a target that hasn't had time to move the weight trend yet.
+export function getTargetEffectiveDate(profile: Profile, date: string): string | undefined {
+  return findEntryForDate(profile, date)?.date;
+}

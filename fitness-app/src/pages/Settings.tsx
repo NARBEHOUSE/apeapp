@@ -82,7 +82,8 @@ import { ConfirmDialog } from '../components/shared/ConfirmDialog';
 import { Modal } from '../components/shared/Modal';
 import { ImageCropper } from '../components/shared/ImageCropper';
 import { toast } from '../components/shared/Toast';
-import { formatShortDate, daysAgo } from '../utils/dateHelpers';
+import { formatShortDate, daysAgo, today } from '../utils/dateHelpers';
+import { getMacroTargetsForDate, getTargetEffectiveDate } from '../utils/macroTargetHistory';
 
 interface Props {
   profile: Profile;
@@ -309,7 +310,11 @@ export function Settings({ profile, onUpdateProfile, onSetMacroTargetHistory, pr
         weightEntries,
         profile.macroTargets.calories,
         profile.bodyStats.fitnessGoal,
-        trackedCalories
+        trackedCalories,
+        {
+          prescribedFor: (date) => getMacroTargetsForDate(profile, date).calories,
+          targetChangedOn: getTargetEffectiveDate(profile, today()),
+        }
       );
       setAutoAdjustResult(result);
 

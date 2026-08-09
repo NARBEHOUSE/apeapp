@@ -120,6 +120,8 @@ const TARGET_RATES: Record<FitnessGoal, number> = {
 // goal is wrong" apart from "the goal wasn't followed".
 export interface CalorieAdherence {
   avgTrackedCalories: number;
+  // Average of the goal actually prescribed on each logged day — not necessarily today's
+  // goal, since the window can span a change (e.g. a temporary correction ending).
   prescribedCalories: number;
   deltaPerDay: number; // avgTrackedCalories - prescribedCalories; positive = eating over goal
   daysLogged: number;
@@ -179,6 +181,12 @@ const ADHERENCE_LOOKBACK_DAYS = 7;
 // trend converge back to "on track" within days of an episode actually resolving, instead of
 // waiting for the episode to age out of the whole window.
 const TREND_HALF_LIFE_DAYS = 10;
+// How many days a calorie target must have been in effect before its own trend is used to
+// judge it. A weight trend spans 21+ days, so a target set yesterday had no influence on
+// almost any of it — grading a brand-new target against mostly-pre-change data produces
+// contradictory advice, most visibly resuming a normal goal after a temporary correction and
+// being told to cut again in the same breath, off a trend that goal hasn't touched yet.
+const MIN_DAYS_ON_TARGET = 7;
 
 // Replace each reading with the median of itself and its nearest neighbors before trending.
 // A single-day water-retention/scale-error spike gets outvoted by the flat readings around
@@ -204,12 +212,22 @@ function medianSmooth(weights: number[], radius = 2): number[] {
 // pre-aggregated by day — covering (at least) the same span as `weightEntries`. When
 // provided, it's used to check whether an off-track weight trend is actually explained by
 // not eating at the prescribed goal, rather than the goal being miscalibrated.
+//
+// `options.prescribedFor` resolves what the calorie goal actually was on a given date. Without
+// it, every logged day is graded against today's goal, which misreads any stretch where the
+// goal was different — most sharply right after a temporary correction, where eating at your
+// normal goal scores as "over-eating" purely because the correction's lower number is what's
+// being compared against. `options.targetChangedOn` is the date the current goal took effect,
+// used to hold off on re-judging a goal that hasn't been in place long enough to have moved
+// the trend yet.
 export function calculateAutoAdjustment(
   weightEntries: { date: string; weight: number; unit: 'lbs' | 'kg' }[],
   currentCalories: number,
   goal: FitnessGoal,
-  trackedCalories: { date: string; calories: number }[] = []
+  trackedCalories: { date: string; calories: number }[] = [],
+  options: { prescribedFor?: (date: string) => number; targetChangedOn?: string } = {}
 ): AutoAdjustResult {
+  const { prescribedFor, targetChangedOn } = options;
   const noAdjust: AutoAdjustResult = {
     shouldAdjust: false,
     newCalories: currentCalories,
@@ -282,28 +300,64 @@ export function calculateAutoAdjustment(
     };
   }
 
-  // Off track. Before concluding the *prescribed* goal is wrong, check whether the user
-  // actually ate at that goal recently — if they've been consistently over or under it, the
-  // weight trend is explained by not following the plan, not by a bad prescription, and the
-  // fix is adherence, not moving the goalposts. Compared against a recent lookback window
-  // rather than the full trend window so a short-lived deviation isn't averaged into noise.
+  // Off track — but if the current goal was only just set, the trend above is almost entirely
+  // made up of days spent eating to a *different* goal, so it says nothing about this one.
+  // Report the trend but don't act on it until the goal has had time to show an effect.
+  if (targetChangedOn) {
+    const changedAt = new Date(targetChangedOn + 'T00:00:00').getTime();
+    const daysOnTarget = Math.floor((lastDate - changedAt) / (1000 * 60 * 60 * 24));
+    if (daysOnTarget < MIN_DAYS_ON_TARGET) {
+      const dayWord = daysOnTarget === 1 ? 'day' : 'days';
+      return {
+        shouldAdjust: false,
+        newCalories: currentCalories,
+        reason:
+          `Your ${currentCalories} cal/day goal has only been in effect ${Math.max(0, daysOnTarget)} ${dayWord}. ` +
+          `The current ${avgWeeklyChange >= 0 ? '+' : ''}${avgWeeklyChange.toFixed(1)} lbs/week trend mostly reflects the days before it, ` +
+          `so there's nothing to judge it on yet — give it ${MIN_DAYS_ON_TARGET} days.`,
+        avgWeeklyChange,
+        targetWeeklyChange: targetWeekly,
+        daysSinceStart: Math.round(daySpan),
+      };
+    }
+  }
+
+  // Before concluding the *prescribed* goal is wrong, check whether the user actually ate at
+  // that goal recently — if they've been consistently over or under it, the weight trend is
+  // explained by not following the plan, not by a bad prescription, and the fix is adherence,
+  // not moving the goalposts. Compared against a recent lookback window rather than the full
+  // trend window so a short-lived deviation isn't averaged into noise.
   const adherenceWindowStart = Math.max(firstDate, lastDate - ADHERENCE_LOOKBACK_DAYS * 24 * 60 * 60 * 1000);
   const adherenceWindowDays = Math.max(1, Math.round((lastDate - adherenceWindowStart) / (1000 * 60 * 60 * 24)));
   const windowEntries = trackedCalories.filter((e) => {
     const t = new Date(e.date + 'T00:00:00').getTime();
     return t >= adherenceWindowStart && t <= lastDate;
   });
-  const daysLogged = new Set(windowEntries.map((e) => e.date)).size;
+
+  // Sum per day first, then grade each day against the goal that was actually prescribed that
+  // day — a single window can span a goal change (e.g. a temporary correction ending), and
+  // comparing those days to today's number would invent a gap that never existed.
+  const caloriesByDate = new Map<string, number>();
+  for (const e of windowEntries) {
+    caloriesByDate.set(e.date, (caloriesByDate.get(e.date) ?? 0) + e.calories);
+  }
+  const daysLogged = caloriesByDate.size;
   const coverage = daysLogged / adherenceWindowDays;
 
   let adherence: CalorieAdherence | undefined;
   if (coverage >= MIN_TRACKING_COVERAGE) {
-    const totalTracked = windowEntries.reduce((sum, e) => sum + e.calories, 0);
+    let totalTracked = 0;
+    let totalPrescribed = 0;
+    for (const [date, dayCalories] of caloriesByDate) {
+      totalTracked += dayCalories;
+      totalPrescribed += prescribedFor?.(date) ?? currentCalories;
+    }
     const avgTrackedCalories = Math.round(totalTracked / daysLogged);
+    const avgPrescribed = Math.round(totalPrescribed / daysLogged);
     adherence = {
       avgTrackedCalories,
-      prescribedCalories: currentCalories,
-      deltaPerDay: avgTrackedCalories - currentCalories,
+      prescribedCalories: avgPrescribed,
+      deltaPerDay: avgTrackedCalories - avgPrescribed,
       daysLogged,
       coverage,
     };
@@ -318,9 +372,16 @@ export function calculateAutoAdjustment(
     if (sameDirection && Math.abs(deltaPerDay) >= ADHERENCE_THRESHOLD) {
       const overUnder = deltaPerDay > 0 ? 'over' : 'under';
       const trendWord = avgWeeklyChange >= 0 ? 'gaining' : 'losing';
+      // Cite the goal the delta was actually measured against. If it changed partway through
+      // the window that isn't `currentCalories`, and quoting today's number would print
+      // arithmetic that doesn't add up against the tracked average shown right beside it.
+      const goalPhrase =
+        adherence.prescribedCalories === currentCalories
+          ? `your ${currentCalories} cal goal`
+          : `the ${adherence.prescribedCalories} cal/day averaged goal in effect over those days`;
       const reason =
-        `You're averaging ${adherence.avgTrackedCalories} cal/day tracked — ${Math.abs(deltaPerDay)} cal ${overUnder} your ` +
-        `${currentCalories} cal goal. That's why you're ${trendWord} ${Math.abs(avgWeeklyChange).toFixed(1)} lbs/week faster ` +
+        `You're averaging ${adherence.avgTrackedCalories} cal/day tracked — ${Math.abs(deltaPerDay)} cal ${overUnder} ` +
+        `${goalPhrase}. That's why you're ${trendWord} ${Math.abs(avgWeeklyChange).toFixed(1)} lbs/week faster ` +
         `than planned, not because the goal itself is off. Follow your current ${currentCalories} cal/day plan.`;
 
       // Suggest a short correction to bring the recent average back toward goal, then

@@ -21,7 +21,7 @@ import {
 import { getDashboardConfig, saveDashboardConfig } from '../utils/dashboardConfig';
 import { getApiKey } from '../utils/apiKeyManager';
 import { daysSinceBackup } from '../utils/backupReminder';
-import { getMacroTargetsForDate, getFitnessGoalForDate } from '../utils/macroTargetHistory';
+import { getMacroTargetsForDate, getFitnessGoalForDate, getTargetEffectiveDate } from '../utils/macroTargetHistory';
 import { useGoogleAuth } from '../contexts/GoogleAuthContext';
 import { useCoach } from '../hooks/useCoach';
 import { CoachReviewCard } from '../components/dashboard/CoachReviewCard';
@@ -82,7 +82,6 @@ export default function Dashboard({ profile, onUpdateProfile }: DashboardProps) 
   const [steps, setSteps] = useState<StepEntry[]>([]);
   const [water, setWater] = useState<WaterEntry[]>([]);
   const [loading, setLoading] = useState(true);
-  const [autoAdjust, setAutoAdjust] = useState<AutoAdjustResult | null>(null);
   const [autoAdjustDismissed, setAutoAdjustDismissed] = useState(() => localStorage.getItem('fitos-dismiss-auto-adjust') === today());
 
   const dashConfig = getDashboardConfig();
@@ -125,37 +124,6 @@ export default function Dashboard({ profile, onUpdateProfile }: DashboardProps) 
         setSteps(stepsData);
         setWater(waterData);
 
-        if (profile.bodyStats) {
-          const weightEntries = measurementsData
-            .filter((m) => m.weight != null)
-            .map((m) => ({ date: m.date, weight: m.weight!, unit: m.weightUnit }));
-          const trackedCalories = allFoodData.map((e) => ({
-            date: e.date,
-            calories: e.calories * e.servingsConsumed,
-          }));
-          const result = calculateAutoAdjustment(
-            weightEntries,
-            profile.macroTargets.calories,
-            profile.bodyStats.fitnessGoal,
-            trackedCalories
-          );
-          setAutoAdjust(result);
-
-          // Backfill a baseline weight for a correction that was already active before
-          // baseline-recovery tracking existed, so it starts picking up "back on track"
-          // the same way a newly-started correction does, instead of never checking.
-          const activeOverride = profile.temporaryCalorieOverride;
-          if (activeOverride && activeOverride.baselineWeightLbs == null) {
-            const withWeight = measurementsData.filter((m) => m.weight != null);
-            if (withWeight.length > 0) {
-              const latestEntry = [...withWeight].sort((a, b) => b.date.localeCompare(a.date))[0];
-              const latestLbs = latestEntry.weightUnit === 'kg' ? kgToLbs(latestEntry.weight!) : latestEntry.weight!;
-              onUpdateProfile(profile.id, {
-                temporaryCalorieOverride: { ...activeOverride, baselineWeightLbs: computeBaselineWeightLbs(latestLbs, result) },
-              });
-            }
-          }
-        }
       } catch (err) {
         console.error('Failed to load dashboard data:', err);
       } finally {
@@ -360,6 +328,49 @@ export default function Dashboard({ profile, onUpdateProfile }: DashboardProps) 
     const latest = [...withWeight].sort((a, b) => b.date.localeCompare(a.date))[0];
     return latest.weightUnit === 'kg' ? kgToLbs(latest.weight!) : latest.weight!;
   }, [measurements]);
+
+  // Derived, not stored — so applying an adjustment, starting a correction, or resuming a
+  // normal goal re-evaluates immediately. Held in state and computed once at load, this went
+  // stale the moment the goal changed: resuming from a correction unhid a verdict still
+  // measured against the correction's lower target, which read as "you're over your goal —
+  // cut again" in the same breath as "you're back on track".
+  const autoAdjust = useMemo<AutoAdjustResult | null>(() => {
+    if (!profile.bodyStats) return null;
+    const weightEntries = measurements
+      .filter((m) => m.weight != null)
+      .map((m) => ({ date: m.date, weight: m.weight!, unit: m.weightUnit }));
+    if (weightEntries.length === 0) return null;
+    const trackedCalories = allFoodEntries.map((e) => ({
+      date: e.date,
+      calories: e.calories * e.servingsConsumed,
+    }));
+    return calculateAutoAdjustment(
+      weightEntries,
+      profile.macroTargets.calories,
+      profile.bodyStats.fitnessGoal,
+      trackedCalories,
+      {
+        prescribedFor: (date) => getMacroTargetsForDate(profile, date).calories,
+        targetChangedOn: getTargetEffectiveDate(profile, today()),
+      }
+    );
+  }, [measurements, allFoodEntries, profile]);
+
+  // Backfill a baseline weight for a correction that was already active before baseline-recovery
+  // tracking existed, so it starts picking up "back on track" the same way a newly-started
+  // correction does, instead of never checking. Self-limiting: once written, the guard below
+  // stops matching.
+  useEffect(() => {
+    const activeOverride = profile.temporaryCalorieOverride;
+    if (!activeOverride || activeOverride.baselineWeightLbs != null) return;
+    if (!autoAdjust || latestWeightLbs == null) return;
+    onUpdateProfile(profile.id, {
+      temporaryCalorieOverride: {
+        ...activeOverride,
+        baselineWeightLbs: computeBaselineWeightLbs(latestWeightLbs, autoAdjust),
+      },
+    });
+  }, [profile.temporaryCalorieOverride, profile.id, autoAdjust, latestWeightLbs, onUpdateProfile]);
 
   // Calorie data aggregated by date for the trend card
   const caloriesByDate = useMemo(() => {
