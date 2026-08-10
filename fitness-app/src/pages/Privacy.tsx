@@ -73,7 +73,7 @@ export function Privacy() {
             <strong>AI Food Scanner</strong> — sends the food photo you capture.
           </li>
           <li>
-            <strong>AI Progress Photo Review</strong> — sends the two progress photos you select, along with your goal, calorie and protein targets, weight change, measurement changes, and your photo dates. Photos are sent only for the pair you pick, only when you tap Analyze, and only after you accept an in-app consent prompt explaining this. Your other progress photos are never sent.
+            <strong>AI Progress Photo Review</strong> — sends the two progress photos you select, along with your goal, calorie and protein targets, weight change, and measurement changes over the period between them. The two photos you pick are the only images sent; your other progress photos are never uploaded. Optionally, and only if you tick the box for it, the app also sends the <em>dates</em> of your other photos so the review can comment on how consistently you take them — never those images. Nothing is sent until you tap Analyze, and only after you accept an in-app consent prompt explaining this.
           </li>
         </ul>
         <p className="text-sm text-text-secondary leading-relaxed">

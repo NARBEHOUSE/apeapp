@@ -54,6 +54,10 @@ export interface PhotoProgressSnapshot {
     baselineDate: string;
     latestDate: string;
   } | null;
+  /**
+   * Cadence context drawn from the user's other photos — dates only, never their images.
+   * Null unless the user opts in, so by default nothing but the selected pair is described.
+   */
   photoHabit: {
     totalPhotos: number;
     photosOfThisPose: number;
@@ -61,7 +65,7 @@ export interface PhotoProgressSnapshot {
     avgDaysBetweenPhotos: number | null;
     longestGapDays: number | null;
     reminderSetting: string;
-  };
+  } | null;
 }
 
 const MEASUREMENT_LABELS: Record<string, string> = {
@@ -139,6 +143,8 @@ export function buildPhotoProgressSnapshot(
   latest: ProgressPhoto,
   allPhotos: ProgressPhoto[],
   measurements: Measurement[],
+  /** Opt in to cadence context from the user's other photos (their dates, never their images). */
+  includePhotoHistory = false,
 ): PhotoProgressSnapshot {
   const displayUnit: 'lbs' | 'kg' = profile.units === 'metric' ? 'kg' : 'lbs';
   const daysApart = Math.max(0, daysBetween(baseline.date, latest.date));
@@ -170,11 +176,14 @@ export function buildPhotoProgressSnapshot(
     }
   }
 
-  // Photo cadence — the habit itself is part of the feedback the user asked for.
-  const posePhotos = allPhotos
-    .filter((p) => p.pose === baseline.pose)
-    .map((p) => p.date)
-    .sort();
+  // Photo cadence, opt-in only: dates of the user's other photos, so the review can speak to
+  // consistency. Skipped entirely by default, leaving the selected pair as the only subject.
+  const posePhotos = includePhotoHistory
+    ? allPhotos
+        .filter((p) => p.pose === baseline.pose)
+        .map((p) => p.date)
+        .sort()
+    : [];
   const gaps: number[] = [];
   for (let i = 1; i < posePhotos.length; i++) {
     gaps.push(daysBetween(posePhotos[i - 1], posePhotos[i]));
@@ -202,14 +211,16 @@ export function buildPhotoProgressSnapshot(
       changePerWeek: change != null && daysApart >= 7 ? round1(change / (daysApart / 7)) : null,
     },
     bodyMeasurements,
-    photoHabit: {
-      totalPhotos: allPhotos.length,
-      photosOfThisPose: posePhotos.length,
-      photosInWindow: posePhotos.filter((d) => d >= baseline.date && d <= latest.date).length,
-      avgDaysBetweenPhotos: gaps.length > 0 ? round1(gaps.reduce((a, b) => a + b, 0) / gaps.length) : null,
-      longestGapDays: gaps.length > 0 ? Math.max(...gaps) : null,
-      reminderSetting: describePhotoReminder(getPhotoReminderSchedule(profile.id)),
-    },
+    photoHabit: includePhotoHistory
+      ? {
+          totalPhotos: allPhotos.length,
+          photosOfThisPose: posePhotos.length,
+          photosInWindow: posePhotos.filter((d) => d >= baseline.date && d <= latest.date).length,
+          avgDaysBetweenPhotos: gaps.length > 0 ? round1(gaps.reduce((a, b) => a + b, 0) / gaps.length) : null,
+          longestGapDays: gaps.length > 0 ? Math.max(...gaps) : null,
+          reminderSetting: describePhotoReminder(getPhotoReminderSchedule(profile.id)),
+        }
+      : null,
   };
 }
 
@@ -224,7 +235,7 @@ Rules:
 - Weigh the tracked data at least as heavily as the images. Photos vary with lighting, camera angle, distance, time of day, pump, and hydration — say when a difference could be explained by those rather than by real change.
 - If the two photos are fewer than about 21 days apart, state up front that this is a short window for visible change.
 - Judge progress against the stated goal: fat loss should show weight trending down with the midsection tightening; muscle gain should show weight trending up with fuller muscles; recomp may show flat weight with visible change. Say explicitly whether what you see lines up with their goal.
-- Comment on their photo cadence: whether they are taking photos often and regularly enough to see a trend, and what interval would serve their goal better.
+- photoHabit in the data is the user's wider photo cadence, and it is null when they have chosen not to share it. When it is present, comment on whether they photograph often and regularly enough to see a trend. When it is null, you know nothing about their other photos — speak only to the gap between these two, and never guess at how many photos they have or how consistent they are.
 - If the data is too thin to say much, say that instead of inventing a read.
 - Keep every field short. Plain language, no jargon the app doesn't already use.
 
@@ -233,7 +244,7 @@ Respond ONLY with valid JSON in this exact format, no other text:
   "headline": "One sentence overall read on the change between the two photos",
   "visualChanges": ["Specific visual observation", "Another observation"],
   "goalAlignment": "2-3 sentences on whether the visible change and the tracked numbers line up with their goal",
-  "photoHabit": "1-2 sentences on their photo timing and consistency",
+  "photoHabit": "1-2 sentences on their photo timing — consistency only if photoHabit data was provided, otherwise just the gap between these two",
   "suggestions": ["Specific general suggestion", "Another suggestion"],
   "caveats": "One sentence on what these two photos can't tell you"
 }
@@ -251,13 +262,17 @@ export async function analyzePhotoProgress(
   latest: ProgressPhoto,
   snapshot: PhotoProgressSnapshot,
 ): Promise<PhotoAnalysisResult> {
+  const historyNote = snapshot.photoHabit
+    ? ''
+    : '\n\nI have chosen not to share my wider photo history, so these two photos are all you know about — do not comment on how many photos I take or how consistent I am.';
+
   const userPrompt = `The first image is my baseline progress photo, taken ${snapshot.comparison.baselineDate}. The second image is my latest one, taken ${snapshot.comparison.latestDate}. Both are the same pose (${snapshot.comparison.pose}).
 
 Here is what the app tracked over that period:
 
 ${JSON.stringify(snapshot, null, 2)}
 
-Analyze the change between the two photos and tell me how I'm tracking against my goal.`;
+Analyze the change between these two photos and tell me how I'm tracking against my goal.${historyNote}`;
 
   const { text: rawText } = await callAI({
     systemPrompt: SYSTEM_PROMPT,

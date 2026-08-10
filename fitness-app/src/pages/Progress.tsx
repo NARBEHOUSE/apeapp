@@ -425,7 +425,7 @@ export function Progress({ profile, onUpdateProfile }: Props) {
             measurements={measurements}
           />
 
-          <PhotoGallery photos={photos} onDelete={deletePhoto} onUpdate={updatePhoto} measurements={measurements} weightUnit={profile.units === 'metric' ? 'kg' : 'lbs'} measurementUnit={profile.measurementUnit} />
+          <PhotoGallery photos={photos} profile={profile} onDelete={deletePhoto} onUpdate={updatePhoto} measurements={measurements} weightUnit={profile.units === 'metric' ? 'kg' : 'lbs'} measurementUnit={profile.measurementUnit} />
 
           <Modal
             open={showCapture}

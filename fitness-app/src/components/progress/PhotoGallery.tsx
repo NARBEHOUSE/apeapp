@@ -1,12 +1,14 @@
 import { useState, useMemo, useRef } from 'react';
-import { X, Trash2, ImageIcon, Share2, ArrowLeftRight, ChevronLeft, ChevronRight, Pencil, Grid } from 'lucide-react';
-import type { ProgressPhoto, Measurement } from '../../types';
+import { X, Trash2, ImageIcon, Share2, ArrowLeftRight, ChevronLeft, ChevronRight, Pencil, Grid, Columns2 } from 'lucide-react';
+import type { ProgressPhoto, Measurement, Profile } from '../../types';
 import { formatDate } from '../../utils/dateHelpers';
 import { renderProgressCard, shareOrDownload } from '../../utils/shareCards';
 import { ConfirmDialog } from '../shared/ConfirmDialog';
+import { PhotoComparisonView } from './PhotoComparisonView';
 
 interface Props {
   photos: ProgressPhoto[];
+  profile: Profile;
   onDelete: (id: string) => void;
   onUpdate?: (photo: ProgressPhoto) => void;
   measurements?: Measurement[];
@@ -64,12 +66,13 @@ function findClosestMeasurement(date: string, measurements: Measurement[]): Meas
   return closest;
 }
 
-export function PhotoGallery({ photos, onDelete, onUpdate, measurements = [], weightUnit = 'lbs', measurementUnit = 'in' }: Props) {
+export function PhotoGallery({ photos, profile, onDelete, onUpdate, measurements = [], weightUnit = 'lbs', measurementUnit = 'in' }: Props) {
   const [filter, setFilter] = useState<PoseFilter>('all');
   const [selectedPhoto, setSelectedPhoto] = useState<ProgressPhoto | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [compareMode, setCompareMode] = useState(false);
   const [compareSelection, setCompareSelection] = useState<ProgressPhoto[]>([]);
+  const [showComparison, setShowComparison] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [compareStats, setCompareStats] = useState<StatOption[]>(['weight']);
   const [shareFormat, setShareFormat] = useState<'post' | 'story'>('post');
@@ -278,10 +281,19 @@ export function PhotoGallery({ photos, onDelete, onUpdate, measurements = [], we
         </div>
       )}
 
-      {/* Compare share bar */}
+      {/* Compare action bar */}
       {compareMode && compareSelection.length === 2 && (
         <div className="space-y-2">
-          <div>
+          <button
+            onClick={() => setShowComparison(true)}
+            className="w-full bg-accent-blue text-white font-semibold rounded-xl py-3 flex items-center justify-center gap-2 active:scale-[0.98] transition-transform"
+          >
+            <Columns2 size={16} />
+            Compare in App
+          </button>
+
+          {/* Everything below is for the shareable card only */}
+          <div className="pt-1">
             <div className="flex items-center justify-between mb-1">
               <span className="text-[0.625rem] text-text-muted font-semibold uppercase">Stats to show (up to 5):</span>
               <div className="flex rounded-lg overflow-hidden border border-border-light">
@@ -308,6 +320,17 @@ export function PhotoGallery({ photos, onDelete, onUpdate, measurements = [], we
             {sharing ? 'Generating...' : 'Share Before & After'}
           </button>
         </div>
+      )}
+
+      {/* In-app side-by-side / slider comparison, with the optional AI review */}
+      {showComparison && compareSelection.length === 2 && (
+        <PhotoComparisonView
+          pair={[compareSelection[0], compareSelection[1]]}
+          profile={profile}
+          photos={photos}
+          measurements={measurements}
+          onClose={() => setShowComparison(false)}
+        />
       )}
 
       {/* Fullscreen viewer */}

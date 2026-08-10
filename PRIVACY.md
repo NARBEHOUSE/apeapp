@@ -47,7 +47,7 @@ APE's AI features are optional, off by default, and only run when you start them
 
 - **AI Coach** sends a summary of your recent training, nutrition, weight, and check-in numbers.
 - **AI Food Scanner** sends the food photo you capture.
-- **AI Progress Photo Review** sends the two progress photos you select, along with your goal, calorie and protein targets, weight change, measurement changes, and the dates of your photos. Photos are sent only for the pair you pick, only when you tap Analyze, and only after you have accepted an in-app consent prompt explaining this. Your other progress photos are never sent.
+- **AI Progress Photo Review** sends the two progress photos you select, along with your goal, calorie and protein targets, weight change, and measurement changes over the period between them. The two photos you pick are the only images sent; your other progress photos are never uploaded. Optionally, and only if you tick the box for it, the app also sends the *dates* of your other photos so the review can comment on how consistently you take them — never those images. Nothing is sent until you tap Analyze, and only after you have accepted an in-app consent prompt explaining this.
 
 Data sent to an AI provider is handled under that provider's terms of service, privacy policy, and data-retention practices, which you should review before enabling these features. AI-generated feedback in APE is informational only and is not medical, dietary, or professional advice. You can turn any AI feature off, or remove your API key entirely, in Settings.
 
