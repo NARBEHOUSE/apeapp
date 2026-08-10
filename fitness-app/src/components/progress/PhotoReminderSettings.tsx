@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Bell, BellOff } from 'lucide-react';
-import { formatDate } from '../../utils/dateHelpers';
+import { formatDate, today } from '../../utils/dateHelpers';
 import {
   INTERVAL_OPTIONS,
   WEEKDAY_INITIALS,
@@ -70,7 +70,9 @@ export function PhotoReminderSettings({ schedule, onChange, lastPhotoDate }: Pro
         <button
           onClick={() => {
             const next = !schedule.enabled;
-            onChange({ enabled: next });
+            // Re-anchor on every switch-on so an interval reminder counts from now rather
+            // than from a stale date, which would read as instantly overdue.
+            onChange(next ? { enabled: true, anchorDate: today() } : { enabled: false });
             if (next) askPermission();
           }}
           aria-label={schedule.enabled ? 'Turn photo reminder off' : 'Turn photo reminder on'}
@@ -162,6 +164,32 @@ export function PhotoReminderSettings({ schedule, onChange, lastPhotoDate }: Pro
             />
           </div>
 
+          {/* Strict vs. catch-up */}
+          <div className="flex items-start justify-between gap-3 pt-0.5">
+            <div>
+              <div className="text-[0.6875rem] font-medium text-text-secondary">Keep showing if I miss it</div>
+              <div className="text-[0.625rem] text-text-muted">
+                {schedule.catchUpMissed
+                  ? 'A missed reminder stays up until you take the photo.'
+                  : 'Reminds you only on the scheduled day and time.'}
+              </div>
+            </div>
+            <button
+              onClick={() => onChange({ catchUpMissed: !schedule.catchUpMissed })}
+              aria-label="Keep showing a missed reminder"
+              aria-pressed={schedule.catchUpMissed}
+              className={`w-9 h-5 rounded-full transition-colors relative shrink-0 mt-0.5 ${
+                schedule.catchUpMissed ? 'bg-accent-blue' : 'bg-surface-raised border border-border-light'
+              }`}
+            >
+              <div
+                className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
+                  schedule.catchUpMissed ? 'translate-x-4' : 'translate-x-0.5'
+                }`}
+              />
+            </button>
+          </div>
+
           {/* Next fire / setup problems */}
           {noDaysPicked ? (
             <div className="text-[0.625rem] text-warning">Pick at least one day for the reminder to fire.</div>
@@ -194,8 +222,10 @@ export function PhotoReminderSettings({ schedule, onChange, lastPhotoDate }: Pro
             </div>
           )}
           <div className="text-[0.625rem] text-text-muted">
-            Notifications are delivered while APE is open. If it isn't running at the scheduled time, the reminder
-            waits for you here.
+            Notifications are delivered while APE is open.{' '}
+            {schedule.catchUpMissed
+              ? "If it isn't running at the scheduled time, the reminder waits for you here."
+              : "If it isn't running at the scheduled time, that reminder is skipped — turn on “Keep showing” above if you'd rather see it late."}
           </div>
         </div>
       )}

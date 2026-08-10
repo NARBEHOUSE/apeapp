@@ -1,4 +1,4 @@
-import { localDateStr } from './dateHelpers';
+import { daysBetween, localDateStr } from './dateHelpers';
 
 export type PhotoReminderMode = 'interval' | 'weekdays';
 
@@ -12,6 +12,19 @@ export interface PhotoReminderSchedule {
   weekdays: number[];
   /** Local time of day ('HH:MM') the reminder becomes due on a scheduled day. */
   timeOfDay: string;
+  /**
+   * False (the default) keeps the reminder to its scheduled day and time only — it appears
+   * when the day arrives and is gone once it passes. True keeps a scheduled day that came
+   * and went showing until a photo is actually taken, for anyone who would rather see a
+   * late reminder than none.
+   */
+  catchUpMissed: boolean;
+  /**
+   * Date the reminder was switched on. Interval mode counts from the last photo; this is the
+   * anchor until a first photo exists, so turning the reminder on doesn't read as instantly
+   * overdue.
+   */
+  anchorDate?: string;
 }
 
 const DEFAULT_SCHEDULE: PhotoReminderSchedule = {
@@ -20,16 +33,15 @@ const DEFAULT_SCHEDULE: PhotoReminderSchedule = {
   intervalDays: 14,
   weekdays: [1],
   timeOfDay: '09:00',
+  catchUpMissed: false,
 };
 
 export const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 export const WEEKDAY_INITIALS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 export const INTERVAL_OPTIONS = [3, 7, 14, 21, 30];
 
-/** Marker used when an interval reminder has no previous photo to count from. */
-const START_OCCASION = 'start';
-
 const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
+const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 function scheduleKey(profileId: string): string {
   return `fitos-photo-reminder-${profileId}`;
@@ -61,6 +73,12 @@ function normalizeSchedule(raw: unknown): PhotoReminderSchedule {
       typeof r.timeOfDay === 'string' && TIME_PATTERN.test(r.timeOfDay)
         ? r.timeOfDay
         : DEFAULT_SCHEDULE.timeOfDay,
+    // Schedules saved before this option existed always caught up; they read as strict now,
+    // which is what "remind me on my scheduled day" is normally taken to mean.
+    catchUpMissed: r.catchUpMissed === true,
+    ...(typeof r.anchorDate === 'string' && DATE_PATTERN.test(r.anchorDate)
+      ? { anchorDate: r.anchorDate }
+      : {}),
   };
 }
 
@@ -100,11 +118,28 @@ function timeReached(dateStr: string, timeOfDay: string, now: Date): boolean {
 }
 
 /**
+ * Gives an interval reminder something to count from when it was switched on before anchors
+ * were stored and still has no photo. Without this such a schedule could never come due.
+ * Idempotent: writes at most once, and never once a photo exists.
+ */
+export function ensurePhotoReminderAnchor(profileId: string, lastPhotoDate: string | null): void {
+  if (lastPhotoDate != null) return;
+  const schedule = getPhotoReminderSchedule(profileId);
+  if (!schedule.enabled || schedule.mode !== 'interval' || schedule.anchorDate) return;
+  savePhotoReminderSchedule(profileId, { ...schedule, anchorDate: localDateStr(new Date()) });
+}
+
+/** What interval mode counts from: the last photo, or the day the reminder was turned on. */
+function intervalAnchor(schedule: PhotoReminderSchedule, lastPhotoDate: string | null): string | null {
+  return lastPhotoDate ?? schedule.anchorDate ?? null;
+}
+
+/**
  * The date of the reminder occasion currently outstanding, or null when nothing is due.
  *
  * Returning the occasion date rather than a bare boolean lets the notifier fire once per
- * occasion: a weekly reminder re-notifies each scheduled day, instead of going quiet
- * forever after the first one.
+ * occasion: a repeating reminder notifies again on each scheduled day, instead of going
+ * quiet forever after the first one.
  */
 export function photoReminderDueSince(
   schedule: PhotoReminderSchedule,
@@ -112,12 +147,20 @@ export function photoReminderDueSince(
   now: Date = new Date(),
 ): string | null {
   if (!schedule.enabled) return null;
+  const todayStr = localDateStr(now);
 
   if (schedule.mode === 'weekdays') {
     if (schedule.weekdays.length === 0) return null;
-    // Walk back from today to the most recent scheduled day whose time has arrived. Walking
-    // (rather than only looking at today) keeps a missed day outstanding until a photo is
-    // taken, and stops as soon as a scheduled day is already covered by a photo.
+
+    if (!schedule.catchUpMissed) {
+      // Strict: the reminder belongs to its scheduled day and time, and to no other day.
+      if (!schedule.weekdays.includes(now.getDay())) return null;
+      if (lastPhotoDate != null && lastPhotoDate >= todayStr) return null;
+      return timeReached(todayStr, schedule.timeOfDay, now) ? todayStr : null;
+    }
+
+    // Catch-up: walk back to the most recent scheduled day whose time has arrived, so a day
+    // that came and went stays outstanding until a photo is taken.
     for (let back = 0; back < 14; back++) {
       const d = new Date(now);
       d.setDate(d.getDate() - back);
@@ -129,10 +172,24 @@ export function photoReminderDueSince(
     return null;
   }
 
-  // Interval mode: with no photo yet there is nothing to count from, so it is due immediately.
-  if (!lastPhotoDate) return START_OCCASION;
-  const occasion = addDays(lastPhotoDate, schedule.intervalDays);
-  return timeReached(occasion, schedule.timeOfDay, now) ? occasion : null;
+  // Interval mode. Occasions fall on anchor + n × intervalDays, so a missed one is followed
+  // by another a full interval later rather than the reminder dead-ending.
+  const anchor = intervalAnchor(schedule, lastPhotoDate);
+  if (!anchor) return null;
+
+  const elapsed = daysBetween(anchor, todayStr);
+  if (elapsed < schedule.intervalDays) return null;
+  const intervals = Math.floor(elapsed / schedule.intervalDays);
+  const occasion = addDays(anchor, intervals * schedule.intervalDays);
+
+  if (!timeReached(occasion, schedule.timeOfDay, now)) {
+    // The newest occasion is today and its time hasn't arrived. Under catch-up the previous
+    // one may still be outstanding; under strict rules nothing is due yet.
+    if (!schedule.catchUpMissed || intervals < 2) return null;
+    return addDays(anchor, (intervals - 1) * schedule.intervalDays);
+  }
+
+  return schedule.catchUpMissed || occasion === todayStr ? occasion : null;
 }
 
 /** The next date the reminder will fire, or null if it can never fire as configured. */
@@ -156,8 +213,15 @@ export function nextPhotoReminderDate(
     return null;
   }
 
-  if (!lastPhotoDate) return localDateStr(now);
-  return addDays(lastPhotoDate, schedule.intervalDays);
+  const anchor = intervalAnchor(schedule, lastPhotoDate);
+  if (!anchor) return null;
+  const elapsed = daysBetween(anchor, localDateStr(now));
+  const intervals = Math.max(1, Math.ceil(elapsed / schedule.intervalDays));
+  const occasion = addDays(anchor, intervals * schedule.intervalDays);
+  // Today's occasion already fired, so the next one is a full interval out.
+  return timeReached(occasion, schedule.timeOfDay, now)
+    ? addDays(anchor, (intervals + 1) * schedule.intervalDays)
+    : occasion;
 }
 
 /** '09:00' → '9:00 AM' */

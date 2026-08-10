@@ -1,6 +1,10 @@
 import { useEffect } from 'react';
 import { getLatestPhotoDate } from '../db/progress';
-import { getPhotoReminderSchedule, notifyPhotoReminderIfDue } from '../utils/photoReminder';
+import {
+  ensurePhotoReminderAnchor,
+  getPhotoReminderSchedule,
+  notifyPhotoReminderIfDue,
+} from '../utils/photoReminder';
 
 const CHECK_INTERVAL_MS = 15 * 60 * 1000;
 
@@ -17,13 +21,15 @@ export function usePhotoReminderNotifier(profileId: string | null) {
 
     async function check(id: string) {
       if (document.visibilityState !== 'visible') return;
-      // Bail before touching IndexedDB when no notification could fire anyway.
+      // Bail before touching IndexedDB when there is no reminder to act on at all.
       if (!getPhotoReminderSchedule(id).enabled) return;
-      if (!('Notification' in window) || Notification.permission !== 'granted') return;
 
       try {
         const lastPhotoDate = await getLatestPhotoDate(id);
         if (cancelled) return;
+        // Runs regardless of notification permission — the anchor also drives the in-app banner.
+        ensurePhotoReminderAnchor(id, lastPhotoDate);
+        if (!('Notification' in window) || Notification.permission !== 'granted') return;
         notifyPhotoReminderIfDue(id, lastPhotoDate);
       } catch {
         // Reminders are best-effort — a failed read just means no notification this tick.
