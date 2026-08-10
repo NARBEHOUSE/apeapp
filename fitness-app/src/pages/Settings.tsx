@@ -1874,30 +1874,6 @@ export function Settings({ profile, onUpdateProfile, onSetMacroTargetHistory, pr
               </button>
             </div>
 
-            {/* AI Progress Photo Review toggle */}
-            <div className="flex items-center justify-between py-2">
-              <div className="pr-3">
-                <div className="text-sm font-medium">AI Progress Photo Review</div>
-                <div className="text-[0.6875rem] text-text-muted">
-                  {claudeEnabled
-                    ? 'Compares two progress photos against your goal. Sends the pair you pick to your AI provider (~$0.03/use)'
-                    : 'Requires an AI API key'}
-                </div>
-              </div>
-              <button
-                onClick={() => claudeEnabled && updateDashCards({ aiPhotoAnalysis: !dashCards.aiPhotoAnalysis })}
-                className={`w-11 h-6 rounded-full transition-colors relative shrink-0 ${
-                  dashCards.aiPhotoAnalysis ? 'bg-accent-blue' : 'bg-surface-raised'
-                } ${claudeEnabled ? '' : 'opacity-40'}`}
-              >
-                <div
-                  className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform ${
-                    dashCards.aiPhotoAnalysis ? 'translate-x-5' : 'translate-x-0.5'
-                  }`}
-                />
-              </button>
-            </div>
-
             {/* Week in Review toggle */}
             <div className="flex items-center justify-between py-2">
               <div>

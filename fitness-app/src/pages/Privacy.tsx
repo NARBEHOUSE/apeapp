@@ -63,7 +63,7 @@ export function Privacy() {
       <section className="space-y-2">
         <h2 className="text-lg font-semibold">AI Features &amp; Your Data</h2>
         <p className="text-sm text-text-secondary leading-relaxed">
-          APE's AI features are optional, off by default, and only run when you start them. When you use one, the app sends the data that feature needs directly from your browser to the AI provider your API key belongs to. NARBE LLC never receives or stores that data.
+          APE's AI features are optional. They require you to supply your own API key, do nothing until you start them, and are unavailable entirely if you never add a key. When you use one, the app sends the data that feature needs directly from your browser to the AI provider your API key belongs to. NARBE LLC never receives or stores that data.
         </p>
         <ul className="text-sm text-text-secondary space-y-2 list-disc pl-5">
           <li>

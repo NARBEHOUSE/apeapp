@@ -10,8 +10,6 @@ export interface DashboardCardConfig {
   checkInReminder: boolean;
   checkInFrequency: 'daily' | 'weekly' | 'biweekly';
   aiCoach: boolean;
-  /** AI review of progress photos, on the Progress → Photos tab. */
-  aiPhotoAnalysis: boolean;
   steps: boolean;
   water: boolean;
   calendar: boolean;
@@ -38,7 +36,6 @@ const DEFAULTS: DashboardCardConfig = {
   checkInReminder: true,
   checkInFrequency: 'daily',
   aiCoach: false,
-  aiPhotoAnalysis: false,
   steps: false,
   water: true,
   calendar: false,

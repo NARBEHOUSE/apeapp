@@ -1,10 +1,13 @@
 import { useState, useMemo, useRef } from 'react';
-import { X, Trash2, ImageIcon, Share2, ArrowLeftRight, ChevronLeft, ChevronRight, Pencil, Grid, Columns2 } from 'lucide-react';
+import { X, Trash2, ImageIcon, Share2, ArrowLeftRight, ChevronLeft, ChevronRight, Pencil, Grid, Columns2, Sparkles } from 'lucide-react';
 import type { ProgressPhoto, Measurement, Profile } from '../../types';
 import { formatDate } from '../../utils/dateHelpers';
+import { photoImageSrc } from '../../utils/photoImage';
 import { renderProgressCard, shareOrDownload } from '../../utils/shareCards';
 import { ConfirmDialog } from '../shared/ConfirmDialog';
 import { PhotoComparisonView } from './PhotoComparisonView';
+import { PhotoAnalysisPanel } from './PhotoAnalysisPanel';
+import { getApiKey } from '../../utils/apiKeyManager';
 
 interface Props {
   photos: ProgressPhoto[];
@@ -18,6 +21,9 @@ interface Props {
 
 type PoseFilter = 'all' | 'front' | 'side_left' | 'side_right' | 'back';
 
+/** Off, or picking two photos for one of the two things you can do with a pair. */
+type SelectMode = 'off' | 'compare' | 'ai';
+
 const POSES: { value: Exclude<PoseFilter, 'all'>; label: string; short: string }[] = [
   { value: 'front',      label: 'Front',   short: 'Front' },
   { value: 'back',       label: 'Back',    short: 'Back'  },
@@ -28,11 +34,6 @@ const POSES: { value: Exclude<PoseFilter, 'all'>; label: string; short: string }
 const POSE_LABELS: Record<string, string> = {
   front: 'Front', side_left: 'Side L', side_right: 'Side R', back: 'Back',
 };
-
-function getImageSrc(imageData: string): string {
-  if (imageData.startsWith('data:')) return imageData;
-  return `data:image/jpeg;base64,${imageData}`;
-}
 
 type StatOption = 'none' | 'weight' | 'bodyFat' | 'waist' | 'chest' | 'hips' | 'shoulders' | 'leftArm' | 'rightArm' | 'leftBicep' | 'rightBicep' | 'leftThigh' | 'rightThigh' | 'neck';
 
@@ -70,12 +71,24 @@ export function PhotoGallery({ photos, profile, onDelete, onUpdate, measurements
   const [filter, setFilter] = useState<PoseFilter>('all');
   const [selectedPhoto, setSelectedPhoto] = useState<ProgressPhoto | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [compareMode, setCompareMode] = useState(false);
+  // Compare and AI review are two actions over one selection mechanic, so both reuse this
+  // grid and the tiles below rather than each growing a photo picker of its own.
+  const [selectMode, setSelectMode] = useState<SelectMode>('off');
   const [compareSelection, setCompareSelection] = useState<ProgressPhoto[]>([]);
   const [showComparison, setShowComparison] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [compareStats, setCompareStats] = useState<StatOption[]>(['weight']);
   const [shareFormat, setShareFormat] = useState<'post' | 'story'>('post');
+
+  const selecting = selectMode !== 'off';
+  const hasAiKey = !!getApiKey();
+
+  // Switching between Compare and AI keeps you in selection mode; tapping the active one exits.
+  const enterMode = (mode: Exclude<SelectMode, 'off'>) => {
+    setSelectMode(selectMode === mode ? 'off' : mode);
+    setCompareSelection([]);
+    setShowComparison(false);
+  };
 
   const sorted = useMemo(() => [...photos].sort((a, b) => b.date.localeCompare(a.date)), [photos]);
 
@@ -138,8 +151,8 @@ export function PhotoGallery({ photos, profile, onDelete, onUpdate, measurements
     try {
       const [before, after] = compareSelection.sort((a, b) => a.date.localeCompare(b.date));
       const canvas = await renderProgressCard({
-        beforeImage: getImageSrc(before.imageData),
-        afterImage: getImageSrc(after.imageData),
+        beforeImage: photoImageSrc(before.imageData),
+        afterImage: photoImageSrc(after.imageData),
         beforeDate: before.date,
         afterDate: after.date,
         beforeStat: getStatsForPhoto(before),
@@ -193,7 +206,7 @@ export function PhotoGallery({ photos, profile, onDelete, onUpdate, measurements
             >
               {stat.latest && (
                 <img
-                  src={getImageSrc(stat.latest.imageData)}
+                  src={photoImageSrc(stat.latest.imageData)}
                   alt={pose.label}
                   className="w-full h-full object-cover"
                 />
@@ -213,25 +226,43 @@ export function PhotoGallery({ photos, profile, onDelete, onUpdate, measurements
 
         {/* Compare button */}
         <button
-          onClick={() => { setCompareMode(!compareMode); setCompareSelection([]); }}
+          onClick={() => enterMode('compare')}
           className={`flex-shrink-0 flex flex-col items-center justify-center w-16 h-16 rounded-2xl border-2 transition-colors ${
-            compareMode ? 'border-accent bg-accent/10' : 'border-border bg-surface'
+            selectMode === 'compare' ? 'border-accent bg-accent/10' : 'border-border bg-surface'
           }`}
         >
-          <ArrowLeftRight size={16} className={compareMode ? 'text-accent' : 'text-text-muted'} />
-          <span className={`text-[0.625rem] font-semibold mt-0.5 ${compareMode ? 'text-accent' : 'text-text-muted'}`}>Compare</span>
+          <ArrowLeftRight size={16} className={selectMode === 'compare' ? 'text-accent' : 'text-text-muted'} />
+          <span className={`text-[0.625rem] font-semibold mt-0.5 ${selectMode === 'compare' ? 'text-accent' : 'text-text-muted'}`}>Compare</span>
         </button>
+
+        {/* AI review — only offered when there's a key to use, so it's never a dead end */}
+        {hasAiKey && (
+          <button
+            onClick={() => enterMode('ai')}
+            className={`flex-shrink-0 flex flex-col items-center justify-center w-16 h-16 rounded-2xl border-2 transition-colors ${
+              selectMode === 'ai' ? 'border-accent-blue bg-accent-blue/10' : 'border-border bg-surface'
+            }`}
+          >
+            <Sparkles size={16} className={selectMode === 'ai' ? 'text-accent-blue' : 'text-text-muted'} />
+            <span className={`text-[0.625rem] font-semibold mt-0.5 ${selectMode === 'ai' ? 'text-accent-blue' : 'text-text-muted'}`}>AI Review</span>
+          </button>
+        )}
       </div>
 
-      {/* Compare mode hint */}
-      {compareMode && (
-        <div className="bg-accent/10 border border-accent/30 rounded-xl px-3 py-2 text-xs text-center text-accent font-medium">
-          Select 2 photos to compare{compareSelection.length > 0 ? ` (${compareSelection.length}/2 selected)` : ''}
+      {/* Selection hint */}
+      {selecting && (
+        <div className={`rounded-xl px-3 py-2 text-xs text-center font-medium ${
+          selectMode === 'ai'
+            ? 'bg-accent-blue/10 border border-accent-blue/30 text-accent-blue'
+            : 'bg-accent/10 border border-accent/30 text-accent'
+        }`}>
+          {selectMode === 'ai' ? 'Select 2 photos for the AI to review' : 'Select 2 photos to compare'}
+          {compareSelection.length > 0 ? ` (${compareSelection.length}/2 selected)` : ''}
         </div>
       )}
 
       {/* Grid — grouped by pose when "All", flat when filtered */}
-      {filter === 'all' && !compareMode ? (
+      {filter === 'all' && !selecting ? (
         <div className="space-y-5">
           {grouped.map(({ pose, photos: posePhotos }) => (
             <div key={pose.value}>
@@ -249,7 +280,7 @@ export function PhotoGallery({ photos, profile, onDelete, onUpdate, measurements
                   <PhotoTile
                     key={photo.id}
                     photo={photo}
-                    compareMode={false}
+                    selectable={false}
                     isSelected={false}
                     selIndex={-1}
                     onClick={() => {
@@ -271,18 +302,28 @@ export function PhotoGallery({ photos, profile, onDelete, onUpdate, measurements
               <PhotoTile
                 key={photo.id}
                 photo={photo}
-                compareMode={compareMode}
+                selectable={selecting}
                 isSelected={isSelected}
                 selIndex={selIndex}
-                onClick={() => compareMode ? handleCompareSelect(photo) : setSelectedPhoto(photo)}
+                onClick={() => selecting ? handleCompareSelect(photo) : setSelectedPhoto(photo)}
               />
             );
           })}
         </div>
       )}
 
+      {/* AI review of the two selected photos */}
+      {selectMode === 'ai' && compareSelection.length === 2 && (
+        <PhotoAnalysisPanel
+          pair={[compareSelection[0], compareSelection[1]]}
+          profile={profile}
+          photos={photos}
+          measurements={measurements}
+        />
+      )}
+
       {/* Compare action bar */}
-      {compareMode && compareSelection.length === 2 && (
+      {selectMode === 'compare' && compareSelection.length === 2 && (
         <div className="space-y-2">
           <button
             onClick={() => setShowComparison(true)}
@@ -367,9 +408,9 @@ export function PhotoGallery({ photos, profile, onDelete, onUpdate, measurements
   );
 }
 
-function PhotoTile({ photo, compareMode, isSelected, selIndex, onClick }: {
+function PhotoTile({ photo, selectable, isSelected, selIndex, onClick }: {
   photo: ProgressPhoto;
-  compareMode: boolean;
+  selectable: boolean;
   isSelected: boolean;
   selIndex: number;
   onClick: () => void;
@@ -381,8 +422,8 @@ function PhotoTile({ photo, compareMode, isSelected, selIndex, onClick }: {
         isSelected ? 'border-accent' : 'border-border-light hover:border-accent-blue/50'
       }`}
     >
-      <img src={getImageSrc(photo.imageData)} alt={`${photo.pose} - ${photo.date}`} className="w-full h-full object-cover" />
-      {compareMode && (
+      <img src={photoImageSrc(photo.imageData)} alt={`${photo.pose} - ${photo.date}`} className="w-full h-full object-cover" />
+      {selectable && (
         <div className={`absolute top-2 right-2 w-6 h-6 rounded-full flex items-center justify-center transition-colors ${isSelected ? 'bg-accent text-white' : 'bg-black/40 border-2 border-white/60'}`}>
           {isSelected && <span className="text-xs font-bold">{selIndex + 1}</span>}
         </div>
@@ -480,7 +521,7 @@ function EnlargedPhotoView({ photo, photos, poseLabel, measurements = [], weight
               const canvas = document.createElement('canvas');
               const img = new Image();
               img.onload = () => { canvas.width = img.width; canvas.height = img.height; canvas.getContext('2d')!.drawImage(img, 0, 0); shareOrDownload(canvas, `progress-${photo.date}-${photo.pose}.png`); };
-              img.src = getImageSrc(photo.imageData);
+              img.src = photoImageSrc(photo.imageData);
             }} className="p-2 rounded-lg hover:bg-white/10 text-white/60 hover:text-white transition-colors">
               <Share2 size={16} />
             </button>
@@ -517,7 +558,7 @@ function EnlargedPhotoView({ photo, photos, poseLabel, measurements = [], weight
           )}
 
           <img
-            src={getImageSrc(photo.imageData)}
+            src={photoImageSrc(photo.imageData)}
             alt={`${photo.pose} - ${photo.date}`}
             className="max-w-full max-h-full object-contain rounded-xl transition-transform duration-200"
             style={{ transform: `rotate(${rotation}deg)` }}

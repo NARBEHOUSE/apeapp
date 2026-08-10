@@ -1,12 +1,10 @@
 import { useMemo, useState } from 'react';
-import { Columns2, Loader2, SlidersHorizontal, Sparkles, X } from 'lucide-react';
+import { Columns2, SlidersHorizontal, X } from 'lucide-react';
 import type { Measurement, Profile, ProgressPhoto } from '../../types';
 import { POSE_LABELS, buildPhotoProgressSnapshot } from '../../utils/photoAnalysis';
 import { formatDate } from '../../utils/dateHelpers';
-import { getApiKey } from '../../utils/apiKeyManager';
-import { getDashboardConfig, saveDashboardConfig } from '../../utils/dashboardConfig';
-import { usePhotoAnalysis } from '../../hooks/usePhotoAnalysis';
-import { PhotoAnalysisConsentModal, PhotoAnalysisResultView, PhotoHistoryOptIn } from './PhotoAnalysisResult';
+import { photoImageSrc } from '../../utils/photoImage';
+import { PhotoAnalysisPanel } from './PhotoAnalysisPanel';
 
 interface Props {
   /** The two selected photos, in any order. */
@@ -19,11 +17,6 @@ interface Props {
 
 type ViewMode = 'side' | 'slider';
 
-function getImageSrc(imageData: string): string {
-  if (imageData.startsWith('data:')) return imageData;
-  return `data:image/jpeg;base64,${imageData}`;
-}
-
 function signed(n: number, unit: string): string {
   const rounded = Math.round(n * 10) / 10;
   return `${rounded > 0 ? '+' : ''}${rounded} ${unit}`;
@@ -33,7 +26,6 @@ export function PhotoComparisonView({ pair, profile, photos, measurements, onClo
   const [from, to] = pair[0].date <= pair[1].date ? pair : [pair[1], pair[0]];
   const [mode, setMode] = useState<ViewMode>('side');
   const [wipe, setWipe] = useState(50);
-  const [aiEnabled, setAiEnabled] = useState(() => getDashboardConfig().aiPhotoAnalysis);
 
   // Same numbers the AI is given, so what's on screen and what it reasons about can't diverge.
   const snapshot = useMemo(
@@ -41,29 +33,10 @@ export function PhotoComparisonView({ pair, profile, photos, measurements, onClo
     [profile, from, to, photos, measurements],
   );
 
-  const {
-    result,
-    loading,
-    consentOpen,
-    includePhotoHistory,
-    setIncludePhotoHistory,
-    request,
-    acceptConsent,
-    declineConsent,
-  } = usePhotoAnalysis(profile, photos, measurements);
-
   const samePose = from.pose === to.pose;
-  const apiKey = getApiKey();
   const measurementChanges = Object.entries(snapshot.bodyMeasurements?.changes ?? {}).filter(
     ([, delta]) => delta !== 0,
   );
-  // The cached review may be from an older pair — only show it against the pair it describes.
-  const resultMatchesPair = result != null && result.baselinePhotoId === from.id && result.latestPhotoId === to.id;
-
-  function enableAi() {
-    saveDashboardConfig({ ...getDashboardConfig(), aiPhotoAnalysis: true });
-    setAiEnabled(true);
-  }
 
   return (
     <>
@@ -118,7 +91,7 @@ export function PhotoComparisonView({ pair, profile, photos, measurements, onClo
                 <div key={photo.id} className="space-y-1.5">
                   <div className="relative aspect-[3/4] rounded-xl overflow-hidden bg-black/40">
                     <img
-                      src={getImageSrc(photo.imageData)}
+                      src={photoImageSrc(photo.imageData)}
                       alt={`${photo.pose} — ${photo.date}`}
                       className="w-full h-full object-cover"
                     />
@@ -143,13 +116,13 @@ export function PhotoComparisonView({ pair, profile, photos, measurements, onClo
                   without any custom drag handling. */}
               <div className="relative aspect-[3/4] max-h-[55vh] mx-auto rounded-xl overflow-hidden bg-black/40">
                 <img
-                  src={getImageSrc(from.imageData)}
+                  src={photoImageSrc(from.imageData)}
                   alt={`Before — ${from.date}`}
                   className="absolute inset-0 w-full h-full object-cover"
                 />
                 {/* Clipped rather than width-constrained, so the top image never squashes. */}
                 <img
-                  src={getImageSrc(to.imageData)}
+                  src={photoImageSrc(to.imageData)}
                   alt={`After — ${to.date}`}
                   className="absolute inset-0 w-full h-full object-cover"
                   style={{ clipPath: `inset(0 ${100 - wipe}% 0 0)` }}
@@ -208,64 +181,16 @@ export function PhotoComparisonView({ pair, profile, photos, measurements, onClo
             </div>
           )}
 
-          {/* AI review */}
-          <div className="rounded-xl bg-white/5 border border-white/10 p-3 space-y-2">
-            <div className="flex items-center gap-1.5">
-              <Sparkles size={13} className="text-accent-blue" />
-              <span className="text-[0.6875rem] font-semibold text-white">AI Progress Review</span>
-            </div>
-
-            {!apiKey ? (
-              <p className="text-[0.625rem] text-white/50">
-                Add an AI API key in Settings to review this comparison.
-              </p>
-            ) : !aiEnabled ? (
-              <>
-                <p className="text-[0.625rem] text-white/50">
-                  AI photo review is off. Turning it on also adds a review card to the Photos tab — you can switch
-                  it back off in Settings under Dashboard Cards.
-                </p>
-                <button
-                  onClick={enableAi}
-                  className="w-full py-2 rounded-lg bg-white/10 border border-white/20 text-white text-xs font-semibold active:scale-[0.98] transition-transform"
-                >
-                  Turn on AI review
-                </button>
-              </>
-            ) : !samePose ? (
-              <p className="text-[0.625rem] text-warning">
-                Pick two photos of the same pose to analyze — comparing different poses can't show a change.
-              </p>
-            ) : (
-              <>
-                <p className="text-[0.625rem] text-white/50">
-                  Reviews these two photos only — {formatDate(from.date)} and {formatDate(to.date)}.
-                </p>
-                <PhotoHistoryOptIn checked={includePhotoHistory} onChange={setIncludePhotoHistory} dark />
-                <button
-                  onClick={() => request(from, to)}
-                  disabled={loading}
-                  className="w-full py-2 rounded-lg bg-accent-blue text-white text-xs font-semibold flex items-center justify-center gap-1.5 disabled:opacity-50 active:scale-[0.98] transition-transform"
-                >
-                  {loading ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
-                  {loading ? 'Analyzing…' : resultMatchesPair ? 'Analyze again' : 'Analyze this comparison'}
-                </button>
-                <p className="text-[0.625rem] text-white/40">
-                  Runs only when you tap — about $0.03 of API usage. Informational, not medical advice.
-                </p>
-              </>
-            )}
-
-            {resultMatchesPair && result && (
-              <div className="pt-1">
-                <PhotoAnalysisResultView result={result} showHeader={false} />
-              </div>
-            )}
-          </div>
+          {/* Same AI panel the gallery's compare bar uses, acting on this same pair */}
+          <PhotoAnalysisPanel
+            pair={pair}
+            profile={profile}
+            photos={photos}
+            measurements={measurements}
+            dark
+          />
         </div>
       </div>
-
-      {consentOpen && <PhotoAnalysisConsentModal onAccept={acceptConsent} onCancel={declineConsent} />}
     </>
   );
 }

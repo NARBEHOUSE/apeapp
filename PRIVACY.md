@@ -43,7 +43,7 @@ The app optionally supports USDA FoodData Central and third-party AI provider in
 
 ## AI Features and Your Data
 
-APE's AI features are optional, off by default, and only run when you start them. When you use one, the app sends the data that feature needs directly from your browser to the AI provider your API key belongs to. NARBE LLC never receives or stores that data.
+APE's AI features are optional. They require you to supply your own API key, do nothing until you start them, and are unavailable entirely if you never add a key. When you use one, the app sends the data that feature needs directly from your browser to the AI provider your API key belongs to. NARBE LLC never receives or stores that data.
 
 - **AI Coach** sends a summary of your recent training, nutrition, weight, and check-in numbers.
 - **AI Food Scanner** sends the food photo you capture.

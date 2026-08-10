@@ -13,7 +13,6 @@ import { ProgressCharts } from '../components/progress/ProgressCharts';
 import { PhotoCapture } from '../components/progress/PhotoCapture';
 import { PhotoGallery } from '../components/progress/PhotoGallery';
 import { PhotoReminderSettings } from '../components/progress/PhotoReminderSettings';
-import { PhotoAnalysisCard } from '../components/progress/PhotoAnalysisCard';
 import { TimeLapse } from '../components/progress/TimeLapse';
 import { Modal } from '../components/shared/Modal';
 import { ConfirmDialog } from '../components/shared/ConfirmDialog';
@@ -417,12 +416,6 @@ export function Progress({ profile, onUpdateProfile }: Props) {
             schedule={photoSchedule}
             onChange={updatePhotoSchedule}
             lastPhotoDate={lastPhotoDate}
-          />
-
-          <PhotoAnalysisCard
-            profile={profile}
-            photos={photos}
-            measurements={measurements}
           />
 
           <PhotoGallery photos={photos} profile={profile} onDelete={deletePhoto} onUpdate={updatePhoto} measurements={measurements} weightUnit={profile.units === 'metric' ? 'kg' : 'lbs'} measurementUnit={profile.measurementUnit} />
