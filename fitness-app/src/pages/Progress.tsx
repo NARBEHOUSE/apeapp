@@ -12,6 +12,8 @@ import { MeasurementLog } from '../components/progress/MeasurementLog';
 import { ProgressCharts } from '../components/progress/ProgressCharts';
 import { PhotoCapture } from '../components/progress/PhotoCapture';
 import { PhotoGallery } from '../components/progress/PhotoGallery';
+import { PhotoReminderSettings } from '../components/progress/PhotoReminderSettings';
+import { PhotoAnalysisCard } from '../components/progress/PhotoAnalysisCard';
 import { TimeLapse } from '../components/progress/TimeLapse';
 import { Modal } from '../components/shared/Modal';
 import { ConfirmDialog } from '../components/shared/ConfirmDialog';
@@ -21,9 +23,8 @@ import {
   getPhotoReminderSchedule,
   savePhotoReminderSchedule,
   daysSincePhoto,
-  isPhotoReminderDue,
+  photoReminderDueSince,
   notifyPhotoReminderIfDue,
-  requestPhotoReminderPermission,
   type PhotoReminderSchedule,
 } from '../utils/photoReminder';
 
@@ -92,7 +93,9 @@ export function Progress({ profile, onUpdateProfile }: Props) {
   // Progress photo reminder
   const lastPhotoDate = photos[0]?.date || null;
   const daysSinceLastPhoto = daysSincePhoto(lastPhotoDate);
-  const photoReminderDue = isPhotoReminderDue(profile.id, lastPhotoDate);
+  // Read from the edited-in-state schedule so toggling the settings below updates the banner
+  // in the same render, rather than a render behind the saved value.
+  const photoReminderDue = photoReminderDueSince(photoSchedule, lastPhotoDate) != null;
 
   useEffect(() => {
     notifyPhotoReminderIfDue(profile.id, lastPhotoDate);
@@ -102,7 +105,6 @@ export function Progress({ profile, onUpdateProfile }: Props) {
     const updated = { ...photoSchedule, ...updates };
     setPhotoSchedule(updated);
     savePhotoReminderSchedule(profile.id, updated);
-    if (updated.enabled) requestPhotoReminderPermission();
   }
 
   // Check-in state
@@ -411,26 +413,17 @@ export function Progress({ profile, onUpdateProfile }: Props) {
             Take Progress Photo
           </button>
 
-          <div className="card p-3 flex items-center justify-between gap-3">
-            <div>
-              <div className="text-xs font-semibold text-text-secondary">Photo Reminder</div>
-              <div className="text-[0.625rem] text-text-muted">Get notified on a regular schedule</div>
-            </div>
-            <select
-              className="input-field text-xs py-1.5 w-auto"
-              value={photoSchedule.enabled ? String(photoSchedule.intervalDays) : 'off'}
-              onChange={(e) => {
-                const val = e.target.value;
-                if (val === 'off') updatePhotoSchedule({ enabled: false });
-                else updatePhotoSchedule({ enabled: true, intervalDays: parseInt(val) });
-              }}
-            >
-              <option value="off">Off</option>
-              <option value="7">Weekly</option>
-              <option value="14">Every 2 weeks</option>
-              <option value="30">Monthly</option>
-            </select>
-          </div>
+          <PhotoReminderSettings
+            schedule={photoSchedule}
+            onChange={updatePhotoSchedule}
+            lastPhotoDate={lastPhotoDate}
+          />
+
+          <PhotoAnalysisCard
+            profile={profile}
+            photos={photos}
+            measurements={measurements}
+          />
 
           <PhotoGallery photos={photos} onDelete={deletePhoto} onUpdate={updatePhoto} measurements={measurements} weightUnit={profile.units === 'metric' ? 'kg' : 'lbs'} measurementUnit={profile.measurementUnit} />
 

@@ -19,7 +19,8 @@ No subscription. No ads. No data sold. **Your key. Your data. Your gains.**
 - **AI Food Scanner** — Point your camera at any meal for instant macro estimates (uses your own API key)
 - **AI Coach** — Weekly training and nutrition suggestions generated from your actual logged data (uses your own API key)
 - **Coach Mode** — Share your data with a real coach via Google Drive; coaches can push macro targets and programs directly to your app
-- **Progress Tracking** — Body measurements, progress photos with pose tagging, time-lapse comparisons, trend charts
+- **Progress Tracking** — Body measurements, progress photos with pose tagging and scheduled reminders, time-lapse comparisons, trend charts
+- **AI Progress Photo Review** — Compare two progress photos against your goal and tracked numbers, with consent before any photo is sent (uses your own API key)
 - **Google Drive Sync** — All data syncs to your personal Google Drive. NARBE LLC never touches your data.
 - **PWA** — Install on any device. Works fully offline. No app store required.
 - **Free & Ad-Free** — Always.

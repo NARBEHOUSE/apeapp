@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useProfile } from './hooks/useProfile';
+import { usePhotoReminderNotifier } from './hooks/usePhotoReminder';
 import { Layout } from './components/layout/Layout';
 import { ProfileSelector } from './pages/ProfileSelector';
 import Dashboard from './pages/Dashboard';
@@ -32,6 +33,9 @@ function AppContent() {
       logout();
     }
   }, [isSignedIn, activeProfile, logout]);
+
+  // Declared above the early returns below: hooks must run in the same order on every render.
+  usePhotoReminderNotifier(activeProfile?.id ?? null);
 
   if (!activeProfile || (!isSignedIn && activeProfile?.googleEmail)) {
     // Allow privacy page to be viewed without a profile (needed for Google OAuth verification)

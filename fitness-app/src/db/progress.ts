@@ -28,6 +28,22 @@ export async function getPhotosByProfile(profileId: string): Promise<ProgressPho
   return db.getAllFromIndex('progressPhotos', 'by-profile', profileId);
 }
 
+/**
+ * Latest photo date for a profile, without materialising every photo. The reminder check
+ * runs on a timer, and progress photos carry full base64 image data, so it walks a cursor
+ * instead of pulling the whole set into memory just to read dates.
+ */
+export async function getLatestPhotoDate(profileId: string): Promise<string | null> {
+  const db = await getDB();
+  let latest: string | null = null;
+  let cursor = await db.transaction('progressPhotos').store.index('by-profile').openCursor(profileId);
+  while (cursor) {
+    if (latest == null || cursor.value.date > latest) latest = cursor.value.date;
+    cursor = await cursor.continue();
+  }
+  return latest;
+}
+
 export async function getPhotosByPose(profileId: string, pose: string): Promise<ProgressPhoto[]> {
   const db = await getDB();
   return db.getAllFromIndex('progressPhotos', 'by-profile-pose', [profileId, pose]);

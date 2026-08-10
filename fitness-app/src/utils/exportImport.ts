@@ -3,6 +3,7 @@ import { getDB } from '../db';
 import { saveFoodToHistory } from '../db/foodHistory';
 import { getRecipes, saveRecipe } from '../db/recipes';
 import { type WindowWithSavePicker, isPickerAbort } from './fileSystemAccess';
+import { clearCachedPhotoAnalysis } from './photoAnalysis';
 import type { Program, FoodEntry, Profile } from '../types';
 
 export async function exportProgram(programId: string): Promise<string> {
@@ -356,6 +357,9 @@ export async function clearProfileData(profileId: string): Promise<void> {
     }
     await tx.done;
   }
+
+  // The cached AI photo review describes photos that no longer exist, so it goes with them.
+  clearCachedPhotoAnalysis(profileId);
 }
 
 export async function clearAllData(): Promise<void> {

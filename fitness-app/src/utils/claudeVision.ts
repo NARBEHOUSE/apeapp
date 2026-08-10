@@ -48,7 +48,7 @@ export async function analyzeFood(base64Image: string, _apiKey: string, userNote
     ? `Analyze this food and estimate the nutrition. The user provided these notes about the food — use them to make your estimates more accurate:\n"${userNotes.trim()}"`
     : 'Analyze this food and estimate the nutrition.';
 
-  const { text } = await callAI({ systemPrompt: SYSTEM_PROMPT, userPrompt: userText, imageBase64: base64Image });
+  const { text } = await callAI({ systemPrompt: SYSTEM_PROMPT, userPrompt: userText, imagesBase64: [base64Image] });
 
   const cleaned = text.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim();
   return JSON.parse(cleaned) as VisionResult;

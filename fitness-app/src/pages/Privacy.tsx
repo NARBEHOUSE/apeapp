@@ -27,7 +27,7 @@ export function Privacy() {
         <h1 className="text-base font-semibold">Privacy Policy</h1>
       </div>
       <div className="px-6 py-6 space-y-6">
-      <p className="text-xs text-text-muted">Last updated: June 22, 2026</p>
+      <p className="text-xs text-text-muted">Last updated: August 10, 2026</p>
 
       <section className="space-y-2">
         <h2 className="text-lg font-semibold">Overview</h2>
@@ -46,7 +46,7 @@ export function Privacy() {
       <section className="space-y-2">
         <h2 className="text-lg font-semibold">Data Storage</h2>
         <p className="text-sm text-text-secondary leading-relaxed">
-          <strong>Local storage:</strong> Workout logs, nutrition entries, measurements, progress photos, profile information, saved meals, food history, and application settings are stored in your browser's local storage (IndexedDB and localStorage). This data never leaves your device unless you choose to sign in with Google.
+          <strong>Local storage:</strong> Workout logs, nutrition entries, measurements, progress photos, profile information, saved meals, food history, and application settings are stored in your browser's local storage (IndexedDB and localStorage). This data never leaves your device unless you choose to sign in with Google, or you choose to use an optional AI feature — see "AI Features &amp; Your Data" below.
         </p>
         <p className="text-sm text-text-secondary leading-relaxed">
           <strong>Google Drive storage:</strong> If you sign in with Google, the app stores a backup of your data in your personal Google Drive account — specifically in a hidden app-specific data folder and an "APE App" folder visible in your Drive. This data is stored in your Drive, not on any NARBE LLC server. Only you (and anyone you explicitly share access with, such as a coach) can access this data.
@@ -57,6 +57,27 @@ export function Privacy() {
         <h2 className="text-lg font-semibold">AI API Keys</h2>
         <p className="text-sm text-text-secondary leading-relaxed">
           If you choose to use AI features, APE requires you to provide your own API key from a third-party AI provider (such as Anthropic, OpenAI, OpenRouter, Groq, or Google). Your API key is stored exclusively in your browser's local storage on your device. It is never transmitted to NARBE LLC servers, never included in Google Drive sync data, and never logged or shared. API calls made using your key go directly from your device to the provider's servers. NARBE LLC has no visibility into those calls. You are responsible for your own API usage costs and for complying with your provider's terms of service. Remove your key at any time in Settings.
+        </p>
+      </section>
+
+      <section className="space-y-2">
+        <h2 className="text-lg font-semibold">AI Features &amp; Your Data</h2>
+        <p className="text-sm text-text-secondary leading-relaxed">
+          APE's AI features are optional, off by default, and only run when you start them. When you use one, the app sends the data that feature needs directly from your browser to the AI provider your API key belongs to. NARBE LLC never receives or stores that data.
+        </p>
+        <ul className="text-sm text-text-secondary space-y-2 list-disc pl-5">
+          <li>
+            <strong>AI Coach</strong> — sends a summary of your recent training, nutrition, weight, and check-in numbers.
+          </li>
+          <li>
+            <strong>AI Food Scanner</strong> — sends the food photo you capture.
+          </li>
+          <li>
+            <strong>AI Progress Photo Review</strong> — sends the two progress photos you select, along with your goal, calorie and protein targets, weight change, measurement changes, and your photo dates. Photos are sent only for the pair you pick, only when you tap Analyze, and only after you accept an in-app consent prompt explaining this. Your other progress photos are never sent.
+          </li>
+        </ul>
+        <p className="text-sm text-text-secondary leading-relaxed">
+          Data sent to an AI provider is handled under that provider's terms of service, privacy policy, and data-retention practices, which you should review before enabling these features. AI-generated feedback in APE is informational only and is not medical, dietary, or professional advice. You can turn any AI feature off, or remove your API key entirely, in Settings.
         </p>
       </section>
 

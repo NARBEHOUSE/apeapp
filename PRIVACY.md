@@ -1,6 +1,6 @@
 # Privacy Policy — Aesthetic Physique Enthusiast Application (APE)
 
-**Last updated:** June 20, 2026  
+**Last updated:** August 10, 2026  
 **Developer:** NARBE LLC
 
 ## Overview
@@ -9,7 +9,7 @@ Aesthetic Physique Enthusiast Application (APE) is a fitness tracking applicatio
 
 ## Data Storage
 
-**Local storage:** Workout logs, nutrition entries, measurements, progress photos, profile information, and application settings are stored in your browser's local storage (IndexedDB and localStorage). This data never leaves your device unless you choose to sign in with Google.
+**Local storage:** Workout logs, nutrition entries, measurements, progress photos, profile information, and application settings are stored in your browser's local storage (IndexedDB and localStorage). This data never leaves your device unless you choose to sign in with Google, or you choose to use an optional AI feature (see "AI Features and Your Data" below).
 
 **Google Drive storage:** If you sign in with Google, the app stores a backup of your data in your personal Google Drive account — specifically in a hidden app-specific data folder and an "APE App" folder visible in your Drive. This data is stored in your Drive, not on any NARBE LLC server. Only you (and anyone you explicitly share access with, such as a coach) can access this data.
 
@@ -39,7 +39,17 @@ Coaches may back up client data to their own Google Drive for safekeeping. This 
 
 ## Third-Party API Keys
 
-The app optionally supports USDA FoodData Central and Anthropic Claude API integrations. If you choose to enter API keys for these services, those keys are stored only in your browser's local storage on your device. They are never synced to Google Drive, transmitted to NARBE LLC, or shared with any third party. API calls using these keys are made directly from your browser to the respective service providers.
+The app optionally supports USDA FoodData Central and third-party AI provider integrations (such as Anthropic, OpenAI, OpenRouter, and Google). If you choose to enter API keys for these services, those keys are stored only in your browser's local storage on your device. They are never synced to Google Drive, transmitted to NARBE LLC, or shared with any third party. API calls using these keys are made directly from your browser to the respective service providers.
+
+## AI Features and Your Data
+
+APE's AI features are optional, off by default, and only run when you start them. When you use one, the app sends the data that feature needs directly from your browser to the AI provider your API key belongs to. NARBE LLC never receives or stores that data.
+
+- **AI Coach** sends a summary of your recent training, nutrition, weight, and check-in numbers.
+- **AI Food Scanner** sends the food photo you capture.
+- **AI Progress Photo Review** sends the two progress photos you select, along with your goal, calorie and protein targets, weight change, measurement changes, and the dates of your photos. Photos are sent only for the pair you pick, only when you tap Analyze, and only after you have accepted an in-app consent prompt explaining this. Your other progress photos are never sent.
+
+Data sent to an AI provider is handled under that provider's terms of service, privacy policy, and data-retention practices, which you should review before enabling these features. AI-generated feedback in APE is informational only and is not medical, dietary, or professional advice. You can turn any AI feature off, or remove your API key entirely, in Settings.
 
 ## Data Collection
 
