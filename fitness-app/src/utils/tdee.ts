@@ -187,6 +187,16 @@ const TREND_HALF_LIFE_DAYS = 10;
 // contradictory advice, most visibly resuming a normal goal after a temporary correction and
 // being told to cut again in the same breath, off a trend that goal hasn't touched yet.
 const MIN_DAYS_ON_TARGET = 7;
+// A fitted weekly rate has to clear this much of a gap from target before it's worth acting on.
+const MIN_MEANINGFUL_WEEKLY_DIFF = 0.3;
+// ...and it also has to be large compared to how much the readings scatter around the fitted
+// line. Bodyweight swings several pounds day to day on water, food volume and timing, and a
+// straight line through a month of that can slope either way purely by where the swings land:
+// a month of genuinely flat 192-197 lbs readings can fit to "-0.7 lbs/week" while the first
+// and last readings are identical. Acting on that produces confident advice pointing the wrong
+// way. Requiring the gap to clear ~2 standard errors keeps suggestions to trends the data can
+// actually support, and stays quiet when the honest answer is "this is noise".
+const TREND_CONFIDENCE_Z = 1.96;
 
 // Replace each reading with the median of itself and its nearest neighbors before trending.
 // A single-day water-retention/scale-error spike gets outvoted by the flat readings around
@@ -272,7 +282,8 @@ export function calculateAutoAdjustment(
   // OLS) least squares: minimize sum(w_i * (y_i - (a + b*x_i))^2), which gives the normal
   // equations below with every sum weighted by w_i.
   const days = entries.map((e) => (e.date - firstDate) / (1000 * 60 * 60 * 24));
-  const weights = medianSmooth(entries.map((e) => e.weight));
+  const rawWeights = entries.map((e) => e.weight);
+  const weights = medianSmooth(rawWeights);
   const lastDay = days[days.length - 1];
   const w = days.map((d) => Math.pow(0.5, (lastDay - d) / TREND_HALF_LIFE_DAYS));
 
@@ -285,15 +296,74 @@ export function calculateAutoAdjustment(
   const slope = (sumW * sumWXY - sumWX * sumWY) / (sumW * sumWXX - sumWX * sumWX); // lbs per day
   const avgWeeklyChange = slope * 7; // lbs per week
 
+  // How well that line actually describes the readings. Residuals are measured against the
+  // RAW weigh-ins, not the smoothed series the fit runs on: smoothing deliberately removes the
+  // day-to-day scatter, so scoring against it would report near-zero uncertainty for exactly
+  // the noisy data this check exists to catch. Weights are renormalised to sum to n so this
+  // reduces to ordinary least squares when every point is weighted equally.
+  const n = entries.length;
+  const intercept = (sumWY - slope * sumWX) / sumW;
+  const meanDay = sumWX / sumW;
+  const weightNorm = n / sumW;
+  const residuals = rawWeights.map((y, i) => y - (intercept + slope * days[i]));
+  let weightedSquaredError = 0;
+  let weightedSpread = 0;
+  for (let i = 0; i < n; i++) {
+    const wi = w[i] * weightNorm;
+    weightedSquaredError += wi * residuals[i] * residuals[i];
+    weightedSpread += wi * (days[i] - meanDay) * (days[i] - meanDay);
+  }
+  // Typical distance of a reading from the trend line, in lbs — the day-to-day swing.
+  const readingScatter = n > 2 ? Math.sqrt(weightedSquaredError / (n - 2)) : Infinity;
+
+  // Consecutive weigh-ins are not independent observations: water retention, travel, a heavy
+  // weekend all push several days in a row the same way. A ten-day stretch sitting above the
+  // line is one event, not ten separate votes for it. The textbook standard error assumes
+  // independence and so badly understates the uncertainty on exactly that shape, which is how
+  // a flat month reads as a confident "-0.7 lbs/week". Inflate the variance by the usual
+  // (1+r)/(1-r) factor for lag-1 autocorrelation r, which discounts runs back to roughly the
+  // number of independent swings they represent.
+  let lagProduct = 0;
+  let lagEnergy = 0;
+  for (let i = 1; i < n; i++) {
+    lagProduct += residuals[i] * residuals[i - 1];
+    lagEnergy += residuals[i - 1] * residuals[i - 1];
+  }
+  const autocorrelation = lagEnergy > 0 ? Math.min(0.95, Math.max(0, lagProduct / lagEnergy)) : 0;
+  const varianceInflation = (1 + autocorrelation) / (1 - autocorrelation);
+
+  // Standard error of the fitted weekly rate.
+  const weeklyRateSE = n > 2 && weightedSpread > 0
+    ? (readingScatter / Math.sqrt(weightedSpread)) * Math.sqrt(varianceInflation) * 7
+    : Infinity;
+
   const targetWeekly = TARGET_RATES[goal];
   const diff = avgWeeklyChange - targetWeekly; // positive = gaining too fast or losing too slow
 
   // Only adjust if off by more than 0.3 lbs/week from target
-  if (Math.abs(diff) < 0.3) {
+  if (Math.abs(diff) < MIN_MEANINGFUL_WEEKLY_DIFF) {
     return {
       shouldAdjust: false,
       newCalories: currentCalories,
       reason: `On track: ${avgWeeklyChange >= 0 ? '+' : ''}${avgWeeklyChange.toFixed(1)} lbs/week (target: ${targetWeekly >= 0 ? '+' : ''}${targetWeekly.toFixed(1)})`,
+      avgWeeklyChange,
+      targetWeeklyChange: targetWeekly,
+      daysSinceStart: Math.round(daySpan),
+    };
+  }
+
+  // The gap clears the size threshold, but not the noise: with readings scattering this much,
+  // a line through them could slope this way by chance. Say so rather than dressing up a
+  // coin-flip as a rate and moving the goal on the strength of it.
+  if (Math.abs(diff) < TREND_CONFIDENCE_Z * weeklyRateSE) {
+    const netChange = rawWeights[n - 1] - rawWeights[0];
+    return {
+      shouldAdjust: false,
+      newCalories: currentCalories,
+      reason:
+        `Weight is swinging about ±${readingScatter.toFixed(1)} lbs between weigh-ins, so the ` +
+        `${avgWeeklyChange >= 0 ? '+' : ''}${avgWeeklyChange.toFixed(1)} lbs/week reading isn't separable from normal fluctuation. ` +
+        `Net change over ${Math.round(daySpan)} days: ${netChange >= 0 ? '+' : ''}${netChange.toFixed(1)} lbs. Keeping your current goal.`,
       avgWeeklyChange,
       targetWeeklyChange: targetWeekly,
       daysSinceStart: Math.round(daySpan),
