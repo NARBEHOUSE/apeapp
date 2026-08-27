@@ -22,7 +22,9 @@ export interface CalorieAdjustment {
   // 'temporary-correction': a short-term calorie change to even out an over/under-eating
   // streak, expected to auto-expire back to `resumeCalories`.
   // 'resume': reverting from a temporary correction back to the normal goal.
-  kind?: 'goal-change' | 'temporary-correction' | 'resume';
+  // 'calibration': the plan was working, but the prescribed number was out of step with what
+  // the user actually ate to make it work — the goal was moved onto the observed intake.
+  kind?: 'goal-change' | 'temporary-correction' | 'resume' | 'calibration';
 }
 
 // An active short-term calorie correction (e.g. "eat less for a week to offset recent

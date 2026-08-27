@@ -526,6 +526,53 @@ export default function Dashboard({ profile, onUpdateProfile }: DashboardProps) 
         </div>
       )}
 
+      {/* Calibration banner: the plan is working, but the prescribed number is out of step with
+          what's actually being eaten to make it work. Not a correction — the goal moves onto
+          reality, nothing about the eating needs to change. */}
+      {autoAdjust?.calibrationSuggestion && !autoAdjust.shouldAdjust && !autoAdjustDismissed && !profile.temporaryCalorieOverride && (
+        <div className="bg-surface rounded-2xl p-4 space-y-3">
+          <div className="flex items-start gap-3">
+            <Zap size={16} className="text-accent shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-medium">Your goal looks out of date</div>
+              <div className="text-[0.6875rem] text-text-muted mt-0.5">
+                {autoAdjust.calibrationSuggestion.reason}
+              </div>
+              <div className="text-xs font-semibold mt-1">
+                {profile.macroTargets.calories} → {autoAdjust.calibrationSuggestion.calories} cal/day
+              </div>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => {
+                const cal = autoAdjust.calibrationSuggestion!;
+                onUpdateProfile(profile.id, {
+                  macroTargets: rescaleMacrosToCalories(profile.macroTargets, cal.calories),
+                  lastAutoAdjustDate: today(),
+                  calorieAdjustments: [
+                    ...(profile.calorieAdjustments || []),
+                    { date: today(), previousCalories: profile.macroTargets.calories, newCalories: cal.calories, reason: cal.reason, avgWeeklyChange: autoAdjust.avgWeeklyChange, kind: 'calibration' },
+                  ],
+                });
+                localStorage.setItem('fitos-dismiss-auto-adjust', today());
+                setAutoAdjustDismissed(true);
+                toast(`Goal updated to ${cal.calories} cal/day`, 'success');
+              }}
+              className="flex-1 py-2 rounded-xl bg-accent text-white text-xs font-semibold active:scale-[0.98] transition-transform"
+            >
+              Update goal ({autoAdjust.calibrationSuggestion.calories} cal)
+            </button>
+            <button
+              onClick={() => { localStorage.setItem('fitos-dismiss-auto-adjust', today()); setAutoAdjustDismissed(true); }}
+              className="py-2 px-4 rounded-xl bg-surface-raised text-xs text-text-muted font-medium"
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Adherence banner: the weight trend is explained by not eating at the goal, not by
           a bad goal — so the fix is following the plan, with an optional short correction. */}
       {autoAdjust?.adherenceIssue && !autoAdjustDismissed && !profile.temporaryCalorieOverride && (

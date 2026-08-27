@@ -134,6 +134,17 @@ export interface CorrectionSuggestion {
   reason: string;
 }
 
+// A recalibration of the goal itself, derived from energy balance rather than from a formula.
+// Offered when weight is doing what the plan intended but the prescribed number no longer
+// matches what the user actually eats to get that result.
+export interface CalibrationSuggestion {
+  calories: number;
+  avgTrackedCalories: number;
+  daysLogged: number;
+  windowDays: number;
+  reason: string;
+}
+
 export interface AutoAdjustResult {
   shouldAdjust: boolean;
   newCalories: number;
@@ -148,6 +159,10 @@ export interface AutoAdjustResult {
   adherenceIssue?: boolean;
   adherence?: CalorieAdherence;
   correctionSuggestion?: CorrectionSuggestion;
+  // Present only when the plan is working but the goal number itself has drifted from what
+  // the user actually eats to achieve it. Never accompanies `shouldAdjust` — that path means
+  // the plan is not working, which is a different question with a different answer.
+  calibrationSuggestion?: CalibrationSuggestion;
 }
 
 // Minimum average daily gap between tracked and prescribed calories (over the analysis
@@ -197,6 +212,16 @@ const MIN_MEANINGFUL_WEEKLY_DIFF = 0.3;
 // way. Requiring the gap to clear ~2 standard errors keeps suggestions to trends the data can
 // actually support, and stays quiet when the honest answer is "this is noise".
 const TREND_CONFIDENCE_Z = 1.96;
+// How far the prescribed goal has to sit from what the user actually eats — while weight does
+// what the plan intended — before offering to recalibrate the number. Below this the gap is
+// inside ordinary food-logging error and not worth acting on.
+const CALIBRATION_THRESHOLD = 150;
+// Deriving maintenance from intake needs the intake average to be representative, so require
+// food logged on at least this fraction of the window rather than the looser adherence bar.
+const MIN_CALIBRATION_COVERAGE = 0.5;
+// Cap on a single recalibration, matching the temporary-correction cap. A badly stale goal
+// converges over a few weeks rather than jumping in one step.
+const MAX_CALIBRATION_STEP = 500;
 
 // Replace each reading with the median of itself and its nearest neighbors before trending.
 // A single-day water-retention/scale-error spike gets outvoted by the flat readings around
@@ -278,6 +303,13 @@ export function calculateAutoAdjustment(
     return { ...noAdjust, reason: `Only ${Math.round(daySpan)} days of data — need 21+`, daysSinceStart: Math.round(daySpan) };
   }
 
+  // How long the current goal has actually been in effect. Nothing that changes the goal —
+  // an adjustment or a recalibration — should fire before it has had time to show an effect.
+  const daysOnTarget = targetChangedOn
+    ? Math.floor((lastDate - new Date(targetChangedOn + 'T00:00:00').getTime()) / (1000 * 60 * 60 * 24))
+    : Number.POSITIVE_INFINITY;
+  const withinGracePeriod = daysOnTarget < MIN_DAYS_ON_TARGET;
+
   // Recency-weighted linear regression to find weekly rate of change. Weighted (not plain
   // OLS) least squares: minimize sum(w_i * (y_i - (a + b*x_i))^2), which gives the normal
   // equations below with every sum weighted by w_i.
@@ -340,6 +372,48 @@ export function calculateAutoAdjustment(
   const targetWeekly = TARGET_RATES[goal];
   const diff = avgWeeklyChange - targetWeekly; // positive = gaining too fast or losing too slow
 
+  // Energy-balance calibration of the goal itself. Whenever weight does what the plan intended,
+  // the average intake that produced it IS the correct number by definition — a far better
+  // measure of this person's maintenance than a Mifflin-St Jeor estimate off height, weight and
+  // a self-reported activity bucket, which carries hundreds of calories of individual spread and
+  // goes stale as bodyweight and habits change. Anchored on what was actually eaten rather than
+  // on what was prescribed, so a goal that has quietly drifted still gets corrected while weight
+  // sits exactly where the user wants it — the case a weight-trend check can never catch,
+  // because there is no trend to find.
+  const calibrationWindowDays = Math.max(1, Math.round(daySpan));
+  const calorieByDate = new Map<string, number>();
+  for (const e of trackedCalories) {
+    const t = new Date(e.date + 'T00:00:00').getTime();
+    if (t < firstDate || t > lastDate) continue;
+    calorieByDate.set(e.date, (calorieByDate.get(e.date) ?? 0) + e.calories);
+  }
+  let calibrationSuggestion: CalibrationSuggestion | undefined;
+  if (!withinGracePeriod && calorieByDate.size / calibrationWindowDays >= MIN_CALIBRATION_COVERAGE) {
+    const daysLogged = calorieByDate.size;
+    let totalLogged = 0;
+    for (const dayCalories of calorieByDate.values()) totalLogged += dayCalories;
+    const avgTrackedCalories = Math.round(totalLogged / daysLogged);
+    const drift = avgTrackedCalories - currentCalories;
+    if (Math.abs(drift) >= CALIBRATION_THRESHOLD) {
+      const capped = Math.max(
+        currentCalories - MAX_CALIBRATION_STEP,
+        Math.min(currentCalories + MAX_CALIBRATION_STEP, avgTrackedCalories)
+      );
+      const goalPhrase =
+        goal === 'maintain' ? 'holding steady' : goal === 'lose' ? 'coming down on plan' : 'gaining on plan';
+      calibrationSuggestion = {
+        calories: Math.max(1200, capped),
+        avgTrackedCalories,
+        daysLogged,
+        windowDays: calibrationWindowDays,
+        reason:
+          `Over the last ${calibrationWindowDays} days you've averaged ${avgTrackedCalories} cal/day and your weight has been ` +
+          `${goalPhrase} — so ${avgTrackedCalories} is what this actually takes for you. Your goal is set to ${currentCalories}, ` +
+          `${Math.abs(drift)} ${drift > 0 ? 'below' : 'above'} that. Update the goal to match what's working?`,
+      };
+    }
+  }
+
   // Only adjust if off by more than 0.3 lbs/week from target
   if (Math.abs(diff) < MIN_MEANINGFUL_WEEKLY_DIFF) {
     return {
@@ -349,6 +423,7 @@ export function calculateAutoAdjustment(
       avgWeeklyChange,
       targetWeeklyChange: targetWeekly,
       daysSinceStart: Math.round(daySpan),
+      calibrationSuggestion,
     };
   }
 
@@ -367,29 +442,26 @@ export function calculateAutoAdjustment(
       avgWeeklyChange,
       targetWeeklyChange: targetWeekly,
       daysSinceStart: Math.round(daySpan),
+      calibrationSuggestion,
     };
   }
 
   // Off track — but if the current goal was only just set, the trend above is almost entirely
   // made up of days spent eating to a *different* goal, so it says nothing about this one.
   // Report the trend but don't act on it until the goal has had time to show an effect.
-  if (targetChangedOn) {
-    const changedAt = new Date(targetChangedOn + 'T00:00:00').getTime();
-    const daysOnTarget = Math.floor((lastDate - changedAt) / (1000 * 60 * 60 * 24));
-    if (daysOnTarget < MIN_DAYS_ON_TARGET) {
-      const dayWord = daysOnTarget === 1 ? 'day' : 'days';
-      return {
-        shouldAdjust: false,
-        newCalories: currentCalories,
-        reason:
-          `Your ${currentCalories} cal/day goal has only been in effect ${Math.max(0, daysOnTarget)} ${dayWord}. ` +
-          `The current ${avgWeeklyChange >= 0 ? '+' : ''}${avgWeeklyChange.toFixed(1)} lbs/week trend mostly reflects the days before it, ` +
-          `so there's nothing to judge it on yet — give it ${MIN_DAYS_ON_TARGET} days.`,
-        avgWeeklyChange,
-        targetWeeklyChange: targetWeekly,
-        daysSinceStart: Math.round(daySpan),
-      };
-    }
+  if (withinGracePeriod) {
+    const dayWord = daysOnTarget === 1 ? 'day' : 'days';
+    return {
+      shouldAdjust: false,
+      newCalories: currentCalories,
+      reason:
+        `Your ${currentCalories} cal/day goal has only been in effect ${Math.max(0, daysOnTarget)} ${dayWord}. ` +
+        `The current ${avgWeeklyChange >= 0 ? '+' : ''}${avgWeeklyChange.toFixed(1)} lbs/week trend mostly reflects the days before it, ` +
+        `so there's nothing to judge it on yet — give it ${MIN_DAYS_ON_TARGET} days.`,
+      avgWeeklyChange,
+      targetWeeklyChange: targetWeekly,
+      daysSinceStart: Math.round(daySpan),
+    };
   }
 
   // Before concluding the *prescribed* goal is wrong, check whether the user actually ate at
