@@ -25,3 +25,7 @@ MF exports/
 Thumbs.db
 *.suo
 *.sw?
+
+# Screenshots dropped in the repo root for one-off debugging
+/Screenshot_*.png
+/Screenshot_*.jpg
