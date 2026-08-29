@@ -304,21 +304,25 @@ export default function Dashboard({ profile, onUpdateProfile }: DashboardProps) 
     return prCount;
   }, [sessions, dateTick]);
 
-  // Resolve lift exercise name to IDs from programs
+  // Every id this lift has ever been logged under — across library entries and the
+  // per-session manifests, so sets done in a freestyle workout count toward the chart.
   const liftExerciseIds = useMemo(() => {
     if (!dashConfig.lifts || !dashConfig.selectedLift) return [];
-    const ids: string[] = [];
+    const ids = new Set<string>();
     for (const prog of programs) {
       for (const day of prog.days) {
         for (const ex of day.exercises) {
-          if (ex.name === dashConfig.selectedLift) {
-            ids.push(ex.id);
-          }
+          if (ex.name === dashConfig.selectedLift) ids.add(ex.id);
         }
       }
     }
-    return ids;
-  }, [dashConfig.lifts, dashConfig.selectedLift, programs]);
+    for (const session of sessions) {
+      for (const ex of session.exercises || []) {
+        if (ex.name === dashConfig.selectedLift) ids.add(ex.id);
+      }
+    }
+    return Array.from(ids);
+  }, [dashConfig.lifts, dashConfig.selectedLift, programs, sessions]);
 
   // Most recent logged weigh-in, normalized to lbs — used to tell whether an active
   // temporary correction has walked weight back to the plan's trajectory yet.
@@ -785,14 +789,19 @@ export default function Dashboard({ profile, onUpdateProfile }: DashboardProps) 
         </div>
       )}
 
-      {/* No program nudge */}
+      {/* Training without a program is a valid choice, so this points at today's workout
+          rather than nagging them to enroll in something. */}
       {!profile.activeProgram && (
         <button
           onClick={() => navigate('/workout')}
           className="w-full bg-surface rounded-2xl p-4 flex items-center gap-3 text-left active:scale-[0.98] transition-transform"
         >
           <Dumbbell size={16} className="text-text-muted" />
-          <span className="text-sm text-text-muted flex-1">Pick a training program to get started</span>
+          <span className="text-sm text-text-muted flex-1">
+            {programs.some((p) => p.kind === 'workout')
+              ? 'Pick a workout for today'
+              : 'Start a workout, or pick a program to follow'}
+          </span>
           <ChevronRight size={14} className="text-text-muted" />
         </button>
       )}

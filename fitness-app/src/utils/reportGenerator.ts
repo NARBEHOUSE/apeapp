@@ -72,6 +72,10 @@ export interface ReportData {
     totalVolume: number;
     avgSessionDuration: number;
     daysPerWeek: number;
+    /** Name of the program being followed, absent when training without one. */
+    activeProgramName?: string;
+    /** Standalone workouts the person trains from when not on a program. */
+    savedWorkoutNames: string[];
   };
   bodyweight: {
     entries: { date: string; weight: number; bodyFat?: number }[];
@@ -148,12 +152,15 @@ export async function generateReport(config: ReportConfig): Promise<ReportData> 
   const workoutDays: DailyWorkout[] = filteredSessions.map((session) => {
     const prog = programs.find((p) => p.id === session.programId);
     const day = prog?.days.find((d) => d.id === session.dayId);
+    // Sessions carry their own exercise manifest, which is the only name source for a
+    // freestyle workout or one whose library entry has since been deleted.
+    const manifest = new Map((session.exercises || []).map((e) => [e.id, e.name]));
     const duration = session.endTime ? Math.round((session.endTime - session.startTime) / 60000) : 0;
     let totalSets = 0, totalVolume = 0;
     const exercises: DailyWorkout['exercises'] = [];
     for (const [exerciseId, sets] of Object.entries(session.sets)) {
       const ex = day?.exercises.find((e) => e.id === exerciseId);
-      const rawName = ex?.name || exerciseId.replace(/^import-/, '').replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+      const rawName = ex?.name || manifest.get(exerciseId) || exerciseId.replace(/^import-/, '').replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
       const completedSets = sets.filter((s) => s.completed && !s.isWarmup);
       totalSets += completedSets.length;
       totalVolume += completedSets.reduce((s, set) => s + set.weight * set.reps, 0);
@@ -162,7 +169,9 @@ export async function generateReport(config: ReportConfig): Promise<ReportData> 
       }
     }
     return {
-      date: session.date, programName: prog?.name || 'Imported', dayTitle: day?.title || day?.tag || 'Workout',
+      date: session.date,
+      programName: prog?.name || (session.programId === 'quick' ? 'Quick Workout' : 'Imported'),
+      dayTitle: day?.title || day?.tag || session.name || 'Workout',
       duration, totalSets, totalVolume, bodyweight: session.bodyweight,
       exercises, cardio: session.cardio, notes: session.notes,
     };
@@ -225,6 +234,10 @@ export async function generateReport(config: ReportConfig): Promise<ReportData> 
       sessions: workoutDays, totalSessions, totalVolume,
       avgSessionDuration: Math.round(avgDuration),
       daysPerWeek: Math.round(totalSessions / daySpan * 10) / 10,
+      activeProgramName: config.profile.activeProgram
+        ? programs.find((p) => p.id === config.profile.activeProgram!.programId)?.name
+        : undefined,
+      savedWorkoutNames: programs.filter((p) => p.kind === 'workout').map((p) => p.name),
     },
     bodyweight: {
       entries: weightEntries,
@@ -501,7 +514,11 @@ export function generateHTMLReport(data: ReportData): string {
   <div class="profile-row"><strong>Carb Target:</strong> ${config.profile.macroTargets?.carbs || '—'} g</div>
   <div class="profile-row"><strong>Fat Target:</strong> ${config.profile.macroTargets?.fat || '—'} g</div>
   ${config.profile.tdee ? `<div class="profile-row"><strong>Est. TDEE:</strong> ${config.profile.tdee} kcal</div>` : ''}
-  ${config.profile.activeProgram ? `<div class="profile-row"><strong>Active Program:</strong> ${config.profile.activeProgram.programId}</div>` : ''}
+  <div class="profile-row"><strong>Training:</strong> ${workouts.activeProgramName
+    ? `${workouts.activeProgramName} (program)`
+    : workouts.savedWorkoutNames.length > 0
+      ? `No program — training from ${workouts.savedWorkoutNames.length} saved workout${workouts.savedWorkoutNames.length === 1 ? '' : 's'}`
+      : 'No program'}</div>
 </div>
 
 <h2>Overview</h2>

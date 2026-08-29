@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import type { WorkoutSession, SetLog, Exercise, ExerciseLastPerformance, CardioEntry } from '../types';
+import { toSessionExercises } from '../utils/workoutLibrary';
 import { saveWorkoutSession, getSessionsByProfile, deleteWorkoutSession } from '../db/workouts';
 import { getAllPrograms, initializePrograms } from '../db/programs';
 import { today } from '../utils/dateHelpers';
@@ -52,9 +53,16 @@ export function useWorkout(profileId: string | null) {
   const [activeSession, setActiveSession] = useState<WorkoutSession | null>(() => loadPersistedSession());
   const [loading, setLoading] = useState(true);
 
+  // Only the first load for a given profile is allowed to raise `loading`. Callers reload
+  // this data mid-workout — saving a session to the library, a permanent exercise swap,
+  // applying a progression — and flipping the page into its loading state would unmount
+  // the active workout, taking its unsaved local state (added exercises, skips, cardio
+  // entries) with it.
+  const loadedProfileRef = useRef<string | null>(null);
+
   const loadData = useCallback(async () => {
     if (!profileId) return;
-    setLoading(true);
+    if (loadedProfileRef.current !== profileId) setLoading(true);
     await initializePrograms();
     const [progs, sess] = await Promise.all([
       getAllPrograms(),
@@ -62,6 +70,7 @@ export function useWorkout(profileId: string | null) {
     ]);
     setPrograms(progs);
     setSessions(sess.sort((a, b) => b.startTime - a.startTime));
+    loadedProfileRef.current = profileId;
     setLoading(false);
   }, [profileId]);
 
@@ -139,9 +148,19 @@ export function useWorkout(profileId: string | null) {
     setActiveSession((prev) => prev ? { ...prev, name: name.trim() || undefined } : prev);
   }, []);
 
-  const finishWorkout = useCallback(async (): Promise<WorkoutSession | null> => {
+  /**
+   * `exercises` is what the session actually contained, mid-session additions and swaps
+   * included. It is stored on the session so the lifts stay attributable even when they
+   * belong to no library entry, or the entry is edited or deleted later.
+   */
+  const finishWorkout = useCallback(async (exercises: Exercise[] = []): Promise<WorkoutSession | null> => {
     if (!activeSession) return null;
-    const finished = { ...activeSession, endTime: Date.now() };
+    const manifest = toSessionExercises(exercises);
+    const finished: WorkoutSession = {
+      ...activeSession,
+      endTime: Date.now(),
+      ...(manifest.length > 0 ? { exercises: manifest } : {}),
+    };
     await saveWorkoutSession(finished);
     setSessions((prev) => [finished, ...prev]);
     setActiveSession(null);
@@ -194,7 +213,14 @@ export function useWorkout(profileId: string | null) {
 
   const getLastPerformanceMap = useCallback(
     (dayExercises: Exercise[]): Record<string, ExerciseLastPerformance> => {
+      // Names come from the library and from each session's own manifest, so a lift done
+      // freestyle still shows its last numbers the next time it comes up.
       const idToName: Record<string, string> = {};
+      for (const session of sessions) {
+        for (const ex of session.exercises || []) {
+          if (ex.name.trim()) idToName[ex.id] = ex.name.toLowerCase().trim();
+        }
+      }
       for (const program of programs) {
         for (const day of program.days) {
           for (const ex of day.exercises) {

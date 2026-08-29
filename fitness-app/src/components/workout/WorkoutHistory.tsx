@@ -570,8 +570,8 @@ export function WorkoutHistory({ sessions, programs, onDeleteSession, onUpdateSe
   const [selectedExId, setSelectedExId] = useState<string | null>(null);
   const [strengthMode, setStrengthMode] = useState<'weight' | 'index'>('weight');
 
-  // Exercise → muscle group map (reused from programs)
-  const exerciseMuscleMap = useMemo(() => buildExerciseMuscleMap(programs), [programs]);
+  // Exercise → muscle group, from library entries plus each session's own manifest.
+  const exerciseMuscleMap = useMemo(() => buildExerciseMuscleMap(programs, sessions), [programs, sessions]);
 
   // Per-session hard-set breakdown (last 30 sessions)
   const sessionMuscleMetrics = useMemo(() => {
@@ -665,8 +665,14 @@ export function WorkoutHistory({ sessions, programs, onDeleteSession, onUpdateSe
     [muscleSummary, hasEffortData],
   );
 
+  // Sessions first, library last: a lift the user still has on file shows its current
+  // name, while one that only ever existed inside a session keeps the name it was logged
+  // under instead of dropping out of the strength picker entirely.
   const exerciseNameMap = useMemo(() => {
     const map: Record<string, string> = {};
+    for (const session of sessions) {
+      for (const ex of session.exercises || []) map[ex.id] = ex.name;
+    }
     for (const prog of programs) {
       for (const day of prog.days) {
         for (const ex of day.exercises) {
@@ -675,7 +681,7 @@ export function WorkoutHistory({ sessions, programs, onDeleteSession, onUpdateSe
       }
     }
     return map;
-  }, [programs]);
+  }, [programs, sessions]);
 
   const exerciseList = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -744,7 +750,7 @@ export function WorkoutHistory({ sessions, programs, onDeleteSession, onUpdateSe
     const date = new Date(s.date + 'T00:00:00');
     const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
     const monthLabel = date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-    const displayTitle = s.name || day?.title || program?.name || 'Workout';
+    const displayTitle = s.name || day?.title || program?.name || 'Quick Workout';
     const haystack = [displayTitle, day?.tag, monthLabel,
       date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })]
       .filter(Boolean).join(' ').toLowerCase();

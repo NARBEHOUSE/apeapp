@@ -32,8 +32,9 @@ export function MuscleVolumeCard({ sessions, programs }: Props) {
   const weightUnit = getWeightUnit();
   const weekDates = useMemo(() => new Set(getWeekDates(today())), []);
 
-  // Build exercise -> muscle group map from all programs
-  const exerciseMuscleMap = useMemo(() => buildExerciseMuscleMap(programs), [programs]);
+  // Exercise -> muscle group, from the library plus each session's own manifest, so
+  // freestyle and off-program lifts get muscle credit too.
+  const exerciseMuscleMap = useMemo(() => buildExerciseMuscleMap(programs, sessions), [programs, sessions]);
 
   const { muscleData, hasEffortData, tonnage } = useMemo(() => {
     const weekSessions = sessions.filter((s) => weekDates.has(s.date));

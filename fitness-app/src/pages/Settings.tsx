@@ -583,10 +583,13 @@ export function Settings({ profile, onUpdateProfile, onSetMacroTargetHistory, pr
   useEffect(() => {
     getAllPrograms().then((progs) => {
       const names = new Set<string>();
-      // Only show exercises from the user's active program
+      // The lifts worth offering are the ones the user actually trains: their active
+      // program's, plus every standalone workout they train from. Someone who is on a
+      // program and also does their own sessions should see both.
       const activeProgramId = profile.activeProgram?.programId;
+      const savedWorkouts = progs.filter((p) => p.kind === 'workout');
       const relevantPrograms = activeProgramId
-        ? progs.filter((p) => p.id === activeProgramId)
+        ? [...progs.filter((p) => p.id === activeProgramId), ...savedWorkouts]
         : progs.filter((p) => !p.isBuiltIn);
       for (const prog of relevantPrograms) {
         for (const day of prog.days) {
@@ -1696,7 +1699,7 @@ export function Settings({ profile, onUpdateProfile, onSetMacroTargetHistory, pr
                     ))}
                   </select>
                 ) : (
-                  <p className="text-[0.6875rem] text-text-muted">No exercises found. Add a program first.</p>
+                  <p className="text-[0.6875rem] text-text-muted">No exercises found. Save a workout or start a program first.</p>
                 )
               )}
             </div>

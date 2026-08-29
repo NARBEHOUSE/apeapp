@@ -13,6 +13,7 @@ import {
   Play,
   Square,
   Pencil,
+  BookmarkPlus,
 } from 'lucide-react';
 import type { WorkoutSession, WorkoutDay, SetLog, Exercise, ExerciseLastPerformance, CardioEntry, Program, SetType } from '../../types';
 import { searchExerciseLibrary, type LibraryExercise } from '../../data/exerciseLibrary';
@@ -62,6 +63,12 @@ interface Props {
   onUpdateName?: (name: string) => void;
   onApplyProgression?: (exerciseId: string, weight: number, reps?: number) => void;
   onConsumeProgressionOverride?: (exerciseId: string) => void;
+  /**
+   * Keep the session's exercise list in the library as a reusable standalone workout.
+   * Available mid-session so a workout built or reshaped on the fly can be kept before
+   * it's finished — including one the user doesn't intend to complete today.
+   */
+  onSaveToLibrary?: (name: string, exercises: Exercise[]) => Promise<void>;
 }
 
 const SET_TYPE_CYCLE: SetType[] = ['standard', 'warmup', 'dropset', 'myoreps', 'failure'];
@@ -914,7 +921,10 @@ export function ActiveWorkout({
   onRemoveExercise,
   onApplyProgression,
   onConsumeProgressionOverride,
+  onSaveToLibrary,
 }: Props) {
+  const [saveToLibraryName, setSaveToLibraryName] = useState<string | null>(null);
+  const [savingToLibrary, setSavingToLibrary] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleValue, setTitleValue] = useState('');
   const [elapsed, setElapsed] = useState(0);
@@ -1111,7 +1121,7 @@ export function ActiveWorkout({
   // Smart progression suggestions
   const progressionSuggestions = useMemo(() => {
     if (!allSessions || !programs || allSessions.length < 2) return {};
-    const exMap = buildExerciseMap(programs);
+    const exMap = buildExerciseMap(programs, allSessions);
     const suggestions: Record<string, ProgressionSuggestion | null> = {};
     for (const ex of activeExercises) {
       if (ex.exerciseType === 'cardio') continue;
@@ -1380,7 +1390,62 @@ export function ActiveWorkout({
         >
           <Plus size={14} /> Add Exercise to Session
         </button>
+
+        {/* Keep this session's line-up as a reusable workout, whether or not it gets finished */}
+        {onSaveToLibrary && activeExercises.length > 0 && (
+          <button
+            onClick={() => setSaveToLibraryName(session.name || day.title || 'My Workout')}
+            className="w-full py-3 rounded-xl border border-dashed border-border text-text-muted text-xs font-medium flex items-center justify-center gap-1.5 active:scale-[0.98] transition-transform"
+          >
+            <BookmarkPlus size={14} /> Save This Workout to Library
+          </button>
+        )}
       </div>
+
+      {/* Save-to-library modal */}
+      {saveToLibraryName !== null && (
+        <div className="fixed inset-0 z-[150] flex items-end justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-bg rounded-t-3xl w-full max-w-lg p-5 pb-20 space-y-3 animate-in slide-in-from-bottom">
+            <h3 className="font-bold text-base">Save Workout</h3>
+            <p className="text-xs text-text-muted">
+              Keeps these {activeExercises.length} exercises in your library so you can do this
+              session again any time. Your logged sets are unaffected.
+            </p>
+            <input
+              type="text"
+              autoFocus
+              className="input-field text-sm"
+              placeholder="Workout name"
+              value={saveToLibraryName}
+              onChange={(e) => setSaveToLibraryName(e.target.value)}
+            />
+            <div className="flex gap-2 pt-1">
+              <button
+                onClick={() => setSaveToLibraryName(null)}
+                className="btn-secondary flex-1 text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  if (!onSaveToLibrary) return;
+                  setSavingToLibrary(true);
+                  try {
+                    await onSaveToLibrary(saveToLibraryName.trim() || 'My Workout', activeExercises);
+                    setSaveToLibraryName(null);
+                  } finally {
+                    setSavingToLibrary(false);
+                  }
+                }}
+                disabled={savingToLibrary || !saveToLibraryName.trim()}
+                className="btn-primary flex-1 text-sm disabled:opacity-30"
+              >
+                {savingToLibrary ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Skip exercise modal */}
       {skipTarget && (

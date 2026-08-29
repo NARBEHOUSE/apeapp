@@ -20,6 +20,11 @@ export async function initializePrograms(): Promise<void> {
   }
 }
 
+/**
+ * Every library entry — strict programs and standalone workouts alike. They share a
+ * store so that a single exercise-id map covers both; callers that care about the
+ * difference split on `kind` via the helpers in utils/workoutLibrary.
+ */
 export async function getAllPrograms(): Promise<Program[]> {
   const db = await getDB();
   return db.getAll('programs');

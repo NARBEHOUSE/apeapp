@@ -275,6 +275,11 @@ function SortableDayWrapper({ id, children }: { id: string; children: React.Reac
 interface Props {
   program: Program;
   fitnessGoal?: 'lose' | 'maintain' | 'build';
+  /**
+   * 'workout' edits a single standalone session: one day, no rotation, no duration.
+   * Everything below the day header is the same editor either way.
+   */
+  mode?: 'program' | 'workout';
   onSave: (program: Program) => void;
   onClose: () => void;
 }
@@ -567,12 +572,15 @@ function DayEditor({
   onAddExercise,
   onAddCardio,
   onReorderExercises,
+  singleDay = false,
 }: {
   day: WorkoutDay;
   dayIndex: number;
   goalType: string;
   durationWeeks: number;
   allMuscles: string[];
+  /** The workout IS this day, so it opens expanded and can't be collapsed or removed. */
+  singleDay?: boolean;
   onUpdateDay: (dayId: string, updates: Partial<WorkoutDay>) => void;
   onRemoveDay: (dayId: string) => void;
   onDuplicateDay: (dayId: string) => void;
@@ -586,7 +594,7 @@ function DayEditor({
   onAddCardio: (dayId: string) => void;
   onReorderExercises: (dayId: string, oldIndex: number, newIndex: number) => void;
 }) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(singleDay);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const sensors = useSensors(
@@ -610,50 +618,54 @@ function DayEditor({
   return (
     <div className="card">
       <button
-        onClick={() => setExpanded(!expanded)}
+        onClick={() => { if (!singleDay) setExpanded(!expanded); }}
         className="w-full flex items-center gap-3 text-left"
+        disabled={singleDay}
       >
         <div
           className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
           style={{ backgroundColor: day.accent || '#e8572a' }}
         >
-          {day.label?.slice(0, 2) || `D${dayIndex + 1}`}
+          {singleDay ? (day.tag?.slice(0, 2) || 'W') : (day.label?.slice(0, 2) || `D${dayIndex + 1}`)}
         </div>
         <div className="flex-1 min-w-0">
           <span className="font-semibold text-sm truncate block">
-            {day.title || `Day ${dayIndex + 1}`}
+            {day.title || (singleDay ? 'Workout' : `Day ${dayIndex + 1}`)}
           </span>
           <span className="text-xs text-text-secondary">
             {day.tag} - {day.exercises.length} exercises
           </span>
         </div>
-        {expanded ? (
+        {!singleDay && (expanded ? (
           <ChevronUp size={18} className="text-text-muted" />
         ) : (
           <ChevronDown size={18} className="text-text-muted" />
-        )}
+        ))}
       </button>
 
       {expanded && (
         <div className="mt-4 pt-4 border-t border-border space-y-4">
           {/* Day settings */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="label mb-1 block">Label</label>
-              <input
-                className="input-field text-sm"
-                value={day.label}
-                onChange={(e) => onUpdateDay(day.id, { label: e.target.value })}
-                placeholder="e.g. D1"
-              />
-            </div>
+          <div className={singleDay ? '' : 'grid grid-cols-2 gap-3'}>
+            {/* Label positions a day in the rotation, which a standalone workout has no place in. */}
+            {!singleDay && (
+              <div>
+                <label className="label mb-1 block">Label</label>
+                <input
+                  className="input-field text-sm"
+                  value={day.label}
+                  onChange={(e) => onUpdateDay(day.id, { label: e.target.value })}
+                  placeholder="e.g. D1"
+                />
+              </div>
+            )}
             <div>
               <label className="label mb-1 block">Tag</label>
               <input
                 className="input-field text-sm"
                 value={day.tag}
                 onChange={(e) => onUpdateDay(day.id, { tag: e.target.value })}
-                placeholder="e.g. PUSH, PULL, REST"
+                placeholder={singleDay ? 'e.g. UPPER, PUSH' : 'e.g. PUSH, PULL, REST'}
               />
             </div>
           </div>
@@ -744,17 +756,19 @@ function DayEditor({
           </div>
 
           {/* Collapse from bottom */}
-          <button
-            type="button"
-            onClick={() => setExpanded(false)}
-            className="w-full py-2 flex items-center justify-center gap-1 text-text-muted text-xs hover:text-text-secondary transition-colors"
-          >
-            <ChevronUp size={13} />
-            Collapse
-          </button>
+          {!singleDay && (
+            <button
+              type="button"
+              onClick={() => setExpanded(false)}
+              className="w-full py-2 flex items-center justify-center gap-1 text-text-muted text-xs hover:text-text-secondary transition-colors"
+            >
+              <ChevronUp size={13} />
+              Collapse
+            </button>
+          )}
 
           {/* Duplicate + Remove day */}
-          <div className="flex gap-2">
+          <div className={`flex gap-2 ${singleDay ? 'hidden' : ''}`}>
             <button
               type="button"
               onClick={() => onDuplicateDay(day.id)}
@@ -787,14 +801,28 @@ function DayEditor({
   );
 }
 
-export function ProgramEditor({ program, onSave, onClose }: Props) {
-  const [editedProgram, setEditedProgram] = useState<Program>(() => ({
-    ...program,
-    days: program.days.map((d) => ({
+export function ProgramEditor({ program, mode = 'program', onSave, onClose }: Props) {
+  const isWorkout = mode === 'workout';
+  const [editedProgram, setEditedProgram] = useState<Program>(() => {
+    const days = program.days.map((d) => ({
       ...d,
       exercises: d.exercises.map((e) => ({ ...e })),
-    })),
-  }));
+    }));
+    // A standalone workout is always exactly one day, even if it arrived empty.
+    if (isWorkout && days.length === 0) {
+      days.push({
+        id: crypto.randomUUID(),
+        label: '',
+        tag: 'WORKOUT',
+        title: program.name || 'Workout',
+        subtitle: '',
+        accent: getRandomColor(),
+        note: '',
+        exercises: [],
+      });
+    }
+    return { ...program, kind: isWorkout ? 'workout' as const : program.kind, days };
+  });
 
   const updateProgramField = useCallback(
     (updates: Partial<Program>) => {
@@ -982,7 +1010,7 @@ export function ProgramEditor({ program, onSave, onClose }: Props) {
           >
             <X size={20} />
           </button>
-          <h2 className="font-bold">Edit Program</h2>
+          <h2 className="font-bold">{isWorkout ? 'Edit Workout' : 'Edit Program'}</h2>
           <button
             onClick={handleSave}
             className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-accent-orange text-white font-semibold text-sm active:scale-95 transition-transform"
@@ -994,18 +1022,18 @@ export function ProgramEditor({ program, onSave, onClose }: Props) {
       </div>
 
       <div className="px-4 py-4 space-y-4 pb-8">
-        {/* Program name */}
+        {/* Name */}
         <div>
-          <label className="label mb-1.5 block">Program Name</label>
+          <label className="label mb-1.5 block">{isWorkout ? 'Workout Name' : 'Program Name'}</label>
           <input
             className="input-field"
             value={editedProgram.name}
             onChange={(e) => updateProgramField({ name: e.target.value })}
-            placeholder="Program name"
+            placeholder={isWorkout ? 'e.g. Upper Day' : 'Program name'}
           />
         </div>
 
-        {/* Program description */}
+        {/* Description */}
         <div>
           <label className="label mb-1.5 block">Description</label>
           <input
@@ -1016,8 +1044,8 @@ export function ProgramEditor({ program, onSave, onClose }: Props) {
           />
         </div>
 
-        {/* Goal & Duration */}
-        <div className="grid grid-cols-2 gap-3">
+        {/* Goal (& duration, which only means anything on a rotation) */}
+        <div className={isWorkout ? '' : 'grid grid-cols-2 gap-3'}>
           <div>
             <label className="label mb-1.5 block">Goal</label>
             <select
@@ -1038,23 +1066,25 @@ export function ProgramEditor({ program, onSave, onClose }: Props) {
               <option value="custom">Custom</option>
             </select>
           </div>
-          <div>
-            <label className="label mb-1.5 block">Duration (weeks)</label>
-            <input
-              type="text"
-              inputMode="numeric"
-              className="input-field text-sm"
-              value={editedProgram.suggestedDurationWeeks || ''}
-              onChange={(e) =>
-                updateProgramField({
-                  suggestedDurationWeeks: parseInt(e.target.value) || undefined,
-                })
-              }
-              placeholder="e.g. 8"
-              min={1}
-              max={52}
-            />
-          </div>
+          {!isWorkout && (
+            <div>
+              <label className="label mb-1.5 block">Duration (weeks)</label>
+              <input
+                type="text"
+                inputMode="numeric"
+                className="input-field text-sm"
+                value={editedProgram.suggestedDurationWeeks || ''}
+                onChange={(e) =>
+                  updateProgramField({
+                    suggestedDurationWeeks: parseInt(e.target.value) || undefined,
+                  })
+                }
+                placeholder="e.g. 8"
+                min={1}
+                max={52}
+              />
+            </div>
+          )}
         </div>
 
         {/* Default Rest Timer */}
@@ -1105,10 +1135,10 @@ export function ProgramEditor({ program, onSave, onClose }: Props) {
           </p>
         </div>
 
-        {/* Days */}
+        {/* Days — a standalone workout is a single day, so the rotation chrome comes off */}
         <div>
           <h3 className="label mb-3">
-            Days ({editedProgram.days.length})
+            {isWorkout ? 'Exercises' : `Days (${editedProgram.days.length})`}
           </h3>
           <DndContext
             sensors={useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))}
@@ -1124,14 +1154,15 @@ export function ProgramEditor({ program, onSave, onClose }: Props) {
           >
             <SortableContext items={editedProgram.days.map((d) => d.id)} strategy={verticalListSortingStrategy}>
               <div className="space-y-3">
-                {editedProgram.days.map((day, index) => (
-                  <SortableDayWrapper key={day.id} id={day.id}>
+                {editedProgram.days.map((day, index) => {
+                  const editor = (
                     <DayEditor
                       day={day}
                       dayIndex={index}
                       goalType={editedProgram.goal?.type || 'custom'}
                       durationWeeks={editedProgram.suggestedDurationWeeks || 8}
                       allMuscles={allMuscles}
+                      singleDay={isWorkout}
                       onUpdateDay={updateDay}
                       onRemoveDay={removeDay}
                       onDuplicateDay={duplicateDay}
@@ -1141,25 +1172,32 @@ export function ProgramEditor({ program, onSave, onClose }: Props) {
                       onAddCardio={addCardio}
                       onReorderExercises={reorderExercises}
                     />
-                  </SortableDayWrapper>
-                ))}
+                  );
+                  return isWorkout
+                    ? <div key={day.id}>{editor}</div>
+                    : <SortableDayWrapper key={day.id} id={day.id}>{editor}</SortableDayWrapper>;
+                })}
               </div>
             </SortableContext>
           </DndContext>
 
-          <button
-            onClick={() => addDay(false)}
-            className="w-full mt-3 py-3 rounded-xl border border-dashed border-border-light text-text-secondary font-medium hover:border-accent-orange/50 hover:text-accent-orange transition-colors flex items-center justify-center gap-2"
-          >
-            <Plus size={18} />
-            Add Training Day
-          </button>
-          <button
-            onClick={() => addDay(true)}
-            className="w-full mt-2 py-2.5 rounded-xl border border-dashed border-border-light text-text-muted font-medium hover:border-text-muted/50 transition-colors flex items-center justify-center gap-2 text-sm"
-          >
-            Add Rest Day
-          </button>
+          {!isWorkout && (
+            <>
+              <button
+                onClick={() => addDay(false)}
+                className="w-full mt-3 py-3 rounded-xl border border-dashed border-border-light text-text-secondary font-medium hover:border-accent-orange/50 hover:text-accent-orange transition-colors flex items-center justify-center gap-2"
+              >
+                <Plus size={18} />
+                Add Training Day
+              </button>
+              <button
+                onClick={() => addDay(true)}
+                className="w-full mt-2 py-2.5 rounded-xl border border-dashed border-border-light text-text-muted font-medium hover:border-text-muted/50 transition-colors flex items-center justify-center gap-2 text-sm"
+              >
+                Add Rest Day
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>

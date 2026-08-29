@@ -48,16 +48,39 @@ export interface MuscleSetCounts {
 
 export type ExerciseMuscleMap = Record<string, { primaries: string[]; secondary: string[] }>;
 
-export function buildExerciseMuscleMap(programs: Program[]): ExerciseMuscleMap {
+function splitMuscles(muscle: string | undefined, secondary: string | string[] | undefined) {
+  const primaries = (muscle || '').split(',').map((m) => m.trim()).filter(Boolean);
+  const sec = Array.isArray(secondary)
+    ? secondary
+    : (secondary || '').split(',').map((m) => m.trim()).filter(Boolean);
+  return { primaries, secondary: sec };
+}
+
+/**
+ * Exercise id → the muscles it credits.
+ *
+ * Sessions are folded in first so that lifts which belong to no library entry — added
+ * mid-session, or logged in a freestyle workout — still earn muscle credit. Library
+ * entries are applied last because they are the current, editable source of truth for an
+ * exercise the user still has on file. Without the session pass, a casual lifter who
+ * never enrolls in anything would read as zero volume on every muscle.
+ */
+export function buildExerciseMuscleMap(
+  programs: Program[],
+  sessions: WorkoutSession[] = [],
+): ExerciseMuscleMap {
   const map: ExerciseMuscleMap = {};
+  for (const session of sessions) {
+    for (const ex of session.exercises || []) {
+      if (!ex.muscle) continue;
+      map[ex.id] = splitMuscles(ex.muscle, ex.secondaryMuscles);
+    }
+  }
   for (const prog of programs) {
     for (const day of prog.days) {
       for (const ex of day.exercises) {
         if (!ex.muscle) continue;
-        const primaries = ex.muscle.split(',').map((m) => m.trim()).filter(Boolean);
-        const sec = ex.secondaryMuscles;
-        const secondary = Array.isArray(sec) ? sec : (sec || '').split(',').map((m) => m.trim()).filter(Boolean);
-        map[ex.id] = { primaries, secondary };
+        map[ex.id] = splitMuscles(ex.muscle, ex.secondaryMuscles);
       }
     }
   }

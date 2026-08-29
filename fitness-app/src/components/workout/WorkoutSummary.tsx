@@ -10,12 +10,21 @@ interface Props {
   previousPrs: Record<string, { weight: number }>;
   units: 'imperial' | 'metric';
   onClose: () => void;
-  onSaveAsProgram?: () => Promise<void>;
+  /**
+   * Keep what was just done as a reusable standalone workout. Offered whenever the
+   * session wasn't simply a library entry run as written — a freestyle session, or one
+   * where exercises were added, swapped or dropped.
+   */
+  onSaveAsWorkout?: (name: string) => Promise<void>;
+  defaultWorkoutName?: string;
   onUpdateSession?: (session: WorkoutSession) => void;
 }
 
-export function WorkoutSummary({ session, program, prs, previousPrs, units, onClose, onSaveAsProgram, onUpdateSession }: Props) {
+export function WorkoutSummary({ session, program, prs, previousPrs, units, onClose, onSaveAsWorkout, defaultWorkoutName, onUpdateSession }: Props) {
   const [saving, setSaving] = useState(false);
+  const [savedToLibrary, setSavedToLibrary] = useState(false);
+  const [namingWorkout, setNamingWorkout] = useState(false);
+  const [workoutName, setWorkoutName] = useState(defaultWorkoutName || '');
   const [notes, setNotes] = useState(session.notes || '');
   const day = program.days.find((d) => d.id === session.dayId);
   const dayExercises = day?.exercises || [];
@@ -169,19 +178,57 @@ export function WorkoutSummary({ session, program, prs, previousPrs, units, onCl
             Share Workout
           </button>
 
-          {/* Save as Program (quick workouts only) */}
-          {onSaveAsProgram && (
-            <button
-              onClick={async () => {
-                setSaving(true);
-                try { await onSaveAsProgram(); } finally { setSaving(false); }
-              }}
-              disabled={saving}
-              className="w-full bg-surface-raised text-text-primary font-medium rounded-xl py-3 flex items-center justify-center gap-2 active:scale-[0.98] transition-transform disabled:opacity-50"
-            >
-              <BookmarkPlus size={16} />
-              {saving ? 'Saving…' : 'Save as Program'}
-            </button>
+          {/* Keep this session as a workout you can repeat */}
+          {onSaveAsWorkout && !savedToLibrary && (
+            namingWorkout ? (
+              <div className="bg-surface-raised rounded-xl p-3 space-y-2">
+                <div className="text-xs font-semibold text-text-secondary">Name this workout</div>
+                <input
+                  type="text"
+                  autoFocus
+                  className="w-full bg-surface rounded-lg px-3 py-2.5 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-1 focus:ring-accent/40"
+                  placeholder="e.g. Upper Day"
+                  value={workoutName}
+                  onChange={(e) => setWorkoutName(e.target.value)}
+                />
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setNamingWorkout(false)}
+                    className="flex-1 bg-surface text-text-secondary font-medium rounded-lg py-2.5 text-sm"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={async () => {
+                      setSaving(true);
+                      try {
+                        await onSaveAsWorkout(workoutName.trim() || defaultWorkoutName || 'My Workout');
+                        setSavedToLibrary(true);
+                        setNamingWorkout(false);
+                      } finally { setSaving(false); }
+                    }}
+                    disabled={saving}
+                    className="flex-1 bg-accent text-white font-semibold rounded-lg py-2.5 text-sm disabled:opacity-50"
+                  >
+                    {saving ? 'Saving…' : 'Save'}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={() => setNamingWorkout(true)}
+                className="w-full bg-surface-raised text-text-primary font-medium rounded-xl py-3 flex items-center justify-center gap-2 active:scale-[0.98] transition-transform"
+              >
+                <BookmarkPlus size={16} />
+                Save to My Workouts
+              </button>
+            )
+          )}
+
+          {savedToLibrary && (
+            <div className="w-full bg-surface-raised text-text-muted text-xs rounded-xl py-3 text-center">
+              Saved to your workouts — start it again any time from the library.
+            </div>
           )}
 
           {/* Done button */}

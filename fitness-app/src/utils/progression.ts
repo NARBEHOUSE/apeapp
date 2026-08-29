@@ -1,4 +1,4 @@
-import type { SetLog, WeeklyTarget, WorkoutSession, Exercise } from '../types';
+import type { SetLog, WeeklyTarget, WorkoutSession, Exercise, SessionExercise } from '../types';
 
 export type ProgressionType = 'linear' | 'double_progression' | 'custom';
 
@@ -499,10 +499,34 @@ export function analyzeExerciseProgression(
   return null;
 }
 
+/**
+ * Exercise id → its prescription, for resolving logged sets back to a named lift.
+ *
+ * Sessions are folded in first so that a lift logged outside any library entry — added
+ * mid-session, or a whole freestyle workout — still has a name and a rep target to
+ * progress against. Library entries land last since they carry the full prescription
+ * (progression config, set schemes) and are what the user can still edit.
+ */
 export function buildExerciseMap(
   programs: { days: { exercises: Exercise[] }[] }[],
+  sessions: { exercises?: SessionExercise[] }[] = [],
 ): Map<string, Exercise> {
   const map = new Map<string, Exercise>();
+  for (const session of sessions) {
+    for (const ex of session.exercises || []) {
+      map.set(ex.id, {
+        id: ex.id,
+        name: ex.name,
+        sets: ex.sets,
+        reps: ex.reps,
+        muscle: ex.muscle,
+        secondaryMuscles: ex.secondaryMuscles,
+        note: '',
+        inputType: ex.inputType,
+        exerciseType: ex.exerciseType,
+      });
+    }
+  }
   for (const prog of programs) {
     for (const day of prog.days) {
       for (const ex of day.exercises) {

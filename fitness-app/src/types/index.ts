@@ -121,6 +121,20 @@ export interface TrainingBlock {
   intensityPercent?: number;
 }
 
+/**
+ * What a library entry is meant to be used as.
+ * - 'program' (the default when absent): a multi-day schedule you enroll in and follow
+ *   on a rotation, with a start date and a planned end.
+ * - 'workout': a single standalone session you do whenever you feel like it. No
+ *   enrollment, no rotation, no schedule to fall behind on.
+ *
+ * Both share the `Program` shape on purpose. Every exercise-identity lookup in the app
+ * (last performance, PRs, per-muscle volume, progression suggestions) resolves an
+ * exercise id through the same map built from library entries, so a standalone workout
+ * gets all of that for free — which is the whole point of tracking a casual lifter.
+ */
+export type LibraryEntryKind = 'program' | 'workout';
+
 export interface Program {
   id: string;
   name: string;
@@ -136,6 +150,13 @@ export interface Program {
   split?: string;
   defaultRestTimer?: number;
   effortMetric?: EffortMetric;
+  /** Absent means 'program' — every entry that predates standalone workouts is a program. */
+  kind?: LibraryEntryKind;
+  /** For 'workout' entries pulled out of a program: which program the day came from, so
+   *  the UI and the coach can say "Upper Day, from Upper/Lower 5-Day" instead of losing
+   *  the fact that the user is loosely following something. */
+  sourceProgramId?: string;
+  sourceProgramName?: string;
 }
 
 export interface WorkoutDay {
@@ -311,6 +332,27 @@ export interface CardioEntry {
   notes?: string;
 }
 
+/**
+ * The identity of one exercise as it was actually performed in a session. Stored on the
+ * session itself so a logged lift stays attributable even when it never belonged to a
+ * library entry (added mid-session, freestyle workout) or the entry it came from was
+ * later edited or deleted. Without this, those sets are orphaned: no name in history, no
+ * muscle credit, no progression tracking.
+ *
+ * Trimmed to the identity-bearing fields — the prescription (progression config, set
+ * schemes, weekly targets) lives on the library entry and would only bloat every session.
+ */
+export interface SessionExercise {
+  id: string;
+  name: string;
+  muscle: string;
+  secondaryMuscles?: string | string[];
+  sets: number;
+  reps: string;
+  inputType?: 'reps' | 'time';
+  exerciseType?: 'strength' | 'cardio';
+}
+
 export type WorkoutSessionStatus = 'completed' | 'skipped';
 
 export interface WorkoutSession {
@@ -331,6 +373,9 @@ export interface WorkoutSession {
   cardio?: CardioEntry[];
   /** Absent/'completed' = a normal logged workout. 'skipped' = deliberately marked as not done, so it's excluded from previous-performance lookups and volume/strength stats. */
   status?: WorkoutSessionStatus;
+  /** Every exercise logged in this session, including ones added on the fly. Undefined on
+   *  sessions saved before this existed — those still resolve through the library map. */
+  exercises?: SessionExercise[];
 }
 
 export type SetType = 'standard' | 'warmup' | 'dropset' | 'myoreps' | 'failure';

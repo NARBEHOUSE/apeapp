@@ -1,6 +1,13 @@
 import { callAI } from './aiAdapter';
 import type { WorkoutSession, FoodEntry, Measurement, CheckInEntry, StepEntry, MacroTargets, Profile, Program } from '../types';
-import { today } from './dateHelpers';
+import { today, localDateStr } from './dateHelpers';
+import {
+  splitLibrary,
+  muscleFocus,
+  exerciseCount,
+  lastPerformedDate,
+  daysSince,
+} from './workoutLibrary';
 import {
   buildExerciseMuscleMap,
   muscleSetsForSessions,
@@ -36,6 +43,51 @@ interface CoachDataSnapshot {
     currentWeight?: number;
   };
   training: {
+    /**
+     * How this person actually trains. Not everyone follows a program, and the coach must
+     * not treat "casual" as a problem to be corrected — it changes which metrics matter
+     * (consistency and muscle coverage) rather than making the data unusable.
+     */
+    style: {
+      /** 'program' = enrolled and sticking to it. 'mixed' = enrolled but also training
+       *  off-plan. 'casual' = not enrolled in anything; trains from saved workouts or
+       *  freestyle. */
+      mode: 'program' | 'mixed' | 'casual';
+      programName?: string;
+      programWeek?: number;
+      programDurationWeeks?: number;
+      /** Sessions in the last 28 days that were the enrolled program's prescribed days. */
+      onProgramSessions28d?: number;
+      /** Sessions in the last 28 days that weren't — saved workouts or freestyle. */
+      offProgramSessions28d: number;
+      /** The user's own library of standalone workouts: what they can pick from today. */
+      savedWorkouts: {
+        name: string;
+        exercises: number;
+        muscles: string[];
+        lastDoneDaysAgo: number | null;
+        /** Set when this workout was pulled out of a program the user follows loosely. */
+        fromProgram?: string;
+      }[];
+      /** What they actually did recently, most recent first. */
+      recentSessions: {
+        date: string;
+        name: string;
+        source: 'program' | 'saved_workout' | 'freestyle';
+        skipped?: boolean;
+      }[];
+    };
+    /**
+     * Consistency, which for someone without a schedule is the headline number — a
+     * week-over-week volume swing means far less when the training days are chosen ad hoc.
+     */
+    consistency: {
+      sessionsLast7d: number;
+      sessionsLast28d: number;
+      avgSessionsPerWeek28d: number;
+      daysSinceLastWorkout: number | null;
+      longestGapDays28: number | null;
+    };
     workoutsThisWeek: number;
     workoutsLastWeek: number;
     hardSetsThisWeek: number;
@@ -97,7 +149,9 @@ function getLastNDays(n: number): Set<string> {
   for (let i = n - 1; i >= 0; i--) {
     const d = new Date(today() + 'T00:00:00');
     d.setDate(d.getDate() - i);
-    dates.add(d.toISOString().split('T')[0]);
+    // Local, not toISOString() — session dates are local, and formatting back through
+    // UTC shifts the whole window by a day for anyone east of Greenwich.
+    dates.add(localDateStr(d));
   }
   return dates;
 }
@@ -116,8 +170,11 @@ export function buildDataSnapshot(
   const last30 = getLastNDays(30);
 
   // Training
-  const weekSessions = sessions.filter((s) => last7.has(s.date));
-  const prevSessions = sessions.filter((s) => prev7.has(s.date) && !last7.has(s.date));
+  // Skipped days are logged but were not trained — counting them would inflate every
+  // session count the coach reasons about.
+  const doneSessions = sessions.filter((s) => s.status !== 'skipped');
+  const weekSessions = doneSessions.filter((s) => last7.has(s.date));
+  const prevSessions = doneSessions.filter((s) => prev7.has(s.date) && !last7.has(s.date));
 
   // Hard sets per muscle per week is what drives hypertrophy, so the coach reasons
   // about set counts against the volume landmarks rather than about tonnage.
@@ -127,7 +184,8 @@ export function buildDataSnapshot(
 
   const roundOrNull = (n: number | null) => (n == null ? null : Math.round(n * 10) / 10);
 
-  const weekMuscleSets = muscleSetsForSessions(weekSessions, buildExerciseMuscleMap(programs));
+  // Sessions feed the map too, so lifts done outside any library entry still get credited.
+  const weekMuscleSets = muscleSetsForSessions(weekSessions, buildExerciseMuscleMap(programs, sessions));
   const setsPerMuscleThisWeek: Record<string, number> = {};
   for (const [muscle, counts] of Object.entries(weekMuscleSets)) {
     setsPerMuscleThisWeek[muscle] = Math.round((effortTracked ? counts.hard : counts.sets) * 10) / 10;
@@ -137,11 +195,16 @@ export function buildDataSnapshot(
   const exerciseMaxes: Record<string, number[]> = {};
   const recentSessions = [...sessions].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 20);
   const activeProgram = profile.activeProgram ? programs.find((p) => p.id === profile.activeProgram!.programId) : null;
+  // Names come from every library entry and every session's own manifest, not just the
+  // enrolled program — otherwise anyone training casually gets raw ids in their stall list.
   const exerciseNames: Record<string, string> = {};
-  if (activeProgram) {
-    for (const day of activeProgram.days) {
+  for (const session of sessions) {
+    for (const ex of session.exercises || []) exerciseNames[ex.id] = ex.name;
+  }
+  for (const entry of programs) {
+    for (const day of entry.days) {
       for (const ex of day.exercises) {
-        exerciseNames[ex.id] = ex.name;
+        if (ex.name.trim()) exerciseNames[ex.id] = ex.name;
       }
     }
   }
@@ -151,7 +214,9 @@ export function buildDataSnapshot(
       const completed = sets.filter((st) => st.completed && st.weight > 0);
       if (completed.length === 0) continue;
       const maxW = Math.max(...completed.map((st) => st.weight));
-      const name = exerciseNames[exId] || exId;
+      const name = exerciseNames[exId];
+      // An unresolvable id would read to the model as an exercise called "a3f2-…".
+      if (!name) continue;
       if (!exerciseMaxes[name]) exerciseMaxes[name] = [];
       exerciseMaxes[name].push(maxW);
     }
@@ -163,6 +228,75 @@ export function buildDataSnapshot(
       stalledExercises.push(`${name} (${maxes[0]} ${profile.units === 'metric' ? 'kg' : 'lbs'})`);
     }
   }
+
+  // ── Training style & consistency ──────────────────────────────────────────────────
+  // Everything here answers "how does this person actually train?" rather than "are they
+  // following the plan?", because for a casual lifter there may be no plan to follow.
+  const last28 = getLastNDays(28);
+  const sessions28 = doneSessions.filter((s) => last28.has(s.date));
+  const entryById = new Map(programs.map((p) => [p.id, p]));
+
+  const onProgramSessions28d = activeProgram
+    ? sessions28.filter((s) => s.programId === activeProgram.id).length
+    : undefined;
+  const offProgramSessions28d = activeProgram
+    ? sessions28.length - (onProgramSessions28d || 0)
+    : sessions28.length;
+
+  // 'mixed' should mean off-plan training is a real part of how they train, not that one
+  // session in a month happened to be something else.
+  const mode: CoachDataSnapshot['training']['style']['mode'] = !activeProgram
+    ? 'casual'
+    : sessions28.length > 0 && offProgramSessions28d / sessions28.length >= 0.25
+      ? 'mixed'
+      : 'program';
+
+  const { workouts: libraryWorkouts } = splitLibrary(programs);
+  const savedWorkouts = libraryWorkouts.map((w) => ({
+    name: w.name,
+    exercises: exerciseCount(w),
+    muscles: muscleFocus(w),
+    lastDoneDaysAgo: daysSince(lastPerformedDate(w.id, sessions)),
+    ...(w.sourceProgramName ? { fromProgram: w.sourceProgramName } : {}),
+  }));
+
+  const recentSessionSummaries = [...sessions]
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .slice(0, 10)
+    .map((s) => {
+      const entry = entryById.get(s.programId);
+      const day = entry?.days.find((d) => d.id === s.dayId);
+      const source: 'program' | 'saved_workout' | 'freestyle' = !entry
+        ? 'freestyle'
+        : entry.kind === 'workout'
+          ? 'saved_workout'
+          : 'program';
+      const name = s.name
+        || (source === 'program' ? `${day?.tag || day?.title || 'Day'} — ${entry!.name}` : entry?.name)
+        || 'Freestyle session';
+      return { date: s.date, name, source, ...(s.status === 'skipped' ? { skipped: true } : {}) };
+    });
+
+  const trainingDates = [...new Set(sessions28.map((s) => s.date))].sort();
+  const daysSinceLastWorkout = daysSince(
+    doneSessions.length > 0
+      ? [...doneSessions].sort((a, b) => b.date.localeCompare(a.date))[0].date
+      : null,
+  );
+  // Gaps measured across the 28-day window, with today closing the final gap so an
+  // ongoing layoff shows up rather than hiding behind the last recorded pair.
+  const longestGapDays28 = (() => {
+    if (trainingDates.length === 0) return null;
+    const marks = [...trainingDates, today()];
+    let longest = 0;
+    for (let i = 1; i < marks.length; i++) {
+      const gap = Math.round(
+        (new Date(marks[i] + 'T00:00:00').getTime() - new Date(marks[i - 1] + 'T00:00:00').getTime()) / 86400000,
+      );
+      if (gap > longest) longest = gap;
+    }
+    return longest;
+  })();
 
   // Nutrition
   const weekFood = allFoodEntries.filter((f) => last7.has(f.date));
@@ -236,6 +370,25 @@ export function buildDataSnapshot(
       currentWeight: latestWeight || profile.bodyStats?.weightKg,
     },
     training: {
+      style: {
+        mode,
+        programName: activeProgram?.name,
+        programWeek: profile.activeProgram
+          ? Math.max(1, Math.ceil((Date.now() - new Date(profile.activeProgram.startDate).getTime()) / (7 * 86400000)))
+          : undefined,
+        programDurationWeeks: profile.activeProgram?.durationWeeks,
+        onProgramSessions28d,
+        offProgramSessions28d,
+        savedWorkouts,
+        recentSessions: recentSessionSummaries,
+      },
+      consistency: {
+        sessionsLast7d: weekSessions.length,
+        sessionsLast28d: sessions28.length,
+        avgSessionsPerWeek28d: Math.round((sessions28.length / 4) * 10) / 10,
+        daysSinceLastWorkout,
+        longestGapDays28,
+      },
       workoutsThisWeek: weekSessions.length,
       workoutsLastWeek: prevSessions.length,
       hardSetsThisWeek: weekCounts.hard,
@@ -309,6 +462,18 @@ Rules:
 - NEVER reference injuries, pain, or medical symptoms
 - Focus on: calorie/macro adjustments, training volume, deload timing, consistency patterns, step/activity trends
 - Training volume means HARD SETS per muscle per week — sets taken within 3 reps of failure (RIR 0-3 / RPE 7-10). Judge training by set counts, never by tonnage
+
+HOW THEY TRAIN (training.style) — read this before judging their training:
+- training.style.mode tells you whether they are on a program or not:
+  - 'program': enrolled and following the prescribed rotation
+  - 'mixed': enrolled, but also training off-plan. This is normal and fine. Off-plan sessions are real training — count them. Never scold them for it or tell them to "get back on the program"
+  - 'casual': not on a program at all. This is a deliberate, valid way to train, NOT a problem to fix. Do not open with "you should start a program". Only raise programming at all if their own data shows something they cannot get from how they currently train, or they ask
+- For a casual or mixed lifter, judge them on training.consistency and on per-muscle coverage first. Week-over-week volume deltas are weak evidence when the training days are chosen ad hoc — a lighter week is a choice, not a red flag
+- Rest days are not failures. Only mention a gap when consistency.daysSinceLastWorkout is long relative to their OWN consistency.avgSessionsPerWeek28d, not against some ideal number of days per week
+- training.style.savedWorkouts is the user's own library of standalone workouts. When you suggest what to train next, name one of THESE by name — favour one that is stale (high lastDoneDaysAgo) and covers muscles that look light in setsPerMuscleThisWeek. Never invent a workout they don't have, and never prescribe a weekly split they didn't ask for
+- A savedWorkout with a fromProgram value means they are loosely following that program's days without being enrolled. Treat that as intentional. You can reference the program's structure, but do not tell them they are "behind" on it — there is no schedule to be behind on
+- training.style.recentSessions is what they actually did. Use the names when giving feedback ("your Upper day", not "your last workout") — it makes the advice concrete
+- If they have no savedWorkouts and train freestyle, you may mention once that saving a session to their library makes it repeatable and easier to track progress on. Only if it genuinely helps; never as filler
 - setsPerMuscleThisWeek is raw counts. The app does NOT know the user's minimum effective volume — that is individual, varies by muscle, and is not derivable from logged sets. Never tell the user a muscle is "below MEV" or "above MRV" as though it were measured. If a muscle looks genuinely neglected relative to their own goals, say so as an observation and let them judge
 - avgRirThisWeek is how close to failure their sets actually got. Hypertrophy improves continuously as RIR drops toward 0, so an average above 3 means they are leaving growth on the table and should push sets closer to failure before adding volume. An average under about 0.5 means they train at failure constantly, which is a fatigue and recovery risk rather than a win
 - tonnageThisWeek/tonnageLastWeek are context only — a tonnage swing on its own is not a reason to change anything, since heavier low-rep work inflates it

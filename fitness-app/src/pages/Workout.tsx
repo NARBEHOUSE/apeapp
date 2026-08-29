@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -14,12 +14,27 @@ import {
   Library,
   CheckCircle2,
   SkipForward,
+  Play,
+  BookmarkPlus,
 } from 'lucide-react';
 import type { Profile, Program, WorkoutSession, WorkoutDay as WorkoutDayType, ActiveProgramEnrollment, ProgramCompletion, Exercise } from '../types';
 import { useWorkout } from '../hooks/useWorkout';
 import { duplicateProgram, deleteProgram, saveProgram } from '../db/programs';
 import { getAllPRs } from '../db/workouts';
-import { ProgramList } from '../components/workout/ProgramList';
+import { today, localDateStr } from '../utils/dateHelpers';
+import { WorkoutLibrary } from '../components/workout/WorkoutLibrary';
+import {
+  splitLibrary,
+  buildWorkoutFromDay,
+  buildWorkoutFromExercises,
+  blankWorkout,
+  workoutDayOf,
+  isSavedWorkout,
+  muscleFocus,
+  lastPerformedDate,
+  formatDaysAgo,
+  exerciseCount,
+} from '../utils/workoutLibrary';
 import { WorkoutDay } from '../components/workout/WorkoutDay';
 import { ActiveWorkout } from '../components/workout/ActiveWorkout';
 import { WorkoutHistory } from '../components/workout/WorkoutHistory';
@@ -124,6 +139,13 @@ export function Workout({ profile, onUpdateProfile }: Props) {
   const [selectedProgramId, setSelectedProgramId] = useState<string | null>(activeSession?.programId || null);
   const [selectedDayId, setSelectedDayId] = useState<string | null>(activeSession?.dayId || null);
   const [editingProgram, setEditingProgram] = useState<Program | null>(null);
+  const [editorMode, setEditorMode] = useState<'program' | 'workout'>('program');
+  // Where to land after saving from the editor — editing out of the library should go
+  // back to the library rather than dumping the user on the workout home screen.
+  const [editorReturnView, setEditorReturnView] = useState<View>('home');
+  // Same idea for the program-days view, which is now reachable from both the home
+  // screen and the library — back should undo the step the user actually took.
+  const [daysReturnView, setDaysReturnView] = useState<View>('library');
   const [enrollProgramId, setEnrollProgramId] = useState<string | null>(null);
   const [enrollWeeks, setEnrollWeeks] = useState('8');
   const [showEndConfirm, setShowEndConfirm] = useState(false);
@@ -137,6 +159,21 @@ export function Workout({ profile, onUpdateProfile }: Props) {
 
   const enrollment = profile.activeProgram;
   const activeProgram = enrollment ? programs.find((p) => p.id === enrollment.programId) : null;
+
+  // `programs` is the whole library. Strict programs and standalone workouts live in the
+  // same store so exercise identity resolves the same way for both; the UI splits them.
+  const { workouts: savedWorkouts, programs: strictPrograms } = useMemo(
+    () => splitLibrary(programs),
+    [programs],
+  );
+
+  // Least recently trained first: what a casual lifter most likely wants next.
+  const suggestedWorkouts = useMemo(() => {
+    return savedWorkouts
+      .map((w) => ({ workout: w, lastDone: lastPerformedDate(w.id, sessions) }))
+      .sort((a, b) => (a.lastDone || '').localeCompare(b.lastDone || ''))
+      .slice(0, 6);
+  }, [savedWorkouts, sessions]);
 
   // Skip rest days
   const getNextTrainingDay = () => {
@@ -181,8 +218,9 @@ export function Workout({ profile, onUpdateProfile }: Props) {
   const handleEnroll = useCallback(() => {
     if (!enrollProgramId) return;
     const weeks = parseInt(enrollWeeks) || 8;
-    const start = new Date().toISOString().split('T')[0];
-    const end = new Date(Date.now() + weeks * 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    // Local dates, since these are compared against locally-dated sessions.
+    const start = today();
+    const end = localDateStr(new Date(Date.now() + weeks * 7 * 24 * 60 * 60 * 1000));
     const enrollment: ActiveProgramEnrollment = {
       programId: enrollProgramId,
       startDate: start,
@@ -203,7 +241,7 @@ export function Workout({ profile, onUpdateProfile }: Props) {
       programId: enrollment.programId,
       programName: activeProgram.name,
       startDate: enrollment.startDate,
-      endDate: new Date().toISOString().split('T')[0],
+      endDate: today(),
       durationWeeks: weeksElapsed,
       totalSessions: sessionsInProgram,
       reason,
@@ -213,15 +251,52 @@ export function Workout({ profile, onUpdateProfile }: Props) {
     toast('Program ended', 'info');
   }, [enrollment, activeProgram, weeksElapsed, sessionsInProgram, profile, onUpdateProfile]);
 
-  // Start a workout for a day
+  // Start any day of any library entry. Enrollment is not required: a prescribed day can
+  // be run loosely, which is the whole point of following a program casually.
+  const handleStartEntryDay = useCallback((entryId: string, dayId: string) => {
+    setSelectedProgramId(entryId);
+    setSelectedDayId(dayId);
+    startWorkout(entryId, dayId);
+    setView('active');
+  }, [startWorkout]);
+
+  // Start a day of the program the user is enrolled in.
   const handleStartDay = useCallback((day: WorkoutDayType, _dayIndex: number) => {
     if (!enrollment) return;
-    const programId = enrollment.programId;
-    setSelectedProgramId(programId);
-    setSelectedDayId(day.id);
-    startWorkout(programId, day.id);
-    setView('active');
-  }, [enrollment, startWorkout]);
+    handleStartEntryDay(enrollment.programId, day.id);
+  }, [enrollment, handleStartEntryDay]);
+
+  // Start a saved standalone workout.
+  const handleStartSavedWorkout = useCallback((entryId: string) => {
+    const entry = programs.find((p) => p.id === entryId);
+    const day = entry && workoutDayOf(entry);
+    if (!entry || !day) return;
+    handleStartEntryDay(entry.id, day.id);
+  }, [programs, handleStartEntryDay]);
+
+  // Pin one day of a program into the library so it can be repeated whenever.
+  const handleSaveProgramDay = useCallback(async (programId: string, dayId: string) => {
+    const program = programs.find((p) => p.id === programId);
+    const day = program?.days.find((d) => d.id === dayId);
+    if (!program || !day) return;
+    await saveProgram(buildWorkoutFromDay(day, program));
+    await refreshPrograms();
+    toast(`Saved "${day.title || day.tag}" to your workouts`, 'success');
+  }, [programs, refreshPrograms]);
+
+  // The effort metric the session in progress is being logged with — a freestyle session
+  // uses the toggle on the home screen, anything else inherits from its library entry.
+  const activeEffortMetric = selectedProgramId === 'quick'
+    ? quickEffortMetric
+    : programs.find((p) => p.id === selectedProgramId)?.effortMetric || 'none';
+
+  // Keep an ad-hoc session (freestyle or modified) as a reusable workout.
+  const handleSaveExercisesAsWorkout = useCallback(async (name: string, exercises: Exercise[]) => {
+    if (exercises.length === 0) return;
+    await saveProgram(buildWorkoutFromExercises(name, exercises, { effortMetric: activeEffortMetric }));
+    await refreshPrograms();
+    toast('Saved to your workouts', 'success');
+  }, [refreshPrograms, activeEffortMetric]);
 
   // Skip a workout day — logs it as skipped and advances the cycle without recording sets
   const handleSkipDay = useCallback(async (day: WorkoutDayType, dayIndex: number) => {
@@ -237,7 +312,8 @@ export function Workout({ profile, onUpdateProfile }: Props) {
   const handleFinish = useCallback(async (exercises: Exercise[] = []) => {
     // Capture PRs before saving so we can compare
     const prsBefore = await getAllPRs(profile.id);
-    const session = await finishWorkout();
+    // The exercise list goes onto the session so off-program lifts stay attributable.
+    const session = await finishWorkout(exercises);
     if (!session) return;
 
     if (enrollment && activeProgram) {
@@ -276,38 +352,46 @@ export function Workout({ profile, onUpdateProfile }: Props) {
   }, [cancelWorkout]);
 
   // Program CRUD
-  const handleDuplicate = useCallback(async (programId: string) => {
-    const original = programs.find((p) => p.id === programId);
+  const handleDuplicate = useCallback(async (entryId: string) => {
+    const original = programs.find((p) => p.id === entryId);
     if (!original) return;
-    await duplicateProgram(programId, `${original.name} (Copy)`);
+    await duplicateProgram(entryId, `${original.name} (Copy)`);
     await refreshPrograms();
-    toast('Program duplicated', 'success');
+    toast(isSavedWorkout(original) ? 'Workout duplicated' : 'Program duplicated', 'success');
   }, [programs, refreshPrograms]);
 
-  const handleDelete = useCallback(async (programId: string) => {
-    await deleteProgram(programId);
+  const handleDelete = useCallback(async (entryId: string) => {
+    const entry = programs.find((p) => p.id === entryId);
+    await deleteProgram(entryId);
     await refreshPrograms();
-    toast('Program deleted', 'info');
-  }, [refreshPrograms]);
+    toast(entry && isSavedWorkout(entry) ? 'Workout deleted' : 'Program deleted', 'info');
+  }, [programs, refreshPrograms]);
 
-  const handleEditProgram = useCallback((programId: string) => {
-    const program = programs.find((p) => p.id === programId);
-    if (!program || program.isBuiltIn) return;
-    setEditingProgram(program);
+  const openEditor = useCallback((entry: Program, returnView: View) => {
+    setEditingProgram(entry);
+    setEditorMode(isSavedWorkout(entry) ? 'workout' : 'program');
+    setEditorReturnView(returnView);
     setView('editor');
-  }, [programs]);
+  }, []);
 
-  const handleSaveProgram = useCallback(async (program: Program) => {
-    await saveProgram(program);
+  const handleEditEntry = useCallback((entryId: string, returnView: View = 'library') => {
+    const entry = programs.find((p) => p.id === entryId);
+    if (!entry || entry.isBuiltIn) return;
+    openEditor(entry, returnView);
+  }, [programs, openEditor]);
+
+  const handleSaveEntry = useCallback(async (entry: Program) => {
+    await saveProgram(entry);
     await refreshPrograms();
     setEditingProgram(null);
-    setView('home');
-    toast('Program saved', 'success');
-  }, [refreshPrograms]);
+    setView(editorReturnView);
+    toast(isSavedWorkout(entry) ? 'Workout saved' : 'Program saved', 'success');
+  }, [refreshPrograms, editorReturnView]);
 
   const handleCreateProgram = useCallback(() => {
     const newProgram: Program = {
       id: crypto.randomUUID(),
+      kind: 'program',
       name: 'New Program',
       description: '',
       isBuiltIn: false,
@@ -315,9 +399,12 @@ export function Workout({ profile, onUpdateProfile }: Props) {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
-    setEditingProgram(newProgram);
-    setView('editor');
-  }, []);
+    openEditor(newProgram, 'library');
+  }, [openEditor]);
+
+  const handleCreateWorkout = useCallback(() => {
+    openEditor(blankWorkout(), 'library');
+  }, [openEditor]);
 
   if (loading) {
     return (
@@ -338,7 +425,10 @@ export function Workout({ profile, onUpdateProfile }: Props) {
     const previousSession = program ? getPreviousSession(program.id, day.id) : undefined;
     const lastPerformance = getLastPerformanceMap(day.exercises);
     const programDuration = program?.suggestedDurationWeeks || 0;
-    const programCurrentWeek = enrollment && !isQuick
+    // Week-in-program only means something when this session IS the enrolled program's.
+    // Running someone else's day loosely must not borrow the enrolled program's week.
+    const onEnrolledProgram = !!enrollment && !isQuick && program?.id === enrollment.programId;
+    const programCurrentWeek = onEnrolledProgram && enrollment
       ? Math.min(
           Math.max(1, Math.ceil((Date.now() - new Date(enrollment.startDate).getTime()) / (7 * 24 * 60 * 60 * 1000))),
           programDuration || Infinity,
@@ -365,6 +455,7 @@ export function Workout({ profile, onUpdateProfile }: Props) {
         allSessions={sessions}
         effortMetric={isQuick ? quickEffortMetric : (program?.effortMetric || 'none')}
         programs={programs}
+        onSaveToLibrary={handleSaveExercisesAsWorkout}
         onSwapExercise={program && !isQuick ? async (exerciseId, swap, permanent) => {
           if (!permanent) return;
           const updated = {
@@ -450,14 +541,15 @@ export function Workout({ profile, onUpdateProfile }: Props) {
     );
   }
 
-  // Program editor
+  // Workout / program editor
   if (view === 'editor' && editingProgram) {
     return (
       <ProgramEditor
         program={editingProgram}
+        mode={editorMode}
         fitnessGoal={profile.bodyStats?.fitnessGoal === 'lose' ? 'lose' : profile.bodyStats?.fitnessGoal === 'build' ? 'build' : 'maintain'}
-        onSave={handleSaveProgram}
-        onClose={() => { setEditingProgram(null); setView('home'); }}
+        onSave={handleSaveEntry}
+        onClose={() => { setEditingProgram(null); setView(editorReturnView); }}
       />
     );
   }
@@ -465,7 +557,7 @@ export function Workout({ profile, onUpdateProfile }: Props) {
   // Enroll modal
   const enrollProgram = enrollProgramId ? programs.find((p) => p.id === enrollProgramId) : null;
 
-  // Program library view
+  // Workout & program library view
   if (view === 'library') {
     return (
       <div className="space-y-4">
@@ -473,28 +565,27 @@ export function Workout({ profile, onUpdateProfile }: Props) {
           <button onClick={() => setView('home')} className="p-2 -ml-2 rounded-xl">
             <ArrowLeft size={18} className="text-text-muted" />
           </button>
-          <h2 className="text-lg font-semibold">Program Library</h2>
+          <h2 className="text-lg font-semibold">Workout &amp; Program Library</h2>
         </div>
 
-        <ProgramList
-          programs={programs}
-          onSelect={(id) => {
+        <WorkoutLibrary
+          entries={programs}
+          sessions={sessions}
+          onStartWorkout={handleStartSavedWorkout}
+          onStartProgramDay={handleStartEntryDay}
+          onSaveProgramDay={handleSaveProgramDay}
+          onOpenProgram={(id) => {
             setSelectedProgramId(id);
+            setDaysReturnView('library');
             setView('days');
           }}
           onDuplicate={handleDuplicate}
           onDelete={handleDelete}
-          onEdit={handleEditProgram}
+          onEdit={(id) => handleEditEntry(id, 'library')}
+          onCreateWorkout={handleCreateWorkout}
+          onCreateProgram={handleCreateProgram}
           onReload={refreshPrograms}
         />
-
-        <button
-          onClick={handleCreateProgram}
-          className="w-full py-3 rounded-xl text-text-muted text-sm font-medium flex items-center justify-center gap-2"
-        >
-          <Plus size={16} />
-          Create Program
-        </button>
 
         {/* Enroll modal — needs to render here too */}
         <Modal open={!!enrollProgram} onClose={() => setEnrollProgramId(null)} title="Start Program">
@@ -524,7 +615,7 @@ export function Workout({ profile, onUpdateProfile }: Props) {
     return (
       <div className="space-y-4">
         <div className="flex items-center gap-3">
-          <button onClick={() => { setView(enrollment ? 'home' : 'library'); setSelectedProgramId(null); }} className="p-2 -ml-2 rounded-xl">
+          <button onClick={() => { setView(daysReturnView); setSelectedProgramId(null); }} className="p-2 -ml-2 rounded-xl">
             <ArrowLeft size={18} className="text-text-muted" />
           </button>
           <div className="flex-1 min-w-0">
@@ -533,7 +624,7 @@ export function Workout({ profile, onUpdateProfile }: Props) {
           </div>
           {!program.isBuiltIn && (
             <button
-              onClick={() => handleEditProgram(program.id)}
+              onClick={() => handleEditEntry(program.id, 'days')}
               className="p-2 rounded-xl text-text-muted hover:text-accent-orange transition-colors"
             >
               <Pencil size={16} />
@@ -559,22 +650,47 @@ export function Workout({ profile, onUpdateProfile }: Props) {
 
         {/* Enroll button if not active */}
         {!isActive && (
-          <button
-            onClick={() => setEnrollProgramId(program.id)}
-            className="btn-primary w-full"
-          >
-            {enrollment ? 'Switch to This Program' : 'Start This Program'}
-          </button>
+          <div className="space-y-1.5">
+            <button
+              onClick={() => setEnrollProgramId(program.id)}
+              className="btn-primary w-full"
+            >
+              {enrollment ? 'Switch to This Program' : 'Start This Program'}
+            </button>
+            <p className="text-[0.625rem] text-text-muted text-center">
+              Or don&apos;t commit — run any day below whenever you feel like it.
+            </p>
+          </div>
         )}
 
-        {/* Days */}
+        {/* Days. Each is runnable on its own, enrolled or not, so a strict program can be
+            followed loosely with as many days off as the user wants. */}
         <div className="space-y-3">
-          {program.days.map((day, index) => (
-            <div key={day.id} className="bg-surface rounded-2xl p-4">
-              <div className="text-[0.625rem] text-text-muted font-medium mb-2">{day.label || `Day ${index + 1}`}</div>
-              <WorkoutDay day={day} />
-            </div>
-          ))}
+          {program.days.map((day, index) => {
+            const isRest = day.exercises.length === 0;
+            return (
+              <div key={day.id} className="bg-surface rounded-2xl p-4">
+                <div className="text-[0.625rem] text-text-muted font-medium mb-2">{day.label || `Day ${index + 1}`}</div>
+                <WorkoutDay day={day} />
+                {!isRest && (
+                  <div className="flex gap-2 mt-3 pt-3 border-t border-border">
+                    <button
+                      onClick={() => handleStartEntryDay(program.id, day.id)}
+                      className="flex-1 py-2 rounded-lg bg-surface-raised text-text-primary text-xs font-semibold flex items-center justify-center gap-1.5"
+                    >
+                      <Play size={11} /> Do this workout
+                    </button>
+                    <button
+                      onClick={() => handleSaveProgramDay(program.id, day.id)}
+                      className="flex-1 py-2 rounded-lg bg-surface-raised text-text-secondary text-xs font-semibold flex items-center justify-center gap-1.5"
+                    >
+                      <BookmarkPlus size={11} /> Save for later
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
 
         {/* Enroll modal */}
@@ -600,14 +716,52 @@ export function Workout({ profile, onUpdateProfile }: Props) {
   // ── HOME VIEW ──
   return (
     <div className="space-y-6">
-      {/* No active program — prompt to pick one */}
+      {/* Not on a program. That is a valid way to train, so this reads as a menu of what
+          to do today rather than a nag to enroll in something. */}
       {!enrollment && (
-        <div className="text-center py-8">
-          <Dumbbell size={32} className="mx-auto mb-4 text-text-muted" />
-          <h2 className="text-lg font-semibold mb-1">No active program</h2>
-          <p className="text-sm text-text-muted mb-6 max-w-xs mx-auto">
-            Pick a program to follow, or start a quick workout.
-          </p>
+        <div className="py-4">
+          <div className="text-center mb-6">
+            <Dumbbell size={32} className="mx-auto mb-4 text-text-muted" />
+            <h2 className="text-lg font-semibold mb-1">
+              {savedWorkouts.length > 0 ? 'What are you training today?' : 'Not on a program'}
+            </h2>
+            <p className="text-sm text-text-muted max-w-xs mx-auto">
+              {savedWorkouts.length > 0
+                ? 'Pick a workout, freestyle it, or start a program if you want a schedule.'
+                : 'Train however you like — save workouts as you go, or follow a program.'}
+            </p>
+          </div>
+
+          {suggestedWorkouts.length > 0 && (
+            <div className="mb-4">
+              <h3 className="label mb-2">Your Workouts</h3>
+              <div className="space-y-2">
+                {suggestedWorkouts.map(({ workout, lastDone }) => (
+                  <button
+                    key={workout.id}
+                    onClick={() => handleStartSavedWorkout(workout.id)}
+                    className="w-full bg-surface rounded-2xl p-4 flex items-center gap-3 text-left active:scale-[0.98] transition-transform"
+                  >
+                    <div
+                      className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                      style={{ backgroundColor: `${workoutDayOf(workout)?.accent || 'var(--color-surface-raised)'}20` }}
+                    >
+                      <Play size={15} style={{ color: workoutDayOf(workout)?.accent || 'var(--color-text-secondary)' }} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium truncate">{workout.name}</div>
+                      <div className="text-[0.625rem] text-text-muted truncate">
+                        {exerciseCount(workout)} exercises · {formatDaysAgo(lastDone)}
+                        {muscleFocus(workout, 2).length > 0 && ` · ${muscleFocus(workout, 2).join(', ')}`}
+                      </div>
+                    </div>
+                    <ChevronRight size={14} className="text-text-muted shrink-0" />
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="space-y-2 max-w-xs mx-auto">
             <button
               onClick={() => {
@@ -619,15 +773,15 @@ export function Workout({ profile, onUpdateProfile }: Props) {
               className="btn-primary w-full flex items-center justify-center gap-2"
             >
               <Dumbbell size={16} />
-              Quick Workout
+              Freestyle Workout
             </button>
             <button onClick={() => setView('library')} className="btn-secondary w-full flex items-center justify-center gap-2">
               <Library size={16} />
-              Browse Programs
+              Workouts &amp; Programs
             </button>
-            <button onClick={handleCreateProgram} className="btn-secondary w-full flex items-center justify-center gap-2">
+            <button onClick={handleCreateWorkout} className="btn-secondary w-full flex items-center justify-center gap-2">
               <Plus size={16} />
-              Create Your Own
+              Build a Workout
             </button>
           </div>
         </div>
@@ -646,7 +800,7 @@ export function Workout({ profile, onUpdateProfile }: Props) {
               <div className="flex items-center gap-3">
                 {!activeProgram.isBuiltIn && (
                   <button
-                    onClick={() => handleEditProgram(enrollment.programId)}
+                    onClick={() => handleEditEntry(enrollment.programId, 'home')}
                     className="text-xs text-text-muted flex items-center gap-1 hover:text-accent-orange transition-colors"
                   >
                     <Pencil size={11} /> Edit
@@ -655,6 +809,7 @@ export function Workout({ profile, onUpdateProfile }: Props) {
                 <button
                   onClick={() => {
                     setSelectedProgramId(enrollment.programId);
+                    setDaysReturnView('home');
                     setView('days');
                   }}
                   className="text-xs text-text-muted flex items-center gap-1"
@@ -789,77 +944,81 @@ export function Workout({ profile, onUpdateProfile }: Props) {
         </>
       )}
 
-      {/* Quick workout (even with enrolled program) */}
+      {/* Anything off the prescribed rotation. Shown alongside an active program too,
+          because "on a program" and "sometimes doing your own thing" aren't exclusive. */}
       {enrollment && (
-        <div className="bg-surface rounded-2xl p-4 space-y-3">
-          <button
-            onClick={() => {
-              setSelectedProgramId('quick');
-              setSelectedDayId('quick');
-              startWorkout('quick', 'quick');
-              setView('active');
-            }}
-            className="w-full flex items-center gap-3 text-left active:scale-[0.98] transition-transform"
-          >
-            <Plus size={16} className="text-accent" />
-            <div className="flex-1">
-              <div className="text-sm font-medium">Quick Workout</div>
-              <div className="text-[0.6875rem] text-text-muted">Freestyle session — add exercises as you go</div>
+        <div>
+          <h3 className="label mb-3">Something Else Today</h3>
+          <div className="bg-surface rounded-2xl p-4 space-y-3">
+            {suggestedWorkouts.length > 0 && (
+              <div className="space-y-2 pb-1">
+                {suggestedWorkouts.slice(0, 3).map(({ workout, lastDone }) => (
+                  <button
+                    key={workout.id}
+                    onClick={() => handleStartSavedWorkout(workout.id)}
+                    className="w-full flex items-center gap-3 text-left active:scale-[0.98] transition-transform"
+                  >
+                    <Play size={14} style={{ color: workoutDayOf(workout)?.accent || 'var(--color-text-muted)' }} />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium truncate">{workout.name}</div>
+                      <div className="text-[0.625rem] text-text-muted">
+                        {exerciseCount(workout)} exercises · {formatDaysAgo(lastDone)}
+                      </div>
+                    </div>
+                    <ChevronRight size={14} className="text-text-muted shrink-0" />
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <button
+              onClick={() => {
+                setSelectedProgramId('quick');
+                setSelectedDayId('quick');
+                startWorkout('quick', 'quick');
+                setView('active');
+              }}
+              className={`w-full flex items-center gap-3 text-left active:scale-[0.98] transition-transform ${suggestedWorkouts.length > 0 ? 'pt-3 border-t border-border' : ''}`}
+            >
+              <Plus size={16} className="text-accent" />
+              <div className="flex-1">
+                <div className="text-sm font-medium">Freestyle Workout</div>
+                <div className="text-[0.6875rem] text-text-muted">Add exercises as you go — save it after if you like it</div>
+              </div>
+              <ChevronRight size={14} className="text-text-muted" />
+            </button>
+
+            {/* Effort metric toggle for freestyle sessions, which have no program to inherit from */}
+            <div className="flex items-center gap-2 pt-1 border-t border-border">
+              <span className="text-[0.625rem] text-text-muted">Effort tracking:</span>
+              {(['none', 'rir', 'rpe'] as const).map((m) => (
+                <button
+                  key={m}
+                  onClick={() => setQuickEffortMetric(m)}
+                  className={`px-2.5 py-1 rounded-lg text-[0.625rem] font-medium transition-colors ${quickEffortMetric === m ? 'bg-accent-blue/20 text-accent-blue' : 'bg-surface-raised text-text-muted'}`}
+                >
+                  {m === 'none' ? 'None' : m.toUpperCase()}
+                </button>
+              ))}
             </div>
-            <ChevronRight size={14} className="text-text-muted" />
-          </button>
-          {/* Effort metric toggle for quick workouts */}
-          <div className="flex items-center gap-2 pt-1 border-t border-border">
-            <span className="text-[0.625rem] text-text-muted">Effort tracking:</span>
-            {(['none', 'rir', 'rpe'] as const).map((m) => (
-              <button
-                key={m}
-                onClick={() => setQuickEffortMetric(m)}
-                className={`px-2.5 py-1 rounded-lg text-[0.625rem] font-medium transition-colors ${quickEffortMetric === m ? 'bg-accent-blue/20 text-accent-blue' : 'bg-surface-raised text-text-muted'}`}
-              >
-                {m === 'none' ? 'None' : m.toUpperCase()}
-              </button>
-            ))}
           </div>
         </div>
       )}
 
-      {/* History + Library links */}
-      <div className="space-y-2">
-        {enrollment && (
-          <button
-            onClick={() => setView('library')}
-            className="w-full bg-surface rounded-2xl p-4 flex items-center gap-3 text-left active:scale-[0.98] transition-transform"
-          >
-            <Library size={16} className="text-text-muted" />
-            <span className="text-sm font-medium flex-1">Program Library</span>
-            <ChevronRight size={14} className="text-text-muted" />
-          </button>
-        )}
-
-        <button
-          onClick={() => setView('library')}
-          className="w-full bg-surface rounded-2xl p-4 flex items-center gap-3 text-left active:scale-[0.98] transition-transform"
-          style={{ display: enrollment ? 'none' : undefined }}
-        >
-          <Library size={16} className="text-text-muted" />
-          <span className="text-sm font-medium flex-1">Program Library</span>
-          <ChevronRight size={14} className="text-text-muted" />
-        </button>
-
-        {sessions.length > 0 && (
-          <button
-            onClick={() => setView('days')}
-            className="w-full bg-surface rounded-2xl p-4 flex items-center gap-3 text-left active:scale-[0.98] transition-transform"
-            // Repurpose days view for history
-            style={{ display: 'none' }}
-          >
-            <History size={16} className="text-text-muted" />
-            <span className="text-sm font-medium flex-1">Workout History</span>
-            <ChevronRight size={14} className="text-text-muted" />
-          </button>
-        )}
-      </div>
+      {/* Library link */}
+      <button
+        onClick={() => setView('library')}
+        className="w-full bg-surface rounded-2xl p-4 flex items-center gap-3 text-left active:scale-[0.98] transition-transform"
+      >
+        <Library size={16} className="text-text-muted" />
+        <div className="flex-1 min-w-0">
+          <div className="text-sm font-medium">Workout &amp; Program Library</div>
+          <div className="text-[0.625rem] text-text-muted">
+            {savedWorkouts.length} workout{savedWorkouts.length === 1 ? '' : 's'} · {strictPrograms.length} program{strictPrograms.length === 1 ? '' : 's'}
+          </div>
+        </div>
+        <ChevronRight size={14} className="text-text-muted" />
+      </button>
 
       {/* Program history */}
       {profile.programHistory && profile.programHistory.length > 0 && (
@@ -943,10 +1102,40 @@ export function Workout({ profile, onUpdateProfile }: Props) {
       {/* Workout Summary */}
       {summarySession && (() => {
         const isQuickSummary = summarySession.programId === 'quick';
-        const summaryProgram = isQuickSummary
-          ? { id: 'quick', name: 'Quick Workout', description: '', days: [{ id: 'quick', title: 'Freestyle', tag: 'Quick Workout', label: '', subtitle: '', accent: '#e8572a', note: '', exercises: summaryExercises }], isBuiltIn: false, createdAt: '', updatedAt: '' } as Program
-          : programs.find((p) => p.id === summarySession.programId);
-        if (!summaryProgram) return null;
+        const sourceEntry = isQuickSummary ? undefined : programs.find((p) => p.id === summarySession.programId);
+        const sourceDay = sourceEntry?.days.find((d) => d.id === summarySession.dayId);
+
+        // The summary describes the session as it was actually performed, so exercises
+        // added on the fly (and their PRs) show up instead of only the prescribed list.
+        // A freestyle session, or one whose library entry has since been deleted, has
+        // nothing but the performed list to go on.
+        const summaryDay: WorkoutDayType = {
+          label: '', subtitle: '', note: '', accent: '#e8572a',
+          title: isQuickSummary ? 'Freestyle' : 'Workout',
+          tag: isQuickSummary ? 'Quick Workout' : 'Workout',
+          ...(sourceDay || {}),
+          id: summarySession.dayId,
+          exercises: summaryExercises.length > 0 ? summaryExercises : (sourceDay?.exercises || []),
+        };
+        const summaryProgram: Program = {
+          id: summarySession.programId,
+          name: isQuickSummary ? 'Quick Workout' : 'Workout',
+          description: '', isBuiltIn: false, createdAt: '', updatedAt: '',
+          ...(sourceEntry || {}),
+          days: [summaryDay],
+        };
+
+        // Offer to keep the session when it isn't just a library entry run as written:
+        // freestyle, or reshaped by adding, swapping or dropping exercises.
+        const sourceIds = sourceDay ? sourceDay.exercises.map((e) => e.id).join('|') : null;
+        const performedIds = summaryExercises.map((e) => e.id).join('|');
+        const deviatedFromSource = sourceIds !== null && sourceIds !== performedIds;
+        const canSaveAsWorkout = summaryExercises.length > 0 && (isQuickSummary || !sourceEntry || deviatedFromSource);
+
+        const defaultName = isQuickSummary || !sourceEntry
+          ? `Workout ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+          : `${sourceDay?.title || sourceEntry.name} (my version)`;
+
         return (
           <WorkoutSummary
             session={summarySession}
@@ -956,29 +1145,10 @@ export function Workout({ profile, onUpdateProfile }: Props) {
             units={profile.units}
             onClose={handleCloseSummary}
             onUpdateSession={updateSession}
-            onSaveAsProgram={isQuickSummary && summaryExercises.length > 0 ? async () => {
-              const newProgram: Program = {
-                id: crypto.randomUUID(),
-                name: `Quick Workout ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`,
-                days: [{
-                  id: crypto.randomUUID(),
-                  title: 'Day 1',
-                  tag: 'Workout',
-                  label: '',
-                  subtitle: '',
-                  accent: '#e8572a',
-                  note: '',
-                  exercises: summaryExercises.map((e) => ({ ...e, id: crypto.randomUUID() })),
-                }],
-                description: '',
-                isBuiltIn: false,
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString(),
-              };
-              await saveProgram(newProgram);
-              await refreshPrograms();
-              toast('Saved as program!', 'success');
-            } : undefined}
+            defaultWorkoutName={defaultName}
+            onSaveAsWorkout={canSaveAsWorkout
+              ? (name) => handleSaveExercisesAsWorkout(name, summaryExercises)
+              : undefined}
           />
         );
       })()}
