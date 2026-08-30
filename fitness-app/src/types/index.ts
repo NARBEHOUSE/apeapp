@@ -353,6 +353,23 @@ export interface SessionExercise {
   exerciseType?: 'strength' | 'cardio';
 }
 
+/**
+ * What the workout was called when it was performed: its title, tag, badge and the
+ * program it came from, captured onto the session itself.
+ *
+ * History is a record of what happened, not a view onto the current library. Swap a day
+ * out of a program, rename it, or delete the program entirely and the sessions already
+ * logged against it must still say what they were — without this they fall back to the
+ * program's name, or to nothing at all.
+ */
+export interface PerformedWorkoutIdentity {
+  title?: string;
+  tag?: string;
+  label?: string;
+  accent?: string;
+  programName?: string;
+}
+
 export type WorkoutSessionStatus = 'completed' | 'skipped';
 
 export interface WorkoutSession {
@@ -376,6 +393,8 @@ export interface WorkoutSession {
   /** Every exercise logged in this session, including ones added on the fly. Undefined on
    *  sessions saved before this existed — those still resolve through the library map. */
   exercises?: SessionExercise[];
+  /** What this workout was called when it was done. See PerformedWorkoutIdentity. */
+  performedAs?: PerformedWorkoutIdentity;
 }
 
 export type SetType = 'standard' | 'warmup' | 'dropset' | 'myoreps' | 'failure';

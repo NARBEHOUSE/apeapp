@@ -2,6 +2,7 @@ import type {
   EffortMetric,
   Exercise,
   LibraryEntryKind,
+  PerformedWorkoutIdentity,
   Program,
   SessionExercise,
   WorkoutDay,
@@ -148,6 +149,63 @@ export function buildWorkoutFromExercises(
 /** An empty standalone workout, ready for the editor. */
 export function blankWorkout(): Program {
   return buildWorkoutFromExercises('New Workout', []);
+}
+
+/** How a day of a library entry should be remembered once it has been trained. */
+export function dayIdentityOf(entry: Program, day: WorkoutDay): PerformedWorkoutIdentity {
+  return {
+    title: day.title || day.tag || entry.name,
+    tag: day.tag || '',
+    label: day.label || '',
+    accent: day.accent || '',
+    programName: entry.name,
+  };
+}
+
+/** Day id -> how that day should be remembered, across the whole library. */
+export function buildDayIdentityCatalog(entries: Program[]): Map<string, PerformedWorkoutIdentity> {
+  const catalog = new Map<string, PerformedWorkoutIdentity>();
+  for (const entry of entries) {
+    for (const day of entry.days) catalog.set(day.id, dayIdentityOf(entry, day));
+  }
+  return catalog;
+}
+
+/**
+ * The title to show for a logged session.
+ *
+ * A name the user typed wins, then what the workout was called when they did it, and only
+ * then the library. Falling through to the program's name is a last resort — it is what
+ * produced "every session is now just called 'My Program'" when a day was swapped out.
+ */
+export function sessionTitle(
+  session: WorkoutSession,
+  day?: { title?: string; tag?: string },
+  entry?: { name?: string },
+): string {
+  return session.name
+    || session.performedAs?.title
+    || day?.title
+    || day?.tag
+    || session.performedAs?.programName
+    || entry?.name
+    || 'Workout';
+}
+
+/** The tag a logged session was filed under, as it was at the time. */
+export function sessionTag(session: WorkoutSession, day?: { tag?: string }): string {
+  return session.performedAs?.tag || day?.tag || '';
+}
+
+/** Badge text and colour: an explicit badge the user set wins over the historical one. */
+export function sessionBadge(
+  session: WorkoutSession,
+  day?: { label?: string; accent?: string },
+): { label: string; accent: string } {
+  return {
+    label: (session.label || session.performedAs?.label || day?.label || 'W').slice(0, 2),
+    accent: session.accent || session.performedAs?.accent || day?.accent || '#e8572a',
+  };
 }
 
 /** Every exercise the library knows about, keyed by id. */

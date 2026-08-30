@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import type { WorkoutSession, SetLog, Exercise, ExerciseLastPerformance, CardioEntry } from '../types';
+import type { WorkoutSession, SetLog, Exercise, ExerciseLastPerformance, CardioEntry, PerformedWorkoutIdentity } from '../types';
 import { toSessionExercises } from '../utils/workoutLibrary';
-import { saveWorkoutSession, getSessionsByProfile, deleteWorkoutSession, freezeSessionExercises } from '../db/workouts';
+import { saveWorkoutSession, getSessionsByProfile, deleteWorkoutSession, freezeSessionHistory } from '../db/workouts';
 import { getAllPrograms, initializePrograms } from '../db/programs';
 import { today } from '../utils/dateHelpers';
 import type { Program } from '../types';
@@ -76,7 +76,7 @@ export function useWorkout(profileId: string | null) {
     if (!backfillDone) {
       backfillDone = true;
       try {
-        await freezeSessionExercises(progs);
+        await freezeSessionHistory(progs);
       } catch (err) {
         // History still renders from the library if this fails; don't block the app.
         console.error('Could not backfill session exercise names:', err);
@@ -99,8 +99,13 @@ export function useWorkout(profileId: string | null) {
     persistSession(activeSession);
   }, [activeSession]);
 
+  /**
+   * `performedAs` records what this workout was called right now, so the session keeps
+   * its own title even if the day is later renamed, swapped out or deleted. Captured at
+   * start rather than at finish so it survives a reload mid-session.
+   */
   const startWorkout = useCallback(
-    (programId: string, dayId: string): WorkoutSession => {
+    (programId: string, dayId: string, performedAs?: PerformedWorkoutIdentity): WorkoutSession => {
       const session: WorkoutSession = {
         id: crypto.randomUUID(),
         profileId: profileId!,
@@ -109,6 +114,7 @@ export function useWorkout(profileId: string | null) {
         date: today(),
         startTime: Date.now(),
         sets: {},
+        ...(performedAs ? { performedAs } : {}),
       };
       setActiveSession(session);
       return session;
@@ -190,7 +196,7 @@ export function useWorkout(profileId: string | null) {
   }, []);
 
   const skipWorkout = useCallback(
-    async (programId: string, dayId: string): Promise<WorkoutSession> => {
+    async (programId: string, dayId: string, performedAs?: PerformedWorkoutIdentity): Promise<WorkoutSession> => {
       const now = Date.now();
       const session: WorkoutSession = {
         id: crypto.randomUUID(),
@@ -202,6 +208,7 @@ export function useWorkout(profileId: string | null) {
         endTime: now,
         sets: {},
         status: 'skipped',
+        ...(performedAs ? { performedAs } : {}),
       };
       await saveWorkoutSession(session);
       setSessions((prev) => [session, ...prev]);

@@ -42,8 +42,8 @@ export async function saveProgram(program: Program): Promise<void> {
   // workouts already in the books.
   const previous = await db.get('programs', program.id);
   if (previous) {
-    const { freezeSessionExercises } = await import('./workouts');
-    await freezeSessionExercises([previous]);
+    const { freezeSessionHistory } = await import('./workouts');
+    await freezeSessionHistory([previous]);
   }
   await db.put('programs', program);
   // Auto-save all exercises to the custom exercise library
@@ -57,8 +57,8 @@ export async function deleteProgram(id: string): Promise<void> {
   // Same reason as saveProgram: the logged history outlives the library entry.
   const existing = await db.get('programs', id);
   if (existing) {
-    const { freezeSessionExercises } = await import('./workouts');
-    await freezeSessionExercises([existing]);
+    const { freezeSessionHistory } = await import('./workouts');
+    await freezeSessionHistory([existing]);
   }
   await db.delete('programs', id);
 }

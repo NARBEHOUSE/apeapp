@@ -27,6 +27,7 @@ import {
   splitLibrary,
   buildWorkoutFromDay,
   buildWorkoutFromExercises,
+  dayIdentityOf,
   blankWorkout,
   workoutDayOf,
   isSavedWorkout,
@@ -52,6 +53,13 @@ interface Props {
 }
 
 const DURATION_PRESETS = [4, 6, 8, 12, 16];
+
+/** The stand-in "day" for a freestyle session, which belongs to no library entry. */
+const QUICK_DAY: WorkoutDayType = {
+  id: 'quick', label: '', tag: 'Quick Workout', title: 'Freestyle',
+  subtitle: '', accent: '#e8572a', note: '', exercises: [],
+};
+const QUICK_IDENTITY = { title: 'Quick Workout', tag: 'Quick Workout', accent: QUICK_DAY.accent };
 
 function EnrollModalContent({ program, enrollWeeks, setEnrollWeeks, enrollment, activeProgram, onEnroll }: {
   program: Program;
@@ -254,11 +262,14 @@ export function Workout({ profile, onUpdateProfile }: Props) {
   // Start any day of any library entry. Enrollment is not required: a prescribed day can
   // be run loosely, which is the whole point of following a program casually.
   const handleStartEntryDay = useCallback((entryId: string, dayId: string) => {
+    const entry = programs.find((p) => p.id === entryId);
+    const day = entry?.days.find((d) => d.id === dayId);
     setSelectedProgramId(entryId);
     setSelectedDayId(dayId);
-    startWorkout(entryId, dayId);
+    // Snapshot what this workout is called now, so history keeps it later.
+    startWorkout(entryId, dayId, entry && day ? dayIdentityOf(entry, day) : undefined);
     setView('active');
-  }, [startWorkout]);
+  }, [programs, startWorkout]);
 
   // Start a day of the program the user is enrolled in.
   const handleStartDay = useCallback((day: WorkoutDayType, _dayIndex: number) => {
@@ -301,12 +312,16 @@ export function Workout({ profile, onUpdateProfile }: Props) {
   // Skip a workout day — logs it as skipped and advances the cycle without recording sets
   const handleSkipDay = useCallback(async (day: WorkoutDayType, dayIndex: number) => {
     if (!enrollment) return;
-    await skipWorkout(enrollment.programId, day.id);
+    await skipWorkout(
+      enrollment.programId,
+      day.id,
+      activeProgram ? dayIdentityOf(activeProgram, day) : undefined,
+    );
     onUpdateProfile(profile.id, {
       activeProgram: { ...enrollment, lastCompletedDayIndex: dayIndex },
     });
     toast('Workout skipped', 'info');
-  }, [enrollment, skipWorkout, onUpdateProfile, profile.id]);
+  }, [enrollment, activeProgram, skipWorkout, onUpdateProfile, profile.id]);
 
   // Finish workout — show summary, then advance day index
   const handleFinish = useCallback(async (exercises: Exercise[] = []) => {
@@ -418,9 +433,7 @@ export function Workout({ profile, onUpdateProfile }: Props) {
   if (view === 'active' && activeSession && selectedDayId) {
     const isQuick = selectedProgramId === 'quick';
     const program = isQuick ? null : programs.find((p) => p.id === (selectedProgramId || enrollment?.programId));
-    const day = isQuick
-      ? { id: 'quick', label: '', tag: 'Quick Workout', title: 'Freestyle', subtitle: '', accent: '#e8572a', note: '', exercises: [] as Exercise[] }
-      : program?.days.find((d) => d.id === selectedDayId);
+    const day = isQuick ? QUICK_DAY : program?.days.find((d) => d.id === selectedDayId);
     if (!day) return null;
     const previousSession = program ? getPreviousSession(program.id, day.id) : undefined;
     const lastPerformance = getLastPerformanceMap(day.exercises);
@@ -768,7 +781,7 @@ export function Workout({ profile, onUpdateProfile }: Props) {
               onClick={() => {
                 setSelectedProgramId('quick');
                 setSelectedDayId('quick');
-                startWorkout('quick', 'quick');
+                startWorkout('quick', 'quick', QUICK_IDENTITY);
                 setView('active');
               }}
               className="btn-primary w-full flex items-center justify-center gap-2"
@@ -976,7 +989,7 @@ export function Workout({ profile, onUpdateProfile }: Props) {
               onClick={() => {
                 setSelectedProgramId('quick');
                 setSelectedDayId('quick');
-                startWorkout('quick', 'quick');
+                startWorkout('quick', 'quick', QUICK_IDENTITY);
                 setView('active');
               }}
               className={`w-full flex items-center gap-3 text-left active:scale-[0.98] transition-transform ${suggestedWorkouts.length > 0 ? 'pt-3 border-t border-border' : ''}`}

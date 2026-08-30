@@ -16,7 +16,13 @@ import { buildWorkoutCardData, renderWorkoutCard, shareOrDownload } from '../../
 import { ConfirmDialog } from '../shared/ConfirmDialog';
 import { getWeightUnit, toDisplayWeight, fromDisplayWeight, type WeightUnit } from '../../utils/units';
 import { estimateAdjustedOneRM } from '../../utils/progression';
-import { buildExerciseNameMap, displayExerciseName } from '../../utils/workoutLibrary';
+import {
+  buildExerciseNameMap,
+  displayExerciseName,
+  sessionTitle,
+  sessionTag,
+  sessionBadge,
+} from '../../utils/workoutLibrary';
 import {
   accumulateMuscleSets,
   buildExerciseMuscleMap,
@@ -92,7 +98,9 @@ function SessionCard({
   const isCardioOnly = totalSets === 0 && hasCardio;
   const cardioTotalMin = session.cardio?.reduce((s, c) => s + c.durationMin, 0) ?? 0;
 
-  const displayTitle = session.name || day?.title || program?.name || 'Workout';
+  // What the workout was called when it was done — not what the library calls it today.
+  const displayTitle = sessionTitle(session, day, program);
+  const badge = sessionBadge(session, day);
 
   const dateStr = new Date(session.date + 'T00:00:00').toLocaleDateString('en-US', {
     weekday: 'short',
@@ -113,14 +121,14 @@ function SessionCard({
               if (!onUpdate) return;
               e.stopPropagation();
               setExpanded(true);
-              setBadgeLabelValue(session.label || day?.label?.slice(0, 2) || 'W');
-              setBadgeColor(session.accent || day?.accent || '#e8572a');
+              setBadgeLabelValue(badge.label);
+              setBadgeColor(badge.accent);
               setEditingBadge(true);
             }}
             className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-white text-xs font-bold active:scale-95 transition-transform"
-            style={{ backgroundColor: session.accent || day?.accent || '#e8572a' }}
+            style={{ backgroundColor: badge.accent }}
           >
-            {session.label || day?.label?.slice(0, 2) || 'W'}
+            {badge.label}
           </button>
         )}
         <div className="flex-1 min-w-0">
@@ -541,12 +549,13 @@ const StrengthTooltip = ({
 };
 
 interface HistorySearchable {
-  day?: { tag: string };
+  /** The tag as the session recorded it, so filtering matches what is on screen. */
+  tag: string;
   haystack: string;
 }
 
 function matchesHistoryFilters(e: HistorySearchable, term: string, tag: string): boolean {
-  if (tag !== 'all' && e.day?.tag !== tag) return false;
+  if (tag !== 'all' && e.tag !== tag) return false;
   const t = term.trim().toLowerCase();
   if (t && !e.haystack.includes(t)) return false;
   return true;
@@ -740,16 +749,16 @@ export function WorkoutHistory({ sessions, programs, onDeleteSession, onUpdateSe
     const date = new Date(s.date + 'T00:00:00');
     const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
     const monthLabel = date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-    const displayTitle = s.name || day?.title || program?.name || 'Quick Workout';
-    const haystack = [displayTitle, day?.tag, monthLabel,
+    const displayTitle = sessionTitle(s, day, program);
+    const haystack = [displayTitle, sessionTag(s, day), monthLabel,
       date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })]
       .filter(Boolean).join(' ').toLowerCase();
-    return { session: s, program, day, monthKey, monthLabel, haystack };
+    return { session: s, program, day, tag: sessionTag(s, day), monthKey, monthLabel, haystack };
   }), [sessions, programMap]);
 
   const availableHistoryTags = useMemo(() => {
     const set = new Set<string>();
-    for (const e of enrichedSessions) if (e.day?.tag) set.add(e.day.tag);
+    for (const e of enrichedSessions) if (e.tag) set.add(e.tag);
     return Array.from(set);
   }, [enrichedSessions]);
 

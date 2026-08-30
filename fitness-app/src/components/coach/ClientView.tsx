@@ -26,7 +26,7 @@ interface ClientData {
     tdee?: number;
     activeProgram?: { programId: string; startDate: string };
   };
-  workoutSessions: { id: string; date: string; dayId: string; programId: string; startTime: number; endTime?: number; sets: Record<string, { weight: number; reps: number; completed: boolean }[]>; notes?: string; bodyweight?: number; cardio?: { type: string; durationMin: number; intensity?: string }[]; exercises?: { id: string; name: string }[] }[];
+  workoutSessions: { id: string; date: string; dayId: string; programId: string; startTime: number; endTime?: number; sets: Record<string, { weight: number; reps: number; completed: boolean }[]>; notes?: string; bodyweight?: number; cardio?: { type: string; durationMin: number; intensity?: string }[]; exercises?: { id: string; name: string }[]; name?: string; performedAs?: { title?: string; tag?: string; label?: string; accent?: string; programName?: string } }[];
   foodEntries: { id: string; date: string; name: string; brand?: string; calories: number; protein: number; carbs: number; fat: number; fiber?: number; servingSize?: number; servingUnit?: string; servingsConsumed: number; mealType: string; loggedAt: string }[];
   measurements: { id: string; date: string; weight?: number; weightUnit: string; measurements?: Record<string, number> }[];
   progressPhotos: { id: string; date: string; pose: string; imageData: string; weight?: number }[];
@@ -686,7 +686,11 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onAcknowl
             ) : recentWorkouts.map((w) => {
               const dur = w.endTime ? Math.round((w.endTime - w.startTime) / 60000) : null;
               const isExp = expandedWorkout === w.id;
+              // What the client's session says it was beats what their library says today.
               const dayInfo = dayLabelMap[w.dayId];
+              const title = w.name || w.performedAs?.title || dayInfo?.dayTitle || w.performedAs?.programName || dayInfo?.programName || 'Workout';
+              const badgeLabel = (w.performedAs?.label || dayInfo?.dayLabel || 'W').slice(0, 2);
+              const badgeAccent = w.performedAs?.accent || dayInfo?.accent || '#e8572a';
               return (
                 <div key={w.id} className="card overflow-hidden">
                   <button
@@ -695,12 +699,12 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onAcknowl
                   >
                     <div
                       className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-white text-xs font-bold"
-                      style={{ backgroundColor: dayInfo?.accent || '#e8572a' }}
+                      style={{ backgroundColor: badgeAccent }}
                     >
-                      {dayInfo?.dayLabel?.slice(0, 2) || 'W'}
+                      {badgeLabel}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="text-sm font-semibold truncate">{dayInfo ? (dayInfo.dayTitle || dayInfo.programName) : 'Workout'}</div>
+                      <div className="text-sm font-semibold truncate">{title}</div>
                       <div className="text-xs text-text-muted">
                         {new Date(w.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
                         {dur ? ` · ${dur} min` : ''}{w.bodyweight ? ` · ${w.bodyweight} lbs` : ''}

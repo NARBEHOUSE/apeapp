@@ -1,9 +1,14 @@
 import { getDB } from './index';
 import type { Program, WorkoutSession } from '../types';
-import { buildExerciseCatalog, sessionExercisesAfterFreeze } from '../utils/workoutLibrary';
+import {
+  buildExerciseCatalog,
+  buildDayIdentityCatalog,
+  sessionExercisesAfterFreeze,
+} from '../utils/workoutLibrary';
 
 /**
- * Stamp the exercises a session was logged with onto the session itself.
+ * Stamp what a session was onto the session itself — the exercises it logged, and what
+ * the workout was called at the time.
  *
  * A logged workout is a historical record. It must stay readable no matter what happens
  * to the library afterwards — renaming an exercise, dropping one from a workout, or
@@ -16,18 +21,25 @@ import { buildExerciseCatalog, sessionExercisesAfterFreeze } from '../utils/work
  * Ids that resolve to nothing are left alone, so re-importing a deleted program later
  * lets a subsequent pass recover those names.
  */
-export async function freezeSessionExercises(entries: Program[]): Promise<number> {
-  const catalog = buildExerciseCatalog(entries);
-  if (catalog.size === 0) return 0;
+export async function freezeSessionHistory(entries: Program[]): Promise<number> {
+  const exerciseCatalog = buildExerciseCatalog(entries);
+  const dayCatalog = buildDayIdentityCatalog(entries);
+  if (exerciseCatalog.size === 0 && dayCatalog.size === 0) return 0;
 
   const db = await getDB();
   const sessions = await db.getAll('workoutSessions');
   let updated = 0;
 
   for (const session of sessions) {
-    const exercises = sessionExercisesAfterFreeze(session, catalog);
-    if (!exercises) continue;
-    await db.put('workoutSessions', { ...session, exercises });
+    const exercises = sessionExercisesAfterFreeze(session, exerciseCatalog);
+    // Only ever fill a gap. Whatever a session already says about itself is the record.
+    const performedAs = session.performedAs ? undefined : dayCatalog.get(session.dayId);
+    if (!exercises && !performedAs) continue;
+    await db.put('workoutSessions', {
+      ...session,
+      ...(exercises ? { exercises } : {}),
+      ...(performedAs ? { performedAs } : {}),
+    });
     updated++;
   }
 

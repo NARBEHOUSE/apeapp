@@ -170,8 +170,15 @@ export async function generateReport(config: ReportConfig): Promise<ReportData> 
     }
     return {
       date: session.date,
-      programName: prog?.name || (session.programId === 'quick' ? 'Quick Workout' : 'Imported'),
-      dayTitle: day?.title || day?.tag || session.name || 'Workout',
+      // The session's own record of what it was wins over the current library.
+      programName: session.performedAs?.programName
+        || prog?.name
+        || (session.programId === 'quick' ? 'Quick Workout' : 'Imported'),
+      dayTitle: session.name
+        || session.performedAs?.title
+        || day?.title
+        || day?.tag
+        || 'Workout',
       duration, totalSets, totalVolume, bodyweight: session.bodyweight,
       exercises, cardio: session.cardio, notes: session.notes,
     };
