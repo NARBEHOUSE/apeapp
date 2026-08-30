@@ -164,6 +164,7 @@ export function Workout({ profile, onUpdateProfile }: Props) {
   const [summaryExercises, setSummaryExercises] = useState<Exercise[]>([]);
   const [quickEffortMetric, setQuickEffortMetric] = useState<'none' | 'rir' | 'rpe'>('rir');
   const [historyOpen, setHistoryOpen] = useState(true);
+  const [workoutsOpen, setWorkoutsOpen] = useState(true);
 
   const enrollment = profile.activeProgram;
   const activeProgram = enrollment ? programs.find((p) => p.id === enrollment.programId) : null;
@@ -175,12 +176,12 @@ export function Workout({ profile, onUpdateProfile }: Props) {
     [programs],
   );
 
-  // Least recently trained first: what a casual lifter most likely wants next.
+  // Least recently trained first: what a casual lifter most likely wants next. Render
+  // sites decide how many to show - the collapsible home list shows all of them.
   const suggestedWorkouts = useMemo(() => {
     return savedWorkouts
       .map((w) => ({ workout: w, lastDone: lastPerformedDate(w.id, sessions) }))
-      .sort((a, b) => (a.lastDone || '').localeCompare(b.lastDone || ''))
-      .slice(0, 6);
+      .sort((a, b) => (a.lastDone || '').localeCompare(b.lastDone || ''));
   }, [savedWorkouts, sessions]);
 
   // Skip rest days
@@ -746,36 +747,6 @@ export function Workout({ profile, onUpdateProfile }: Props) {
             </p>
           </div>
 
-          {suggestedWorkouts.length > 0 && (
-            <div className="mb-4">
-              <h3 className="label mb-2">Your Workouts</h3>
-              <div className="space-y-2">
-                {suggestedWorkouts.map(({ workout, lastDone }) => (
-                  <button
-                    key={workout.id}
-                    onClick={() => handleStartSavedWorkout(workout.id)}
-                    className="w-full bg-surface rounded-2xl p-4 flex items-center gap-3 text-left active:scale-[0.98] transition-transform"
-                  >
-                    <div
-                      className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-                      style={{ backgroundColor: `${workoutDayOf(workout)?.accent || 'var(--color-surface-raised)'}20` }}
-                    >
-                      <Play size={15} style={{ color: workoutDayOf(workout)?.accent || 'var(--color-text-secondary)' }} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium truncate">{workout.name}</div>
-                      <div className="text-[0.625rem] text-text-muted truncate">
-                        {exerciseCount(workout)} exercises · {formatDaysAgo(lastDone)}
-                        {muscleFocus(workout, 2).length > 0 && ` · ${muscleFocus(workout, 2).join(', ')}`}
-                      </div>
-                    </div>
-                    <ChevronRight size={14} className="text-text-muted shrink-0" />
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
           <div className="space-y-2 max-w-xs mx-auto">
             <button
               onClick={() => {
@@ -798,6 +769,52 @@ export function Workout({ profile, onUpdateProfile }: Props) {
               Build a Workout
             </button>
           </div>
+
+          {/* Below the actions and collapsible: the full list is for browsing, not the
+              first thing to scroll past when you just want to start training. */}
+          {suggestedWorkouts.length > 0 && (
+            <div className="mt-6">
+              <button
+                onClick={() => setWorkoutsOpen((o) => !o)}
+                className="w-full flex items-center justify-between mb-3"
+              >
+                <h3 className="label flex items-center gap-1.5">
+                  <Dumbbell size={11} />
+                  Your Workouts
+                  <span className="text-text-muted font-normal">({suggestedWorkouts.length})</span>
+                </h3>
+                {workoutsOpen
+                  ? <ChevronUp size={14} className="text-text-muted" />
+                  : <ChevronDown size={14} className="text-text-muted" />}
+              </button>
+              {workoutsOpen && (
+                <div className="space-y-2">
+                  {suggestedWorkouts.map(({ workout, lastDone }) => (
+                    <button
+                      key={workout.id}
+                      onClick={() => handleStartSavedWorkout(workout.id)}
+                      className="w-full bg-surface rounded-2xl p-4 flex items-center gap-3 text-left active:scale-[0.98] transition-transform"
+                    >
+                      <div
+                        className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                        style={{ backgroundColor: `${workoutDayOf(workout)?.accent || 'var(--color-surface-raised)'}20` }}
+                      >
+                        <Play size={15} style={{ color: workoutDayOf(workout)?.accent || 'var(--color-text-secondary)' }} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium truncate">{workout.name}</div>
+                        <div className="text-[0.625rem] text-text-muted truncate">
+                          {exerciseCount(workout)} exercises · {formatDaysAgo(lastDone)}
+                          {muscleFocus(workout, 2).length > 0 && ` · ${muscleFocus(workout, 2).join(', ')}`}
+                        </div>
+                      </div>
+                      <ChevronRight size={14} className="text-text-muted shrink-0" />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
