@@ -26,7 +26,7 @@ interface ClientData {
     tdee?: number;
     activeProgram?: { programId: string; startDate: string };
   };
-  workoutSessions: { id: string; date: string; dayId: string; programId: string; startTime: number; endTime?: number; sets: Record<string, { weight: number; reps: number; completed: boolean }[]>; notes?: string; bodyweight?: number; cardio?: { type: string; durationMin: number; intensity?: string }[] }[];
+  workoutSessions: { id: string; date: string; dayId: string; programId: string; startTime: number; endTime?: number; sets: Record<string, { weight: number; reps: number; completed: boolean }[]>; notes?: string; bodyweight?: number; cardio?: { type: string; durationMin: number; intensity?: string }[]; exercises?: { id: string; name: string }[] }[];
   foodEntries: { id: string; date: string; name: string; brand?: string; calories: number; protein: number; carbs: number; fat: number; fiber?: number; servingSize?: number; servingUnit?: string; servingsConsumed: number; mealType: string; loggedAt: string }[];
   measurements: { id: string; date: string; weight?: number; weightUnit: string; measurements?: Record<string, number> }[];
   progressPhotos: { id: string; date: string; pose: string; imageData: string; weight?: number }[];
@@ -142,7 +142,9 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onAcknowl
 
   const recentWorkouts = useMemo(() => [...data.workoutSessions].sort((a, b) => b.startTime - a.startTime).slice(0, 20), [data.workoutSessions]);
 
-  // Build fast lookup: exerciseId → name, and dayId → title, from client's programs
+  // exerciseId → name. The client's sessions win over their programs: a session records
+  // what was actually done, and must stay readable after the program it came from is
+  // edited or deleted.
   const exerciseNameMap = useMemo(() => {
     const map: Record<string, string> = {};
     for (const prog of data.programs) {
@@ -150,8 +152,11 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onAcknowl
         for (const ex of day.exercises) map[ex.id] = ex.name;
       }
     }
+    for (const session of data.workoutSessions) {
+      for (const ex of session.exercises || []) map[ex.id] = ex.name;
+    }
     return map;
-  }, [data.programs]);
+  }, [data.programs, data.workoutSessions]);
 
   const dayLabelMap = useMemo(() => {
     const map: Record<string, { programName: string; dayTitle: string; dayLabel: string; accent: string }> = {};
@@ -714,7 +719,7 @@ export function ClientView({ data: initialData, fileId, onPushChanges, onAcknowl
                       {Object.entries(w.sets).map(([exId, sets]) => {
                         const completed = sets.filter((s) => s.completed);
                         if (completed.length === 0) return null;
-                        const name = exerciseNameMap[exId] || exId;
+                        const name = exerciseNameMap[exId] || 'Unknown exercise';
                         return (
                           <div key={exId} className="text-xs">
                             <span className="font-medium text-text-primary">{name}</span>

@@ -1,5 +1,38 @@
 import { getDB } from './index';
-import type { WorkoutSession } from '../types';
+import type { Program, WorkoutSession } from '../types';
+import { buildExerciseCatalog, sessionExercisesAfterFreeze } from '../utils/workoutLibrary';
+
+/**
+ * Stamp the exercises a session was logged with onto the session itself.
+ *
+ * A logged workout is a historical record. It must stay readable no matter what happens
+ * to the library afterwards — renaming an exercise, dropping one from a workout, or
+ * deleting the whole program should never turn months of logged sets into a list of raw
+ * ids. Sessions saved before this existed have no manifest, so they still resolve through
+ * the library; this backfills them from whatever entries are present so they stop
+ * depending on it.
+ *
+ * Idempotent: only sessions with logged sets that aren't already described get rewritten.
+ * Ids that resolve to nothing are left alone, so re-importing a deleted program later
+ * lets a subsequent pass recover those names.
+ */
+export async function freezeSessionExercises(entries: Program[]): Promise<number> {
+  const catalog = buildExerciseCatalog(entries);
+  if (catalog.size === 0) return 0;
+
+  const db = await getDB();
+  const sessions = await db.getAll('workoutSessions');
+  let updated = 0;
+
+  for (const session of sessions) {
+    const exercises = sessionExercisesAfterFreeze(session, catalog);
+    if (!exercises) continue;
+    await db.put('workoutSessions', { ...session, exercises });
+    updated++;
+  }
+
+  return updated;
+}
 
 export async function saveWorkoutSession(session: WorkoutSession): Promise<void> {
   const db = await getDB();

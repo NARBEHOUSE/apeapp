@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { WorkoutSession, SetLog, Exercise, ExerciseLastPerformance, CardioEntry } from '../types';
 import { toSessionExercises } from '../utils/workoutLibrary';
-import { saveWorkoutSession, getSessionsByProfile, deleteWorkoutSession } from '../db/workouts';
+import { saveWorkoutSession, getSessionsByProfile, deleteWorkoutSession, freezeSessionExercises } from '../db/workouts';
 import { getAllPrograms, initializePrograms } from '../db/programs';
 import { today } from '../utils/dateHelpers';
 import type { Program } from '../types';
@@ -35,6 +35,10 @@ export function clearWorkoutInputs() {
   localStorage.removeItem(ACTIVE_INPUTS_KEY);
 }
 
+// The backfill scans every session, so it runs once per app load rather than on every
+// library refresh. It is idempotent, so a repeat would be harmless — just wasteful.
+let backfillDone = false;
+
 function loadPersistedSession(): WorkoutSession | null {
   try {
     const raw = localStorage.getItem(ACTIVE_SESSION_KEY);
@@ -64,10 +68,22 @@ export function useWorkout(profileId: string | null) {
     if (!profileId) return;
     if (loadedProfileRef.current !== profileId) setLoading(true);
     await initializePrograms();
-    const [progs, sess] = await Promise.all([
-      getAllPrograms(),
-      getSessionsByProfile(profileId),
-    ]);
+    const progs = await getAllPrograms();
+
+    // One-time repair for sessions logged before they carried their own exercise list.
+    // Running it here means the names are frozen into history before the user can reach
+    // the editor and change the library out from under them.
+    if (!backfillDone) {
+      backfillDone = true;
+      try {
+        await freezeSessionExercises(progs);
+      } catch (err) {
+        // History still renders from the library if this fails; don't block the app.
+        console.error('Could not backfill session exercise names:', err);
+      }
+    }
+
+    const sess = await getSessionsByProfile(profileId);
     setPrograms(progs);
     setSessions(sess.sort((a, b) => b.startTime - a.startTime));
     loadedProfileRef.current = profileId;

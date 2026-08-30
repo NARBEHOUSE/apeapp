@@ -59,29 +59,30 @@ function splitMuscles(muscle: string | undefined, secondary: string | string[] |
 /**
  * Exercise id → the muscles it credits.
  *
- * Sessions are folded in first so that lifts which belong to no library entry — added
- * mid-session, or logged in a freestyle workout — still earn muscle credit. Library
- * entries are applied last because they are the current, editable source of truth for an
- * exercise the user still has on file. Without the session pass, a casual lifter who
- * never enrolls in anything would read as zero volume on every muscle.
+ * The library is read first and each session's own record overrides it, because crediting
+ * a logged set is a statement about history: sets done as a chest press stay chest volume
+ * even if that exercise slot is later repurposed or the program is deleted outright.
+ * Sessions are also the only source for lifts that belong to no library entry at all —
+ * added mid-session, or logged freestyle — without which a casual lifter who never
+ * enrolls in anything reads as zero volume on every muscle.
  */
 export function buildExerciseMuscleMap(
   programs: Program[],
   sessions: WorkoutSession[] = [],
 ): ExerciseMuscleMap {
   const map: ExerciseMuscleMap = {};
-  for (const session of sessions) {
-    for (const ex of session.exercises || []) {
-      if (!ex.muscle) continue;
-      map[ex.id] = splitMuscles(ex.muscle, ex.secondaryMuscles);
-    }
-  }
   for (const prog of programs) {
     for (const day of prog.days) {
       for (const ex of day.exercises) {
         if (!ex.muscle) continue;
         map[ex.id] = splitMuscles(ex.muscle, ex.secondaryMuscles);
       }
+    }
+  }
+  for (const session of sessions) {
+    for (const ex of session.exercises || []) {
+      if (!ex.muscle) continue;
+      map[ex.id] = splitMuscles(ex.muscle, ex.secondaryMuscles);
     }
   }
   return map;

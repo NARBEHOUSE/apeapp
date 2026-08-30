@@ -16,6 +16,7 @@ import { buildWorkoutCardData, renderWorkoutCard, shareOrDownload } from '../../
 import { ConfirmDialog } from '../shared/ConfirmDialog';
 import { getWeightUnit, toDisplayWeight, fromDisplayWeight, type WeightUnit } from '../../utils/units';
 import { estimateAdjustedOneRM } from '../../utils/progression';
+import { buildExerciseNameMap, displayExerciseName } from '../../utils/workoutLibrary';
 import {
   accumulateMuscleSets,
   buildExerciseMuscleMap,
@@ -42,12 +43,15 @@ interface Props {
 function SessionCard({
   session,
   program,
+  exerciseNames,
   onDelete,
   onUpdate,
   weightUnit,
 }: {
   session: WorkoutSession;
   program: Program | undefined;
+  /** Exercise id → name, resolved from the session's own record first. */
+  exerciseNames: Record<string, string>;
   onDelete?: (sessionId: string) => void;
   onUpdate?: (session: WorkoutSession) => void;
   weightUnit: WeightUnit;
@@ -250,14 +254,13 @@ function SessionCard({
 
           {Object.entries(session.sets).map(([exerciseId, sets]) => {
             if (deleteExercises.includes(exerciseId)) return null;
-            const exercise = day?.exercises.find((e) => e.id === exerciseId);
             const completedSets = sets.filter((s) => s.completed);
             if (completedSets.length === 0) return null;
 
             return (
               <div key={exerciseId}>
                 <p className="text-xs font-semibold text-text-secondary mb-1">
-                  {exercise?.name || exerciseId}
+                  {displayExerciseName(exerciseId, exerciseNames)}
                 </p>
                 {editing ? (
                   <div className="space-y-1">
@@ -665,23 +668,10 @@ export function WorkoutHistory({ sessions, programs, onDeleteSession, onUpdateSe
     [muscleSummary, hasEffortData],
   );
 
-  // Sessions first, library last: a lift the user still has on file shows its current
-  // name, while one that only ever existed inside a session keeps the name it was logged
-  // under instead of dropping out of the strength picker entirely.
-  const exerciseNameMap = useMemo(() => {
-    const map: Record<string, string> = {};
-    for (const session of sessions) {
-      for (const ex of session.exercises || []) map[ex.id] = ex.name;
-    }
-    for (const prog of programs) {
-      for (const day of prog.days) {
-        for (const ex of day.exercises) {
-          map[ex.id] = ex.name;
-        }
-      }
-    }
-    return map;
-  }, [programs, sessions]);
+  const exerciseNameMap = useMemo(
+    () => buildExerciseNameMap(programs, sessions),
+    [programs, sessions],
+  );
 
   const exerciseList = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -897,6 +887,7 @@ export function WorkoutHistory({ sessions, programs, onDeleteSession, onUpdateSe
                       <div className="space-y-2">
                         {group.items.map(({ session, program }) => (
                           <SessionCard
+                            exerciseNames={exerciseNameMap}
                             key={session.id}
                             session={session}
                             program={program}

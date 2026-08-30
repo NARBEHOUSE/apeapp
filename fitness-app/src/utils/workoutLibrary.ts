@@ -150,6 +150,88 @@ export function blankWorkout(): Program {
   return buildWorkoutFromExercises('New Workout', []);
 }
 
+/** Every exercise the library knows about, keyed by id. */
+export function buildExerciseCatalog(entries: Program[]): Map<string, SessionExercise> {
+  const catalog = new Map<string, SessionExercise>();
+  for (const entry of entries) {
+    for (const day of entry.days) {
+      for (const ex of toSessionExercises(day.exercises)) catalog.set(ex.id, ex);
+    }
+  }
+  return catalog;
+}
+
+/**
+ * The exercise list a session should be stored with, or null when it already describes
+ * everything it logged. Used to backfill sessions saved before they carried their own
+ * list, so that editing or deleting a library entry can never strip the names off a
+ * workout that is already in the books.
+ *
+ * Anything already on the session is left exactly as it was — the record of what was
+ * done that day outranks whatever the library says today.
+ */
+export function sessionExercisesAfterFreeze(
+  session: WorkoutSession,
+  catalog: Map<string, SessionExercise>,
+): SessionExercise[] | null {
+  const described = new Set((session.exercises || []).map((e) => e.id));
+  const recovered = Object.keys(session.sets)
+    .filter((id) => !described.has(id))
+    .map((id) => catalog.get(id))
+    .filter((e): e is SessionExercise => !!e);
+  if (recovered.length === 0) return null;
+  return [...(session.exercises || []), ...recovered];
+}
+
+/**
+ * Exercise id -> display name, for turning logged sets back into a readable workout.
+ *
+ * Sessions are read FIRST and library entries only fill gaps. A logged session is a
+ * historical record: what it says you did must not change because you renamed an
+ * exercise, and must not vanish because you edited or deleted the program it came from.
+ * The library is only a fallback for old sessions that predate per-session manifests.
+ */
+export function buildExerciseNameMap(
+  entries: Program[],
+  sessions: WorkoutSession[],
+): Record<string, string> {
+  const map: Record<string, string> = {};
+  for (const entry of entries) {
+    for (const day of entry.days) {
+      for (const e of day.exercises) {
+        if (e.name?.trim()) map[e.id] = e.name;
+      }
+    }
+  }
+  for (const session of sessions) {
+    for (const e of session.exercises || []) {
+      if (e.name?.trim()) map[e.id] = e.name;
+    }
+  }
+  return map;
+}
+
+/**
+ * A name to show for a logged exercise. Never returns a raw id — a user staring at
+ * "a3f2c1d4-…" where their bench press used to be has, as far as they can tell, lost
+ * the workout.
+ */
+export function displayExerciseName(
+  exerciseId: string,
+  nameMap: Record<string, string>,
+): string {
+  const known = nameMap[exerciseId];
+  if (known) return known;
+  // CSV imports encode the name in the id, e.g. "import-bench-press".
+  if (exerciseId.startsWith('import-')) {
+    return exerciseId
+      .slice('import-'.length)
+      .replace(/-/g, ' ')
+      .replace(/\b\w/g, (c) => c.toUpperCase());
+  }
+  return 'Unknown exercise';
+}
+
 /** Most recent date this library entry was actually trained, ignoring skipped sessions. */
 export function lastPerformedDate(entryId: string, sessions: WorkoutSession[]): string | null {
   let latest: string | null = null;
