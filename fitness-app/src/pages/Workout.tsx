@@ -16,6 +16,8 @@ import {
   SkipForward,
   Play,
   BookmarkPlus,
+  CalendarRange,
+  Trash2,
 } from 'lucide-react';
 import type { Profile, Program, WorkoutSession, WorkoutDay as WorkoutDayType, ActiveProgramEnrollment, ProgramCompletion, Exercise } from '../types';
 import { useWorkout } from '../hooks/useWorkout';
@@ -165,6 +167,8 @@ export function Workout({ profile, onUpdateProfile }: Props) {
   const [quickEffortMetric, setQuickEffortMetric] = useState<'none' | 'rir' | 'rpe'>('rir');
   const [historyOpen, setHistoryOpen] = useState(true);
   const [workoutsOpen, setWorkoutsOpen] = useState(true);
+  const [pastProgramsOpen, setPastProgramsOpen] = useState(true);
+  const [removeCompletionIndex, setRemoveCompletionIndex] = useState<number | null>(null);
 
   const enrollment = profile.activeProgram;
   const activeProgram = enrollment ? programs.find((p) => p.id === enrollment.programId) : null;
@@ -353,6 +357,21 @@ export function Workout({ profile, onUpdateProfile }: Props) {
     setSummaryExercises(exercises);
     navigator.vibrate?.([50, 50, 50]);
   }, [finishWorkout, enrollment, activeProgram, onUpdateProfile, profile.id]);
+
+  // Newest first for display, but each entry keeps the index it has in the profile so a
+  // removal targets the right one regardless of the order on screen.
+  const pastPrograms = useMemo(
+    () => (profile.programHistory || []).map((completion, index) => ({ completion, index })).reverse(),
+    [profile.programHistory],
+  );
+
+  // Drop a stint from the Past Programs list. Only the summary entry goes; every workout
+  // logged during it is a separate record and stays exactly where it is.
+  const handleRemoveCompletion = useCallback((index: number) => {
+    const history = (profile.programHistory || []).filter((_, i) => i !== index);
+    onUpdateProfile(profile.id, { programHistory: history });
+    toast('Removed from past programs', 'info');
+  }, [profile.programHistory, profile.id, onUpdateProfile]);
 
   const handleCloseSummary = useCallback(() => {
     setSummarySession(null);
@@ -1052,24 +1071,47 @@ export function Workout({ profile, onUpdateProfile }: Props) {
       </button>
 
       {/* Program history */}
-      {profile.programHistory && profile.programHistory.length > 0 && (
+      {pastPrograms.length > 0 && (
         <div>
-          <h3 className="label mb-3">Past Programs</h3>
-          <div className="space-y-2">
-            {[...profile.programHistory].reverse().map((pc, i) => (
-              <div key={i} className="bg-surface rounded-2xl p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-sm font-medium">{pc.programName}</div>
-                    <div className="text-[0.6875rem] text-text-muted">
-                      {pc.durationWeeks}w · {pc.totalSessions} sessions · {pc.reason === 'completed' ? 'Completed' : pc.reason === 'ended_early' ? 'Ended early' : 'Switched'}
+          <button
+            onClick={() => setPastProgramsOpen((o) => !o)}
+            className="w-full flex items-center justify-between mb-3"
+          >
+            <h3 className="label flex items-center gap-1.5">
+              <CalendarRange size={11} />
+              Past Programs
+              <span className="text-text-muted font-normal">({pastPrograms.length})</span>
+            </h3>
+            {pastProgramsOpen
+              ? <ChevronUp size={14} className="text-text-muted" />
+              : <ChevronDown size={14} className="text-text-muted" />}
+          </button>
+          {pastProgramsOpen && (
+            <div className="space-y-2">
+              {pastPrograms.map(({ completion: pc, index }) => (
+                <div key={index} className="bg-surface rounded-2xl p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium truncate">{pc.programName}</div>
+                      <div className="text-[0.6875rem] text-text-muted">
+                        {pc.durationWeeks}w · {pc.totalSessions} sessions · {pc.reason === 'completed' ? 'Completed' : pc.reason === 'ended_early' ? 'Ended early' : 'Switched'}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <div className="text-[0.625rem] text-text-muted">{pc.startDate} → {pc.endDate}</div>
+                      <button
+                        onClick={() => setRemoveCompletionIndex(index)}
+                        aria-label={`Remove ${pc.programName} from past programs`}
+                        className="p-1 -mr-1 text-text-muted hover:text-danger transition-colors"
+                      >
+                        <Trash2 size={13} />
+                      </button>
                     </div>
                   </div>
-                  <div className="text-[0.625rem] text-text-muted">{pc.startDate} → {pc.endDate}</div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -1115,6 +1157,20 @@ export function Workout({ profile, onUpdateProfile }: Props) {
         title="End Program"
         message={`End "${activeProgram?.name}"? Your ${sessionsInProgram} workout sessions are saved. You'll be able to pick a new program.`}
         confirmText="End Program"
+        danger
+      />
+
+      {/* Remove a past-program entry */}
+      <ConfirmDialog
+        open={removeCompletionIndex !== null}
+        onClose={() => setRemoveCompletionIndex(null)}
+        onConfirm={() => {
+          if (removeCompletionIndex !== null) handleRemoveCompletion(removeCompletionIndex);
+          setRemoveCompletionIndex(null);
+        }}
+        title="Remove from Past Programs"
+        message={`Remove "${removeCompletionIndex !== null ? profile.programHistory?.[removeCompletionIndex]?.programName ?? 'this program' : ''}" from the list? Every workout you logged during it is kept — this only clears the summary entry.`}
+        confirmText="Remove"
         danger
       />
 
