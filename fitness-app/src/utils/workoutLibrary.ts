@@ -90,6 +90,28 @@ export function buildWorkoutFromDay(day: WorkoutDay, source?: Program): Program 
 }
 
 /**
+ * The inverse of `buildWorkoutFromDay`: drop a saved workout into a program as its next
+ * day, so a rotation can be assembled from workouts the user already has instead of
+ * being retyped by hand.
+ *
+ * Exercise ids carry over for the same reason they do in the other direction — a lift
+ * they've been doing loosely keeps its PRs and strength history once it becomes part of
+ * a program. The exercise objects themselves are copies, so editing the program day never
+ * touches the saved workout.
+ */
+export function buildDayFromWorkout(workout: Program, dayIndex: number): WorkoutDay | null {
+  const source = workoutDayOf(workout);
+  if (!source) return null;
+  return {
+    ...source,
+    id: crypto.randomUUID(),
+    label: `D${dayIndex + 1}`,
+    title: source.title || workout.name,
+    exercises: source.exercises.map((e) => ({ ...e })),
+  };
+}
+
+/**
  * Save the exercises of a freestyle session as a reusable workout. Exercise ids are kept
  * as-is for the same reason as above — the sets already logged against them should chain
  * up with the next time this workout is run.

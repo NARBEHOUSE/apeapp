@@ -547,6 +547,7 @@ export function Workout({ profile, onUpdateProfile }: Props) {
       <ProgramEditor
         program={editingProgram}
         mode={editorMode}
+        savedWorkouts={savedWorkouts}
         fitnessGoal={profile.bodyStats?.fitnessGoal === 'lose' ? 'lose' : profile.bodyStats?.fitnessGoal === 'build' ? 'build' : 'maintain'}
         onSave={handleSaveEntry}
         onClose={() => { setEditingProgram(null); setView(editorReturnView); }}

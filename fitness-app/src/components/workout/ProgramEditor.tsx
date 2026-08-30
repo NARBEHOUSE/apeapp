@@ -7,6 +7,8 @@ import {
   ChevronDown,
   ChevronUp,
   Save,
+  BookmarkPlus,
+  Dumbbell,
 } from 'lucide-react';
 import {
   DndContext,
@@ -27,7 +29,9 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import type { Program, WorkoutDay, Exercise, ExerciseProgressionConfig, ProgramGoal } from '../../types';
 import { ConfirmDialog } from '../shared/ConfirmDialog';
+import { Modal } from '../shared/Modal';
 import { ColorPicker, getRandomColor } from '../shared/ColorPicker';
+import { buildDayFromWorkout, workoutDayOf, muscleFocus, exerciseCount } from '../../utils/workoutLibrary';
 import { ProgressionEditor } from './ProgressionEditor';
 import { SetSchemeEditor } from './SetSchemeEditor';
 import {
@@ -280,6 +284,8 @@ interface Props {
    * Everything below the day header is the same editor either way.
    */
   mode?: 'program' | 'workout';
+  /** The user's standalone workouts, so a program can be built out of ones they already have. */
+  savedWorkouts?: Program[];
   onSave: (program: Program) => void;
   onClose: () => void;
 }
@@ -801,8 +807,9 @@ function DayEditor({
   );
 }
 
-export function ProgramEditor({ program, mode = 'program', onSave, onClose }: Props) {
+export function ProgramEditor({ program, mode = 'program', savedWorkouts = [], onSave, onClose }: Props) {
   const isWorkout = mode === 'workout';
+  const [showWorkoutPicker, setShowWorkoutPicker] = useState(false);
   const [editedProgram, setEditedProgram] = useState<Program>(() => {
     const days = program.days.map((d) => ({
       ...d,
@@ -862,6 +869,14 @@ export function ProgramEditor({ program, mode = 'program', onSave, onClose }: Pr
     };
     setEditedProgram((prev) => ({ ...prev, days: [...prev.days, newDay] }));
   }, [editedProgram.days.length]);
+
+  const addDayFromWorkout = useCallback((workout: Program) => {
+    setEditedProgram((prev) => {
+      const day = buildDayFromWorkout(workout, prev.days.length);
+      return day ? { ...prev, days: [...prev.days, day] } : prev;
+    });
+    setShowWorkoutPicker(false);
+  }, []);
 
   const duplicateDay = useCallback((dayId: string) => {
     const source = editedProgram.days.find((d) => d.id === dayId);
@@ -1190,6 +1205,15 @@ export function ProgramEditor({ program, mode = 'program', onSave, onClose }: Pr
                 <Plus size={18} />
                 Add Training Day
               </button>
+              {savedWorkouts.length > 0 && (
+                <button
+                  onClick={() => setShowWorkoutPicker(true)}
+                  className="w-full mt-2 py-3 rounded-xl border border-dashed border-border-light text-text-secondary font-medium hover:border-accent-blue/50 hover:text-accent-blue transition-colors flex items-center justify-center gap-2"
+                >
+                  <BookmarkPlus size={18} />
+                  Add a Saved Workout
+                </button>
+              )}
               <button
                 onClick={() => addDay(true)}
                 className="w-full mt-2 py-2.5 rounded-xl border border-dashed border-border-light text-text-muted font-medium hover:border-text-muted/50 transition-colors flex items-center justify-center gap-2 text-sm"
@@ -1200,6 +1224,42 @@ export function ProgramEditor({ program, mode = 'program', onSave, onClose }: Pr
           )}
         </div>
       </div>
+
+      {/* Build the rotation out of workouts the user already has */}
+      <Modal open={showWorkoutPicker} onClose={() => setShowWorkoutPicker(false)} title="Add a Saved Workout">
+        <p className="text-xs text-text-muted mb-3">
+          Adds it as the next day in this program. Your logged history for these lifts
+          carries over, and editing it here won&apos;t change the saved workout.
+        </p>
+        <div className="space-y-2">
+          {savedWorkouts.map((w) => {
+            const focus = muscleFocus(w, 3);
+            const count = exerciseCount(w);
+            return (
+              <button
+                key={w.id}
+                onClick={() => addDayFromWorkout(w)}
+                className="w-full bg-surface-raised rounded-xl p-3 flex items-center gap-3 text-left active:scale-[0.98] transition-transform"
+              >
+                <div
+                  className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
+                  style={{ backgroundColor: `${workoutDayOf(w)?.accent || 'var(--color-surface)'}20` }}
+                >
+                  <Dumbbell size={15} style={{ color: workoutDayOf(w)?.accent || 'var(--color-text-secondary)' }} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium truncate">{w.name}</div>
+                  <div className="text-[0.625rem] text-text-muted truncate">
+                    {count} exercise{count === 1 ? '' : 's'}
+                    {focus.length > 0 && ` · ${focus.join(', ')}`}
+                  </div>
+                </div>
+                <Plus size={15} className="text-text-muted shrink-0" />
+              </button>
+            );
+          })}
+        </div>
+      </Modal>
     </div>
   );
 }
