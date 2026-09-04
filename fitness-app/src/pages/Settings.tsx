@@ -3019,7 +3019,7 @@ export function Settings({ profile, onUpdateProfile, onSetMacroTargetHistory, pr
                 Privacy Policy
               </a>
               <a
-                href="https://streamelements.com/bigbroacro/tip"
+                href="https://shop.apenthusiast.com/pages/tips"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-2 text-sm text-accent-blue hover:underline"
