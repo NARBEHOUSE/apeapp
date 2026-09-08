@@ -34,6 +34,7 @@ import {
   formatProgressionLabel,
   type ExerciseProgression,
 } from '../../utils/progression';
+import { NumberField } from '../shared/NumberField';
 
 interface Props {
   onSave: (program: Program) => void;
@@ -549,14 +550,10 @@ export function ProgramCreator({ onSave, onClose }: Props) {
                   </button>
                 ))}
               </div>
-              <input
-                type="number"
-                inputMode="numeric"
+              <NumberField
                 className="input-field text-sm"
                 value={durationWeeks}
-                onChange={(e) =>
-                  setDurationWeeks(Math.max(1, parseInt(e.target.value, 10) || 1))
-                }
+                onChange={setDurationWeeks}
                 min={1}
                 max={52}
                 placeholder="Custom weeks"
@@ -738,33 +735,20 @@ export function ProgramCreator({ onSave, onClose }: Props) {
                       <div className="grid grid-cols-2 gap-3">
                         <div>
                           <label className="label mb-1 block">Weeks</label>
-                          <input
-                            type="number"
-                            inputMode="numeric"
+                          <NumberField
                             className="input-field text-sm"
                             value={block.weeks}
-                            onChange={(e) =>
-                              updateBlock(block.id, {
-                                weeks: Math.max(1, parseInt(e.target.value, 10) || 1),
-                              })
-                            }
+                            onChange={(v) => updateBlock(block.id, { weeks: v })}
                             min={1}
                           />
                         </div>
                         <div>
                           <label className="label mb-1 block">Intensity %</label>
-                          <input
-                            type="number"
-                            inputMode="numeric"
+                          <NumberField
+                            optional
                             className="input-field text-sm"
-                            value={block.intensityPercent ?? ''}
-                            onChange={(e) =>
-                              updateBlock(block.id, {
-                                intensityPercent: e.target.value
-                                  ? Math.min(100, Math.max(0, parseInt(e.target.value, 10)))
-                                  : undefined,
-                              })
-                            }
+                            value={block.intensityPercent}
+                            onChange={(v) => updateBlock(block.id, { intensityPercent: v })}
                             placeholder="Optional"
                             min={0}
                             max={100}
@@ -1196,17 +1180,11 @@ function ExerciseEditor({
           <div className="grid grid-cols-3 gap-3">
             <div>
               <label className="label mb-1 block">Sets</label>
-              <input
-                type="number"
-                inputMode="numeric"
+              <NumberField
                 className="input-field text-sm"
                 value={exercise.sets}
-                onChange={(e) =>
-                  onUpdate(dayId, exercise.id, {
-                    sets: parseInt(e.target.value, 10) || 0,
-                  })
-                }
-                min={1}
+                onChange={(v) => onUpdate(dayId, exercise.id, { sets: v })}
+                placeholder="3"
               />
             </div>
             <div>
@@ -1222,18 +1200,12 @@ function ExerciseEditor({
             </div>
             <div>
               <label className="label mb-1 block">Weight</label>
-              <input
-                type="number"
-                inputMode="decimal"
+              <NumberField
+                optional
+                decimal
                 className="input-field text-sm"
-                value={exercise.startingWeight ?? ''}
-                onChange={(e) =>
-                  onUpdate(dayId, exercise.id, {
-                    startingWeight: e.target.value
-                      ? parseFloat(e.target.value)
-                      : undefined,
-                  })
-                }
+                value={exercise.startingWeight}
+                onChange={(v) => onUpdate(dayId, exercise.id, { startingWeight: v })}
                 placeholder="Optional"
               />
             </div>

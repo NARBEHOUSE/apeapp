@@ -28,6 +28,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import type { Program, WorkoutDay, Exercise, ExerciseProgressionConfig, ProgramGoal } from '../../types';
+import { NumberField } from '../shared/NumberField';
 import { ConfirmDialog } from '../shared/ConfirmDialog';
 import { Modal } from '../shared/Modal';
 import { ColorPicker, getRandomColor } from '../shared/ColorPicker';
@@ -388,12 +389,11 @@ function SortableExercise({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="label mb-1 block">Target Duration (min)</label>
-              <input
-                type="text"
-                inputMode="numeric"
+              <NumberField
+                optional
                 className="input-field text-sm"
-                value={exercise.targetDuration ?? ''}
-                onChange={(e) => onUpdate(exercise.id, { targetDuration: e.target.value ? parseInt(e.target.value) : undefined })}
+                value={exercise.targetDuration}
+                onChange={(v) => onUpdate(exercise.id, { targetDuration: v })}
                 placeholder="e.g. 30"
               />
             </div>
@@ -441,16 +441,10 @@ function SortableExercise({
           <div className="grid grid-cols-3 gap-3">
             <div>
               <label className="label mb-1 block">Sets</label>
-              <input
-                type="text"
-                inputMode="numeric"
+              <NumberField
                 className="input-field text-sm"
-                value={exercise.sets || ''}
-                onChange={(e) =>
-                  onUpdate(exercise.id, {
-                    sets: parseInt(e.target.value, 10) || 0,
-                  })
-                }
+                value={exercise.sets}
+                onChange={(v) => onUpdate(exercise.id, { sets: v })}
                 placeholder="3"
               />
             </div>
@@ -465,18 +459,12 @@ function SortableExercise({
             </div>
             <div>
               <label className="label mb-1 block">Weight</label>
-              <input
-                type="text"
-                inputMode="decimal"
+              <NumberField
+                optional
+                decimal
                 className="input-field text-sm"
-                value={exercise.startingWeight ?? ''}
-                onChange={(e) =>
-                  onUpdate(exercise.id, {
-                    startingWeight: e.target.value
-                      ? parseFloat(e.target.value)
-                      : undefined,
-                  })
-                }
+                value={exercise.startingWeight}
+                onChange={(v) => onUpdate(exercise.id, { startingWeight: v })}
                 placeholder="Optional"
               />
             </div>
@@ -514,16 +502,11 @@ function SortableExercise({
           />
           <div>
             <label className="label mb-1 block">Rest Timer Override (seconds)</label>
-            <input
-              type="text"
-              inputMode="numeric"
+            <NumberField
+              optional
               className="input-field text-sm"
-              value={exercise.restTimerOverride ?? ''}
-              onChange={(e) =>
-                onUpdate(exercise.id, {
-                  restTimerOverride: e.target.value ? parseInt(e.target.value) : undefined,
-                })
-              }
+              value={exercise.restTimerOverride}
+              onChange={(v) => onUpdate(exercise.id, { restTimerOverride: v })}
               placeholder="Use program default"
             />
           </div>
@@ -1084,16 +1067,11 @@ export function ProgramEditor({ program, mode = 'program', savedWorkouts = [], o
           {!isWorkout && (
             <div>
               <label className="label mb-1.5 block">Duration (weeks)</label>
-              <input
-                type="text"
-                inputMode="numeric"
+              <NumberField
+                optional
                 className="input-field text-sm"
-                value={editedProgram.suggestedDurationWeeks || ''}
-                onChange={(e) =>
-                  updateProgramField({
-                    suggestedDurationWeeks: parseInt(e.target.value) || undefined,
-                  })
-                }
+                value={editedProgram.suggestedDurationWeeks}
+                onChange={(v) => updateProgramField({ suggestedDurationWeeks: v })}
                 placeholder="e.g. 8"
                 min={1}
                 max={52}
@@ -1105,16 +1083,11 @@ export function ProgramEditor({ program, mode = 'program', savedWorkouts = [], o
         {/* Default Rest Timer */}
         <div>
           <label className="label mb-1.5 block">Default Rest Timer (seconds)</label>
-          <input
-            type="text"
-            inputMode="numeric"
+          <NumberField
+            optional
             className="input-field text-sm"
-            value={editedProgram.defaultRestTimer || ''}
-            onChange={(e) =>
-              updateProgramField({
-                defaultRestTimer: e.target.value ? parseInt(e.target.value) : undefined,
-              })
-            }
+            value={editedProgram.defaultRestTimer}
+            onChange={(v) => updateProgramField({ defaultRestTimer: v })}
             placeholder="Use profile default"
           />
           <p className="text-[0.625rem] text-text-muted mt-1">

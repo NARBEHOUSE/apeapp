@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { SetScheme, SetSchemeType } from '../../types';
+import { NumberField } from '../shared/NumberField';
 
 interface Props {
   scheme?: SetScheme;
@@ -96,20 +97,22 @@ export function SetSchemeEditor({ scheme, sets, reps, onChange }: Props) {
                 </div>
                 <div>
                   <label className="text-[0.5rem] text-text-muted uppercase font-semibold">Backoff %</label>
-                  <input
-                    type="text" inputMode="numeric" className="input-field text-xs py-1"
-                    value={scheme.backoffPercent || ''} placeholder="20"
-                    onChange={(e) => onChange({ ...scheme, backoffPercent: parseInt(e.target.value) || 0 })}
+                  <NumberField
+                    optional
+                    className="input-field text-xs py-1"
+                    value={scheme.backoffPercent} placeholder="20" max={100}
+                    onChange={(v) => onChange({ ...scheme, backoffPercent: v })}
                   />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="text-[0.5rem] text-text-muted uppercase font-semibold">Backoff Sets</label>
-                  <input
-                    type="text" inputMode="numeric" className="input-field text-xs py-1"
-                    value={scheme.backoffSets || ''} placeholder="2"
-                    onChange={(e) => onChange({ ...scheme, backoffSets: parseInt(e.target.value) || 0 })}
+                  <NumberField
+                    optional
+                    className="input-field text-xs py-1"
+                    value={scheme.backoffSets} placeholder="2"
+                    onChange={(v) => onChange({ ...scheme, backoffSets: v })}
                   />
                 </div>
                 <div>
@@ -137,13 +140,12 @@ export function SetSchemeEditor({ scheme, sets, reps, onChange }: Props) {
                 {scheme.pyramidReps.map((r, i) => (
                   <div key={i} className="flex items-center gap-0.5">
                     <span className="text-[0.5rem] text-text-muted">S{i + 1}:</span>
-                    <input
-                      type="text" inputMode="numeric"
+                    <NumberField
                       className="input-field text-xs py-1 w-10 text-center"
-                      value={r || ''}
-                      onChange={(e) => {
+                      value={r}
+                      onChange={(v) => {
                         const updated = [...scheme.pyramidReps!];
-                        updated[i] = parseInt(e.target.value) || 0;
+                        updated[i] = v;
                         onChange({ ...scheme, pyramidReps: updated });
                       }}
                     />
@@ -173,11 +175,12 @@ export function SetSchemeEditor({ scheme, sets, reps, onChange }: Props) {
             <div className="bg-surface-raised rounded-lg p-2.5 space-y-1">
               <div className="flex items-center gap-2">
                 <label className="text-[0.5rem] text-text-muted uppercase font-semibold">Failure sets</label>
-                <input
-                  type="text" inputMode="numeric"
+                <NumberField
+                  optional
                   className="input-field text-xs py-1 w-12 text-center"
-                  value={scheme.failureSets ?? sets}
-                  onChange={(e) => onChange({ ...scheme, failureSets: parseInt(e.target.value) || 1 })}
+                  value={scheme.failureSets}
+                  placeholder={String(sets)}
+                  onChange={(v) => onChange({ ...scheme, failureSets: v })}
                 />
                 <span className="text-[0.5rem] text-text-muted">of {sets} total sets</span>
               </div>
@@ -192,11 +195,12 @@ export function SetSchemeEditor({ scheme, sets, reps, onChange }: Props) {
             <div className="bg-surface-raised rounded-lg p-2.5 space-y-1">
               <div className="flex items-center gap-2">
                 <label className="text-[0.5rem] text-text-muted uppercase font-semibold">Working sets</label>
-                <input
-                  type="text" inputMode="numeric"
+                <NumberField
+                  optional
                   className="input-field text-xs py-1 w-12 text-center"
-                  value={scheme.amrapWorkingSets ?? Math.max(1, sets - 1)}
-                  onChange={(e) => onChange({ ...scheme, amrapWorkingSets: parseInt(e.target.value) || 1 })}
+                  value={scheme.amrapWorkingSets}
+                  placeholder={String(Math.max(1, sets - 1))}
+                  onChange={(v) => onChange({ ...scheme, amrapWorkingSets: v })}
                 />
                 <span className="text-[0.5rem] text-text-muted">+ 1 AMRAP</span>
               </div>

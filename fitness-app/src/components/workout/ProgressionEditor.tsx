@@ -8,6 +8,7 @@ import {
   generateBlankTargets,
   type ExerciseProgression,
 } from '../../utils/progression';
+import { NumberField } from '../shared/NumberField';
 
 interface Props {
   exercise: Exercise;
@@ -152,32 +153,28 @@ export function ProgressionEditor({ exercise, goalType, durationWeeks, onUpdate 
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className="text-[0.5625rem] text-text-muted mb-0.5 block">+lbs / week</label>
-                <input
-                  type="text"
-                  inputMode="decimal"
+                <NumberField
+                  decimal
                   className="input-field text-xs py-1.5"
-                  value={prog.weeklyWeightIncrement || ''}
-                  onChange={(e) =>
+                  value={prog.weeklyWeightIncrement}
+                  onChange={(v) =>
                     onUpdate({
-                      progression: { ...prog, weeklyWeightIncrement: parseFloat(e.target.value) || 0 },
+                      progression: { ...prog, weeklyWeightIncrement: v },
                       weeklyTargets: undefined,
                     })
                   }
-                  step={2.5}
                 />
               </div>
               {prog.type === 'double_progression' ? (
                 <div className="grid grid-cols-2 gap-1">
                   <div>
                     <label className="text-[0.5625rem] text-text-muted mb-0.5 block">Rep min</label>
-                    <input
-                      type="text"
-                      inputMode="numeric"
+                    <NumberField
                       className="input-field text-xs py-1.5"
-                      value={prog.repRangeMin || ''}
-                      onChange={(e) =>
+                      value={prog.repRangeMin}
+                      onChange={(v) =>
                         onUpdate({
-                          progression: { ...prog, repRangeMin: parseInt(e.target.value) || 0 },
+                          progression: { ...prog, repRangeMin: v },
                           weeklyTargets: undefined,
                         })
                       }
@@ -185,14 +182,12 @@ export function ProgressionEditor({ exercise, goalType, durationWeeks, onUpdate 
                   </div>
                   <div>
                     <label className="text-[0.5625rem] text-text-muted mb-0.5 block">Rep max</label>
-                    <input
-                      type="text"
-                      inputMode="numeric"
+                    <NumberField
                       className="input-field text-xs py-1.5"
-                      value={prog.repRangeMax || ''}
-                      onChange={(e) =>
+                      value={prog.repRangeMax}
+                      onChange={(v) =>
                         onUpdate({
-                          progression: { ...prog, repRangeMax: parseInt(e.target.value) || 0 },
+                          progression: { ...prog, repRangeMax: v },
                           weeklyTargets: undefined,
                         })
                       }
@@ -202,18 +197,15 @@ export function ProgressionEditor({ exercise, goalType, durationWeeks, onUpdate 
               ) : (
                 <div>
                   <label className="text-[0.5625rem] text-text-muted mb-0.5 block">Target reps</label>
-                  <input
-                    type="text"
-                    inputMode="numeric"
+                  <NumberField
                     className="input-field text-xs py-1.5"
-                    value={prog.repRangeMin || ''}
-                    onChange={(e) => {
-                      const v = parseInt(e.target.value) || 0;
+                    value={prog.repRangeMin}
+                    onChange={(v) =>
                       onUpdate({
                         progression: { ...prog, repRangeMin: v, repRangeMax: v },
                         weeklyTargets: undefined,
-                      });
-                    }}
+                      })
+                    }
                   />
                 </div>
               )}
@@ -222,14 +214,12 @@ export function ProgressionEditor({ exercise, goalType, durationWeeks, onUpdate 
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className="text-[0.5625rem] text-text-muted mb-0.5 block">Deload every (wks)</label>
-                <input
-                  type="text"
-                  inputMode="numeric"
+                <NumberField
                   className="input-field text-xs py-1.5"
-                  value={prog.deloadFrequency || ''}
-                  onChange={(e) =>
+                  value={prog.deloadFrequency}
+                  onChange={(v) =>
                     onUpdate({
-                      progression: { ...prog, deloadFrequency: parseInt(e.target.value) || 0 },
+                      progression: { ...prog, deloadFrequency: v },
                       weeklyTargets: undefined,
                     })
                   }
@@ -238,14 +228,13 @@ export function ProgressionEditor({ exercise, goalType, durationWeeks, onUpdate 
               </div>
               <div>
                 <label className="text-[0.5625rem] text-text-muted mb-0.5 block">Deload reduce %</label>
-                <input
-                  type="text"
-                  inputMode="numeric"
+                <NumberField
                   className="input-field text-xs py-1.5"
-                  value={prog.deloadPercent || ''}
-                  onChange={(e) =>
+                  value={prog.deloadPercent}
+                  max={100}
+                  onChange={(v) =>
                     onUpdate({
-                      progression: { ...prog, deloadPercent: Math.min(100, parseInt(e.target.value) || 0) },
+                      progression: { ...prog, deloadPercent: v },
                       weeklyTargets: undefined,
                     })
                   }
@@ -310,27 +299,21 @@ export function ProgressionEditor({ exercise, goalType, durationWeeks, onUpdate 
                       </span>
                       {isEditable ? (
                         <>
-                          <input
-                            type="text"
-                            inputMode="numeric"
+                          <NumberField
                             className="input-field text-[0.625rem] py-1 px-1.5 text-center"
-                            value={t.sets || ''}
-                            onChange={(e) => updateWeek(i, 'sets', parseInt(e.target.value) || 0)}
+                            value={t.sets}
+                            onChange={(v) => updateWeek(i, 'sets', v)}
                           />
-                          <input
-                            type="text"
-                            inputMode="numeric"
+                          <NumberField
                             className="input-field text-[0.625rem] py-1 px-1.5 text-center"
-                            value={t.reps || ''}
-                            onChange={(e) => updateWeek(i, 'reps', parseInt(e.target.value) || 0)}
+                            value={t.reps}
+                            onChange={(v) => updateWeek(i, 'reps', v)}
                           />
-                          <input
-                            type="text"
-                            inputMode="decimal"
+                          <NumberField
+                            decimal
                             className="input-field text-[0.625rem] py-1 px-1.5 text-center"
-                            value={t.weight || ''}
-                            onChange={(e) => updateWeek(i, 'weight', parseFloat(e.target.value) || 0)}
-                            step={2.5}
+                            value={t.weight}
+                            onChange={(v) => updateWeek(i, 'weight', v)}
                           />
                           <div className="flex justify-center">
                             <input

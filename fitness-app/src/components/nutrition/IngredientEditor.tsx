@@ -5,6 +5,7 @@ import { searchSavedFoods } from '../../db/foodHistory';
 import { FOOD_DATABASE } from '../../data/foods';
 import { getFoodEmoji } from '../../utils/foodEmoji';
 import { scaledIngredient } from '../../utils/mealIngredients';
+import { NumberField } from '../shared/NumberField';
 
 interface QuickFood {
   name: string;
@@ -91,9 +92,7 @@ export function IngredientEditor({ profileId, ingredients, onChange, allowAddNew
     setTimeout(() => searchRef.current?.focus(), 50);
   }
 
-  function updateAmount(index: number, val: string) {
-    const amount = parseFloat(val);
-    if (isNaN(amount) || amount <= 0) return;
+  function updateAmount(index: number, amount: number) {
     onChange(ingredients.map((ing, i) => i === index ? { ...ing, amount } : ing));
   }
 
@@ -207,11 +206,10 @@ export function IngredientEditor({ profileId, ingredients, onChange, allowAddNew
                 <div className="flex-1 min-w-0">
                   <div className="text-xs font-medium truncate">{ing.name}</div>
                   <div className="flex items-center gap-1.5 mt-0.5">
-                    <input
-                      type="text"
-                      inputMode="decimal"
+                    <NumberField
+                      decimal
                       value={ing.amount}
-                      onChange={(e) => updateAmount(i, e.target.value)}
+                      onChange={(v) => updateAmount(i, v)}
                       className="w-14 bg-surface-raised rounded px-1.5 py-0.5 text-[0.625rem] text-center font-medium border-0"
                     />
                     <span className="text-[0.5625rem] text-text-muted">{ing.servingUnit}</span>

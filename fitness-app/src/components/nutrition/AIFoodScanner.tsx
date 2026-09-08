@@ -3,6 +3,7 @@ import { Camera, Loader2, Check, AlertTriangle, Edit3, StickyNote } from 'lucide
 import { analyzeFood } from '../../utils/claudeVision';
 import { getApiKey } from '../../utils/apiKeyManager';
 import type { FoodEntry } from '../../types';
+import { NumberField } from '../shared/NumberField';
 
 type MealType = FoodEntry['mealType'];
 
@@ -321,42 +322,38 @@ export function AIFoodScanner({ onAdd, onClose }: AIFoodScannerProps) {
                 <div className="grid grid-cols-4 gap-2">
                   <div>
                     <label className="text-xs text-text-muted">Cal</label>
-                    <input
-                      type="number"
-                      inputMode="decimal"
+                    <NumberField
+                      decimal
                       className="input-field text-xs py-1"
                       value={food.calories}
-                      onChange={(e) => updateFood(idx, 'calories', e.target.value)}
+                      onChange={(v) => updateFood(idx, 'calories', v)}
                     />
                   </div>
                   <div>
                     <label className="text-xs text-text-muted">Protein</label>
-                    <input
-                      type="number"
-                      inputMode="decimal"
+                    <NumberField
+                      decimal
                       className="input-field text-xs py-1"
                       value={food.protein}
-                      onChange={(e) => updateFood(idx, 'protein', e.target.value)}
+                      onChange={(v) => updateFood(idx, 'protein', v)}
                     />
                   </div>
                   <div>
                     <label className="text-xs text-text-muted">Carbs</label>
-                    <input
-                      type="number"
-                      inputMode="decimal"
+                    <NumberField
+                      decimal
                       className="input-field text-xs py-1"
                       value={food.carbs}
-                      onChange={(e) => updateFood(idx, 'carbs', e.target.value)}
+                      onChange={(v) => updateFood(idx, 'carbs', v)}
                     />
                   </div>
                   <div>
                     <label className="text-xs text-text-muted">Fat</label>
-                    <input
-                      type="number"
-                      inputMode="decimal"
+                    <NumberField
+                      decimal
                       className="input-field text-xs py-1"
                       value={food.fat}
-                      onChange={(e) => updateFood(idx, 'fat', e.target.value)}
+                      onChange={(v) => updateFood(idx, 'fat', v)}
                     />
                   </div>
                 </div>
