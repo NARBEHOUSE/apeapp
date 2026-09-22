@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react';
 import { ChevronDown, ChevronUp, ChevronLeft, ChevronRight, TrendingUp, TrendingDown, Minus, Dumbbell, Utensils, Scale, Brain, Target } from 'lucide-react';
 import type { WorkoutSession, FoodEntry, Measurement, CheckInEntry, MacroTargets, FitnessGoal } from '../../types';
-import { getWeekDates, today, localDateStr, formatShortDate } from '../../utils/dateHelpers';
+import { formatShortDate } from '../../utils/dateHelpers';
 import { macroStatusColor } from '../../utils/macroColors';
-import { averageDays } from '../../utils/calorieAverage';
+import { rollingWindow } from '../../utils/calorieAverage';
 import { GOAL_LABELS } from '../../utils/tdee';
 import { totalSetCounts, hasRatedSets, formatSets } from '../../utils/muscleVolume';
 import { toDisplayWeight, type WeightUnit } from '../../utils/units';
@@ -15,11 +15,14 @@ interface Props {
   checkIns: CheckInEntry[];
   macroTargets: MacroTargets;
   // Looks up the targets/goal that were actually in effect on a given date, so a past
-  // week is judged against the goal active then rather than today's goal.
+  // window is judged against the goal active then rather than today's goal.
   getTargetsForDate?: (date: string) => MacroTargets;
   getGoalForDate?: (date: string) => FitnessGoal | undefined;
   units: 'imperial' | 'metric';
 }
+
+// Seven complete days, compared against the seven before them.
+const WINDOW = 7;
 
 interface InsightMetric {
   label: string;
@@ -33,74 +36,64 @@ interface InsightMetric {
 
 export function WeeklyInsights({ sessions, allFoodEntries, measurements, checkIns, macroTargets, getTargetsForDate, getGoalForDate, units }: Props) {
   const [expanded, setExpanded] = useState(false);
-  const [weekOffset, setWeekOffset] = useState(0);
+  // 0 is the most recent window; each step back is a whole window width, so the
+  // comparison is always 7 complete days against the 7 before them.
+  const [windowOffset, setWindowOffset] = useState(0);
 
-  const anchorDate = useMemo(() => {
-    const d = new Date(today() + 'T00:00:00');
-    d.setDate(d.getDate() + weekOffset * 7);
-    return localDateStr(d);
-  }, [weekOffset]);
+  const windowDays = useMemo(() => rollingWindow(WINDOW, windowOffset), [windowOffset]);
+  const prevWindowDays = useMemo(() => rollingWindow(WINDOW, windowOffset + 1), [windowOffset]);
 
-  // Targets as they stood during the displayed week, not necessarily today's targets
-  const weekTargets = useMemo(
-    () => getTargetsForDate ? getTargetsForDate(anchorDate) : macroTargets,
-    [getTargetsForDate, anchorDate, macroTargets]
+  const windowDates = useMemo(() => new Set(windowDays), [windowDays]);
+  const prevWindowDates = useMemo(() => new Set(prevWindowDays), [prevWindowDays]);
+
+  const windowLabel = useMemo(
+    () => `${formatShortDate(windowDays[0])} – ${formatShortDate(windowDays[WINDOW - 1])}`,
+    [windowDays]
   );
 
-  const weekDates = useMemo(() => new Set(getWeekDates(anchorDate)), [anchorDate]);
+  // Targets as they stood at the end of the window, not necessarily today's targets
+  const windowTargets = useMemo(
+    () => getTargetsForDate ? getTargetsForDate(windowDays[WINDOW - 1]) : macroTargets,
+    [getTargetsForDate, windowDays, macroTargets]
+  );
 
-  const prevWeekAnchor = useMemo(() => {
-    const d = new Date(anchorDate + 'T00:00:00');
-    d.setDate(d.getDate() - 7);
-    return localDateStr(d);
-  }, [anchorDate]);
-
-  const prevWeekDates = useMemo(() => new Set(getWeekDates(prevWeekAnchor)), [prevWeekAnchor]);
-
-  const weekLabel = useMemo(() => {
-    const dates = getWeekDates(anchorDate);
-    return `${formatShortDate(dates[0])} – ${formatShortDate(dates[6])}`;
-  }, [anchorDate]);
-
-  // Which phase (cut/maintain/build) was active during the displayed week — and
-  // whether it changed partway through, so a switched week isn't mislabeled.
-  const weekGoalLabel = useMemo(() => {
+  // Which phase (cut/maintain/build) was active across the window — and whether it
+  // changed partway through, so a switched stretch isn't mislabeled.
+  const windowGoalLabel = useMemo(() => {
     if (!getGoalForDate) return null;
-    const dates = getWeekDates(anchorDate);
-    const goalStart = getGoalForDate(dates[0]);
-    const goalEnd = getGoalForDate(dates[6]);
+    const goalStart = getGoalForDate(windowDays[0]);
+    const goalEnd = getGoalForDate(windowDays[WINDOW - 1]);
     if (!goalStart && !goalEnd) return null;
     if (goalStart && goalEnd && goalStart !== goalEnd) {
       return `${GOAL_LABELS[goalStart]} → ${GOAL_LABELS[goalEnd]}`;
     }
     const goal = goalEnd || goalStart;
     return goal ? GOAL_LABELS[goal] : null;
-  }, [getGoalForDate, anchorDate]);
+  }, [getGoalForDate, windowDays]);
 
   const insights = useMemo(() => {
     // --- Training ---
-    const weekSessions = sessions.filter((s) => weekDates.has(s.date));
-    const prevWeekSessions = sessions.filter((s) => prevWeekDates.has(s.date));
+    const windowSessions = sessions.filter((s) => windowDates.has(s.date));
+    const prevSessions = sessions.filter((s) => prevWindowDates.has(s.date));
 
     // Hard sets — sets taken close to failure — drive hypertrophy far better than
     // tonnage does, so they are the headline training number.
-    const weekCounts = totalSetCounts(weekSessions);
-    const prevCounts = totalSetCounts(prevWeekSessions);
-    const hasEffortData = hasRatedSets([weekCounts, prevCounts]);
-    const weekVolume = hasEffortData ? weekCounts.hard : weekCounts.sets;
+    const windowCounts = totalSetCounts(windowSessions);
+    const prevCounts = totalSetCounts(prevSessions);
+    const hasEffortData = hasRatedSets([windowCounts, prevCounts]);
+    const windowVolume = hasEffortData ? windowCounts.hard : windowCounts.sets;
     const prevVolume = hasEffortData ? prevCounts.hard : prevCounts.sets;
-    const weekSets = weekCounts.sets;
+    const windowSets = windowCounts.sets;
 
     // --- Nutrition ---
-    const weekFood = allFoodEntries.filter((f) => weekDates.has(f.date));
-    const prevFood = allFoodEntries.filter((f) => prevWeekDates.has(f.date));
+    const windowFood = allFoodEntries.filter((f) => windowDates.has(f.date));
+    const prevFood = allFoodEntries.filter((f) => prevWindowDates.has(f.date));
 
     const caloriesByDay = new Map<string, number>();
     const proteinByDay = new Map<string, number>();
     const carbsByDay = new Map<string, number>();
     const fatByDay = new Map<string, number>();
-    const todayStr = today();
-    for (const f of weekFood) {
+    for (const f of windowFood) {
       const cals = f.calories * f.servingsConsumed;
       const prot = f.protein * f.servingsConsumed;
       const carbs = f.carbs * f.servingsConsumed;
@@ -111,23 +104,20 @@ export function WeeklyInsights({ sessions, allFoodEntries, measurements, checkIn
       fatByDay.set(f.date, (fatByDay.get(f.date) || 0) + fat);
     }
 
-    // Which of the logged days the averages run over — complete days, or today alone
-    // when the week is too young to have one. Shared with the Weekly Intake card.
-    const { days: avgDates, todayExcluded } = averageDays(
-      [...caloriesByDay.keys()].sort((a, b) => a.localeCompare(b)).map((date) => ({ date })),
-      todayStr
-    );
+    // Days inside the window that were actually logged. The window holds no partial
+    // day, so every one of them counts.
+    const avgDates = [...caloriesByDay.keys()].sort((a, b) => a.localeCompare(b));
     const daysLogged = avgDates.length;
-    // The span the average actually covers. Naming the whole Mon–Sun week here would
-    // overpromise: on a Tuesday the week is seven days wide but only Monday is complete,
-    // and a label wider than the data is what made this number look like someone else's.
+    // The span the average actually covers, which is narrower than the window whenever
+    // days went unlogged. A label wider than the data is what made this number look
+    // like it belonged to some other stretch of days.
     const avgSpan = daysLogged === 0
       ? null
       : daysLogged === 1
-        ? formatShortDate(avgDates[0].date)
-        : `${formatShortDate(avgDates[0].date)} – ${formatShortDate(avgDates[daysLogged - 1].date)}`;
+        ? formatShortDate(avgDates[0])
+        : `${formatShortDate(avgDates[0])} – ${formatShortDate(avgDates[daysLogged - 1])}`;
     const avgOf = (byDay: Map<string, number>) => daysLogged > 0
-      ? Math.round(avgDates.reduce((sum, { date }) => sum + (byDay.get(date) || 0), 0) / daysLogged)
+      ? Math.round(avgDates.reduce((sum, date) => sum + (byDay.get(date) || 0), 0) / daysLogged)
       : 0;
 
     const avgCalories = avgOf(caloriesByDay);
@@ -144,37 +134,37 @@ export function WeeklyInsights({ sessions, allFoodEntries, measurements, checkIn
       ? Math.round([...prevCalsByDay.values()].reduce((a, b) => a + b, 0) / prevDaysLogged)
       : 0;
 
-    const proteinDaysHit = avgDates.filter(({ date }) => (proteinByDay.get(date) || 0) >= weekTargets.protein).length;
+    const proteinDaysHit = avgDates.filter((date) => (proteinByDay.get(date) || 0) >= windowTargets.protein).length;
 
     // --- Weight ---
-    const weekWeights = measurements
-      .filter((m) => m.weight != null && weekDates.has(m.date))
+    const windowWeights = measurements
+      .filter((m) => m.weight != null && windowDates.has(m.date))
       .sort((a, b) => a.date.localeCompare(b.date));
     const prevWeights = measurements
-      .filter((m) => m.weight != null && prevWeekDates.has(m.date))
+      .filter((m) => m.weight != null && prevWindowDates.has(m.date))
       .sort((a, b) => a.date.localeCompare(b.date));
 
-    const avgWeight = weekWeights.length > 0
-      ? weekWeights.reduce((sum, m) => sum + m.weight!, 0) / weekWeights.length
+    const avgWeight = windowWeights.length > 0
+      ? windowWeights.reduce((sum, m) => sum + m.weight!, 0) / windowWeights.length
       : null;
     const prevAvgWeight = prevWeights.length > 0
       ? prevWeights.reduce((sum, m) => sum + m.weight!, 0) / prevWeights.length
       : null;
     const weightChange = avgWeight != null && prevAvgWeight != null ? avgWeight - prevAvgWeight : null;
     const weightUnit: WeightUnit = units === 'metric' ? 'kg' : 'lbs';
-    const weighInsThisWeek = weekWeights.length;
+    const weighIns = windowWeights.length;
 
     // --- Check-ins ---
-    const weekCheckIns = checkIns.filter((c) => weekDates.has(c.date));
-    const prevCheckIns = checkIns.filter((c) => prevWeekDates.has(c.date));
+    const windowCheckIns = checkIns.filter((c) => windowDates.has(c.date));
+    const prevCheckIns = checkIns.filter((c) => prevWindowDates.has(c.date));
 
-    const avgCheckInScore = weekCheckIns.length > 0
-      ? weekCheckIns.reduce((sum, ci) => {
+    const avgCheckInScore = windowCheckIns.length > 0
+      ? windowCheckIns.reduce((sum, ci) => {
           const numericResponses = ci.responses.filter((r) => typeof r.value === 'number');
           if (numericResponses.length === 0) return sum;
           const avg = numericResponses.reduce((a, r) => a + (r.value as number), 0) / numericResponses.length;
           return sum + avg;
-        }, 0) / weekCheckIns.length
+        }, 0) / windowCheckIns.length
       : null;
 
     const prevAvgCheckIn = prevCheckIns.length > 0
@@ -187,33 +177,32 @@ export function WeeklyInsights({ sessions, allFoodEntries, measurements, checkIn
       : null;
 
     return {
-      workouts: weekSessions.length,
-      prevWorkouts: prevWeekSessions.length,
-      totalSets: weekSets,
-      volume: weekVolume,
+      workouts: windowSessions.length,
+      prevWorkouts: prevSessions.length,
+      totalSets: windowSets,
+      volume: windowVolume,
       prevVolume,
       hasEffortData,
-      tonnage: weekCounts.volume,
+      tonnage: windowCounts.volume,
       prevTonnage: prevCounts.volume,
       avgCalories,
       avgProtein,
       avgCarbs,
       avgFat,
       prevAvgCalories,
-      calorieTarget: weekTargets.calories,
+      calorieTarget: windowTargets.calories,
       daysLogged,
-      todayExcluded,
       avgSpan,
       proteinDaysHit,
       avgWeight,
-      weighInsThisWeek,
+      weighIns,
       weightChange,
       weightUnit,
       avgCheckInScore,
       prevAvgCheckIn,
-      weekCheckIns: weekCheckIns.length,
+      checkInCount: windowCheckIns.length,
     };
-  }, [sessions, allFoodEntries, measurements, checkIns, weekTargets, weekDates, prevWeekDates, units]);
+  }, [sessions, allFoodEntries, measurements, checkIns, windowTargets, windowDates, prevWindowDates, units]);
 
   const metrics: InsightMetric[] = useMemo(() => {
     const m: InsightMetric[] = [];
@@ -262,8 +251,8 @@ export function WeeklyInsights({ sessions, allFoodEntries, measurements, checkIn
         label: 'Weight',
         value: `${insights.avgWeight.toFixed(1)} ${insights.weightUnit}`,
         subtext: insights.weightChange != null
-          ? `${insights.weightChange > 0 ? '+' : ''}${insights.weightChange.toFixed(1)} ${insights.weightUnit} vs last week's avg`
-          : `7-day avg · ${insights.weighInsThisWeek} weigh-in${insights.weighInsThisWeek !== 1 ? 's' : ''}`,
+          ? `${insights.weightChange > 0 ? '+' : ''}${insights.weightChange.toFixed(1)} ${insights.weightUnit} vs previous ${WINDOW} days`
+          : `${WINDOW}-day avg · ${insights.weighIns} weigh-in${insights.weighIns !== 1 ? 's' : ''}`,
         trend: wTrend,
         icon: Scale,
         color: '#5b6ef5',
@@ -271,14 +260,14 @@ export function WeeklyInsights({ sessions, allFoodEntries, measurements, checkIn
     }
 
     // Check-ins
-    if (insights.weekCheckIns > 0 && insights.avgCheckInScore != null) {
+    if (insights.checkInCount > 0 && insights.avgCheckInScore != null) {
       const ciTrend = insights.prevAvgCheckIn != null
         ? compareTrend(insights.avgCheckInScore, insights.prevAvgCheckIn, 0.3)
         : undefined;
       m.push({
         label: 'Wellbeing',
         value: `${insights.avgCheckInScore.toFixed(1)} / 10`,
-        subtext: `${insights.weekCheckIns} check-in${insights.weekCheckIns !== 1 ? 's' : ''} this week`,
+        subtext: `${insights.checkInCount} check-in${insights.checkInCount !== 1 ? 's' : ''}`,
         trend: ciTrend,
         trendGood: ciTrend === 'up',
         icon: Brain,
@@ -306,7 +295,7 @@ export function WeeklyInsights({ sessions, allFoodEntries, measurements, checkIn
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Target size={14} className="text-accent" />
-          <h2 className="label">Week in Review</h2>
+          <h2 className="label">Last {WINDOW} Days</h2>
         </div>
         <button
           onClick={() => setExpanded(!expanded)}
@@ -321,27 +310,27 @@ export function WeeklyInsights({ sessions, allFoodEntries, measurements, checkIn
       <div className="flex items-center justify-between mt-1.5">
         <button
           type="button"
-          onClick={() => setWeekOffset((o) => o - 1)}
+          onClick={() => setWindowOffset((o) => o + 1)}
           className="p-1 rounded-lg hover:bg-surface-raised"
         >
           <ChevronLeft size={14} className="text-text-muted" />
         </button>
         <span className="text-[0.625rem] text-text-muted tabular-nums">
-          {weekOffset === 0 ? 'This week' : weekLabel}
+          {windowLabel}
         </span>
         <button
           type="button"
-          onClick={() => setWeekOffset((o) => Math.min(0, o + 1))}
-          disabled={weekOffset >= 0}
+          onClick={() => setWindowOffset((o) => Math.max(0, o - 1))}
+          disabled={windowOffset <= 0}
           className="p-1 rounded-lg hover:bg-surface-raised disabled:opacity-30"
         >
           <ChevronRight size={14} className="text-text-muted" />
         </button>
       </div>
-      {weekGoalLabel && (
+      {windowGoalLabel && (
         <div className="flex justify-center mt-1">
           <span className="text-[0.5625rem] px-2 py-0.5 rounded-full bg-surface-raised text-text-muted">
-            Goal: {weekGoalLabel}
+            Goal: {windowGoalLabel}
           </span>
         </div>
       )}
@@ -388,10 +377,10 @@ export function WeeklyInsights({ sessions, allFoodEntries, measurements, checkIn
         </div>
       )}
 
-      {/* Expanded: week-over-week comparison */}
+      {/* Expanded: this window against the one before it */}
       {expanded && (
         <div className="mt-3 pt-3 border-t border-border">
-          <div className="text-[0.625rem] text-text-muted font-semibold uppercase mb-2">vs. Previous Week</div>
+          <div className="text-[0.625rem] text-text-muted font-semibold uppercase mb-2">vs. Previous {WINDOW} Days</div>
           <div className="space-y-1.5">
             {insights.prevWorkouts > 0 || insights.workouts > 0 ? (
               <ComparisonRow
@@ -431,14 +420,14 @@ export function WeeklyInsights({ sessions, allFoodEntries, measurements, checkIn
       {expanded && insights.daysLogged > 0 && (
         <div className="mt-3 pt-3 border-t border-border">
           <div className="text-[0.625rem] text-text-muted font-semibold uppercase mb-2">
-            Avg Daily Intake <span className="font-normal normal-case">({insights.avgSpan} · {insights.daysLogged}d{insights.todayExcluded ? ', today excluded' : ''})</span>
+            Avg Daily Intake <span className="font-normal normal-case">({insights.avgSpan} · {insights.daysLogged}d)</span>
           </div>
           <div className="space-y-2">
             {[
-              { label: 'Calories', value: insights.avgCalories, target: weekTargets.calories, unit: 'cal', color: '#e8572a' },
-              { label: 'Protein',  value: insights.avgProtein,  target: weekTargets.protein,  unit: 'g',   color: '#5b6ef5' },
-              { label: 'Carbs',    value: insights.avgCarbs,    target: weekTargets.carbs,    unit: 'g',   color: '#2e9e6b' },
-              { label: 'Fat',      value: insights.avgFat,      target: weekTargets.fat,      unit: 'g',   color: '#f5a623' },
+              { label: 'Calories', value: insights.avgCalories, target: windowTargets.calories, unit: 'cal', color: '#e8572a' },
+              { label: 'Protein',  value: insights.avgProtein,  target: windowTargets.protein,  unit: 'g',   color: '#5b6ef5' },
+              { label: 'Carbs',    value: insights.avgCarbs,    target: windowTargets.carbs,    unit: 'g',   color: '#2e9e6b' },
+              { label: 'Fat',      value: insights.avgFat,      target: windowTargets.fat,      unit: 'g',   color: '#f5a623' },
             ].map(({ label, value, target, unit }) => {
               const pct = target > 0 ? Math.min((value / target) * 100, 100) : 0;
               const isOver = target > 0 && value > target;

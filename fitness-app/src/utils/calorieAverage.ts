@@ -1,4 +1,17 @@
-import { today } from './dateHelpers';
+import { daysAgo, today } from './dateHelpers';
+
+/**
+ * The `size` complete days ending yesterday, oldest first. `offset` steps the window
+ * back a whole width at a time, so offset 1 is the stretch immediately before offset 0
+ * and the two never overlap — that's what makes "recent 7 vs previous 7" a fair
+ * comparison, unlike calendar weeks where a Tuesday pits two days against seven.
+ *
+ * Today is never included: it's still being logged, and a partial day would drag every
+ * number down all morning.
+ */
+export function rollingWindow(size: number, offset = 0): string[] {
+  return Array.from({ length: size }, (_, i) => daysAgo(size * (offset + 1) - i));
+}
 
 /**
  * One day's logged calories. A date only appears here if it has at least one food

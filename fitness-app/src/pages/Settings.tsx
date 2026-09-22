@@ -1877,11 +1877,11 @@ export function Settings({ profile, onUpdateProfile, onSetMacroTargetHistory, pr
               </button>
             </div>
 
-            {/* Week in Review toggle */}
+            {/* Last 7 Days toggle */}
             <div className="flex items-center justify-between py-2">
               <div>
-                <div className="text-sm font-medium">Week in Review</div>
-                <div className="text-[0.6875rem] text-text-muted">Weekly summary of workouts, nutrition, and habits</div>
+                <div className="text-sm font-medium">Last 7 Days</div>
+                <div className="text-[0.6875rem] text-text-muted">Rolling 7-day summary of workouts, nutrition, and habits</div>
               </div>
               <button
                 onClick={() => updateDashCards({ weeklyInsights: !(dashCards.weeklyInsights ?? true) })}

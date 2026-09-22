@@ -8,7 +8,7 @@ import { SVGBarChart } from '../shared/SVGBarChart';
 import { X } from 'lucide-react';
 import type { Measurement, WorkoutSession, FitnessGoal } from '../../types';
 import { daysAgo, formatShortDate, today } from '../../utils/dateHelpers';
-import { averageDailyCalories, averageDays } from '../../utils/calorieAverage';
+import { averageDailyCalories, averageDays, rollingWindow } from '../../utils/calorieAverage';
 import { macroStatusColor } from '../../utils/macroColors';
 import { GOAL_LABELS } from '../../utils/tdee';
 
@@ -49,15 +49,11 @@ function phaseLabel(getGoalForDate: ((date: string) => FitnessGoal | undefined) 
 
 const DAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
-// The card is always a rolling window ending today. Calendar weeks live in Week in
-// Review, which owns the Mon–Sun framing along with sets, weight and protein days;
-// having both cards answer "the week" with different windows is what used to make
-// their averages disagree for no visible reason.
+// The same rolling window the Last 7 Days panel uses: seven complete days, today
+// excluded. Drawing today here would put a bar on screen that the average ignores,
+// which is the kind of gap that made these two numbers look unrelated. Today's own
+// intake has its own card.
 const MINI_DAYS = 7;
-
-function getMiniDays(): string[] {
-  return Array.from({ length: MINI_DAYS }, (_, i) => daysAgo(MINI_DAYS - 1 - i));
-}
 
 export default function TrendSnapshotCard({
   title,
@@ -192,7 +188,7 @@ export default function TrendSnapshotCard({
   // ── Mini calorie card ─────────────────────────────────────────────────────
   if (!expanded && metric === 'calories' && calorieData) {
     const todayStr = today();
-    const miniDays = getMiniDays();
+    const miniDays = rollingWindow(MINI_DAYS);
     const miniBarData = miniDays.map((date) => {
       const entry = calorieData.find((e) => e.date === date);
       // `logged` distinguishes a day with no entries at all from one that was tracked
@@ -201,8 +197,8 @@ export default function TrendSnapshotCard({
     });
     const maxCal = Math.max(...miniBarData.map((d) => d.target), ...miniBarData.map((d) => d.value), 1);
 
-    // Average over logged days, today excluded — same rule Week in Review uses, so the
-    // two cards agree.
+    // Average over the logged days in the window. It holds no partial day, so the
+    // number matches the Last 7 Days panel exactly.
     const loggedMini = miniBarData.filter((d) => d.logged);
     const loggedTotals = loggedMini.map((d) => ({ date: d.date, total: d.value }));
     const rollingAvg = averageDailyCalories(loggedTotals, todayStr);
@@ -212,7 +208,7 @@ export default function TrendSnapshotCard({
 
     // Selection stats. Unlogged days can't be selected, so the highlighted bars and
     // the averaged days are always the same set. Round once, at the end — rounding the
-    // total first would drift the average off Week in Review's by a kcal.
+    // total first would drift the average a kcal off the panel's.
     const selData = miniBarData.filter((d, i) => d.logged && selectedBars.has(i));
     const selSum = selData.reduce((s, d) => s + d.value, 0);
     const selTotal = Math.round(selSum);
