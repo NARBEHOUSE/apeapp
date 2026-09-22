@@ -8,7 +8,7 @@ import { SVGBarChart } from '../shared/SVGBarChart';
 import { X } from 'lucide-react';
 import type { Measurement, WorkoutSession, FitnessGoal } from '../../types';
 import { daysAgo, formatShortDate, today } from '../../utils/dateHelpers';
-import { averageDailyCalories } from '../../utils/calorieAverage';
+import { averageDailyCalories, averageDays } from '../../utils/calorieAverage';
 import { macroStatusColor } from '../../utils/macroColors';
 import { GOAL_LABELS } from '../../utils/tdee';
 
@@ -204,10 +204,11 @@ export default function TrendSnapshotCard({
     // Average over logged days, today excluded — same rule Week in Review uses, so the
     // two cards agree.
     const loggedMini = miniBarData.filter((d) => d.logged);
-    const rollingAvg = averageDailyCalories(
-      loggedMini.map((d) => ({ date: d.date, total: d.value })),
-      todayStr
-    );
+    const loggedTotals = loggedMini.map((d) => ({ date: d.date, total: d.value }));
+    const rollingAvg = averageDailyCalories(loggedTotals, todayStr);
+    // The days that average actually covers — never the full window, since today is
+    // still being logged. Labelling the wider window here would overstate the number.
+    const avgDays = averageDays(loggedTotals, todayStr).days;
 
     // Selection stats. Unlogged days can't be selected, so the highlighted bars and
     // the averaged days are always the same set. Round once, at the end — rounding the
@@ -218,7 +219,11 @@ export default function TrendSnapshotCard({
     const selAvg = selData.length > 0 ? Math.round(selSum / selData.length) : 0;
     const isAnySelected = selectedBars.size > 0;
 
-    const avgLabel = `Last ${MINI_DAYS} days`;
+    const avgLabel = avgDays.length === 0
+      ? `Last ${MINI_DAYS} days`
+      : avgDays.length === 1
+        ? formatShortDate(avgDays[0].date)
+        : `${formatShortDate(avgDays[0].date)} – ${formatShortDate(avgDays[avgDays.length - 1].date)}`;
     const miniPhaseLabel = phaseLabel(getGoalForDate, miniDays[0], miniDays[miniDays.length - 1]);
 
     return (

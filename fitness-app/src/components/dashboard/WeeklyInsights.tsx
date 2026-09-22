@@ -114,10 +114,18 @@ export function WeeklyInsights({ sessions, allFoodEntries, measurements, checkIn
     // Which of the logged days the averages run over — complete days, or today alone
     // when the week is too young to have one. Shared with the Weekly Intake card.
     const { days: avgDates, todayExcluded } = averageDays(
-      [...caloriesByDay.keys()].map((date) => ({ date })),
+      [...caloriesByDay.keys()].sort((a, b) => a.localeCompare(b)).map((date) => ({ date })),
       todayStr
     );
     const daysLogged = avgDates.length;
+    // The span the average actually covers. Naming the whole Mon–Sun week here would
+    // overpromise: on a Tuesday the week is seven days wide but only Monday is complete,
+    // and a label wider than the data is what made this number look like someone else's.
+    const avgSpan = daysLogged === 0
+      ? null
+      : daysLogged === 1
+        ? formatShortDate(avgDates[0].date)
+        : `${formatShortDate(avgDates[0].date)} – ${formatShortDate(avgDates[daysLogged - 1].date)}`;
     const avgOf = (byDay: Map<string, number>) => daysLogged > 0
       ? Math.round(avgDates.reduce((sum, { date }) => sum + (byDay.get(date) || 0), 0) / daysLogged)
       : 0;
@@ -195,6 +203,7 @@ export function WeeklyInsights({ sessions, allFoodEntries, measurements, checkIn
       calorieTarget: weekTargets.calories,
       daysLogged,
       todayExcluded,
+      avgSpan,
       proteinDaysHit,
       avgWeight,
       weighInsThisWeek,
@@ -237,7 +246,7 @@ export function WeeklyInsights({ sessions, allFoodEntries, measurements, checkIn
       m.push({
         label: 'Nutrition',
         value: `${insights.avgCalories.toLocaleString()} cal avg`,
-        subtext: `${weekLabel} · ${calDiff >= 0 ? '+' : ''}${calDiff} from target · Protein ${insights.proteinDaysHit}/${insights.daysLogged} days`,
+        subtext: `${insights.avgSpan} · ${calDiff >= 0 ? '+' : ''}${calDiff} from target · Protein ${insights.proteinDaysHit}/${insights.daysLogged} days`,
         trend: calTrend,
         icon: Utensils,
         color: '#f5a623',
@@ -278,7 +287,7 @@ export function WeeklyInsights({ sessions, allFoodEntries, measurements, checkIn
     }
 
     return m;
-  }, [insights, weekLabel]);
+  }, [insights]);
 
   if (metrics.length === 0) return null;
 
@@ -422,7 +431,7 @@ export function WeeklyInsights({ sessions, allFoodEntries, measurements, checkIn
       {expanded && insights.daysLogged > 0 && (
         <div className="mt-3 pt-3 border-t border-border">
           <div className="text-[0.625rem] text-text-muted font-semibold uppercase mb-2">
-            Avg Daily Intake <span className="font-normal normal-case">({insights.daysLogged}d logged{insights.todayExcluded ? ', today excluded' : ''})</span>
+            Avg Daily Intake <span className="font-normal normal-case">({insights.avgSpan} · {insights.daysLogged}d{insights.todayExcluded ? ', today excluded' : ''})</span>
           </div>
           <div className="space-y-2">
             {[
