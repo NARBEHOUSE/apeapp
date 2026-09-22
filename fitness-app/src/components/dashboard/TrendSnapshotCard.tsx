@@ -209,10 +209,13 @@ export default function TrendSnapshotCard({
       todayStr
     );
 
-    // Selection stats
-    const selData = miniBarData.filter((_, i) => selectedBars.has(i));
-    const selTotal = Math.round(selData.reduce((s, d) => s + d.value, 0));
-    const selAvg = selData.length > 0 ? Math.round(selTotal / selData.length) : 0;
+    // Selection stats. Unlogged days can't be selected, so the highlighted bars and
+    // the averaged days are always the same set. Round once, at the end — rounding the
+    // total first would drift the average off Week in Review's by a kcal.
+    const selData = miniBarData.filter((d, i) => d.logged && selectedBars.has(i));
+    const selSum = selData.reduce((s, d) => s + d.value, 0);
+    const selTotal = Math.round(selSum);
+    const selAvg = selData.length > 0 ? Math.round(selSum / selData.length) : 0;
     const isAnySelected = selectedBars.size > 0;
 
     const avgLabel = `Last ${MINI_DAYS} days`;
@@ -242,7 +245,8 @@ export default function TrendSnapshotCard({
               <button
                 key={day.date}
                 className="flex flex-col items-center flex-1 h-full"
-                style={{ opacity: dim ? 0.25 : 1 }}
+                disabled={!day.logged}
+                style={{ opacity: dim ? 0.25 : 1, cursor: day.logged ? 'pointer' : 'default' }}
                 onClick={() => setSelectedBars((prev) => {
                   const next = new Set(prev);
                   if (next.has(i)) next.delete(i);
@@ -279,7 +283,7 @@ export default function TrendSnapshotCard({
                 <span className="font-semibold text-text-primary">{selTotal.toLocaleString()} kcal</span>
                 {' · '}
                 <span className="font-medium" style={{ color: '#e8572a' }}>{selAvg.toLocaleString()} avg</span>
-                <span className="text-text-muted"> ({selectedBars.size}d)</span>
+                <span className="text-text-muted"> ({selData.length}d)</span>
                 <button onClick={resetSelection} className="ml-1.5 text-accent-blue font-medium">Clear</button>
               </span>
             ) : (
@@ -359,8 +363,9 @@ export default function TrendSnapshotCard({
     chartData.map((d) => ({ date: d.date, total: d.value }))
   );
   const detailSel = chartData.filter((_, i) => selectedDetailBars.has(i));
-  const detailSelTotal = Math.round(detailSel.reduce((sum, d) => sum + d.value, 0));
-  const detailSelAvg = detailSel.length > 0 ? Math.round(detailSelTotal / detailSel.length) : 0;
+  const detailSelSum = detailSel.reduce((sum, d) => sum + d.value, 0);
+  const detailSelTotal = Math.round(detailSelSum);
+  const detailSelAvg = detailSel.length > 0 ? Math.round(detailSelSum / detailSel.length) : 0;
   const expandedPhaseLabel = metric === 'calories' ? phaseLabel(getGoalForDate, cutoffDate, today()) : null;
 
   return (
