@@ -23,6 +23,11 @@ interface SVGBarChartProps {
   formatY?: (v: number) => string;
   formatValue?: (v: number) => string;
   onBarClick?: (index: number) => void;
+  // Controlled multi-select. Passing `onToggleBar` switches the chart from its own
+  // single-bar readout to selection mode: a tap toggles that bar, unselected bars dim,
+  // and the caller owns whatever summary it wants to show for the selection.
+  selectedIndices?: Set<number>;
+  onToggleBar?: (index: number) => void;
 }
 
 export function SVGBarChart({
@@ -35,6 +40,8 @@ export function SVGBarChart({
   formatY,
   formatValue,
   onBarClick,
+  selectedIndices,
+  onToggleBar,
 }: SVGBarChartProps) {
   const [activeIdx, setActiveIdx] = useState<number | null>(null);
 
@@ -55,7 +62,9 @@ export function SVGBarChart({
   const barW = Math.max(4, Math.min(22, slotW * 0.65));
   const labelEvery = Math.max(1, Math.round(data.length / 6));
 
-  const selected = activeIdx !== null ? data[activeIdx] : null;
+  const multiSelect = onToggleBar != null;
+  const anySelected = multiSelect && (selectedIndices?.size ?? 0) > 0;
+  const activeBar = !multiSelect && activeIdx !== null ? data[activeIdx] : null;
 
   return (
     <div>
@@ -93,9 +102,15 @@ export function SVGBarChart({
         {data.map((d, i) => {
           const x = ml + i * slotW + (slotW - barW) / 2;
           const h = Math.max(0, (d.value / maxVal) * ch);
-          const dim = activeIdx !== null && activeIdx !== i;
+          const dim = multiSelect
+            ? anySelected && !selectedIndices!.has(i)
+            : activeIdx !== null && activeIdx !== i;
           return (
-            <g key={i} onClick={() => { setActiveIdx((prev) => prev === i ? null : i); onBarClick?.(i); }}
+            <g key={i} onClick={() => {
+              if (multiSelect) onToggleBar(i);
+              else setActiveIdx((prev) => prev === i ? null : i);
+              onBarClick?.(i);
+            }}
               style={{ cursor: 'pointer' }} opacity={dim ? 0.25 : 1}>
               {/* wider invisible hit area */}
               <rect x={x - 3} y={mt} width={barW + 6} height={ch} fill="transparent" />
@@ -118,12 +133,12 @@ export function SVGBarChart({
         })}
       </svg>
 
-      {selected && (
+      {activeBar && (
         <div className="mt-1 px-3 py-1.5 rounded-lg text-xs text-center"
           style={{ backgroundColor: 'var(--color-surface-raised)' }}>
-          <span className="mr-2" style={{ color: MUTED }}>{selected.label}</span>
+          <span className="mr-2" style={{ color: MUTED }}>{activeBar.label}</span>
           <span style={{ color }}>
-            {formatValue ? formatValue(selected.value) : String(selected.value)}
+            {formatValue ? formatValue(activeBar.value) : String(activeBar.value)}
           </span>
         </div>
       )}

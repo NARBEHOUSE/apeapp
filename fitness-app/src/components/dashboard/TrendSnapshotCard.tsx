@@ -5,14 +5,14 @@ import {
   Tooltip, ResponsiveContainer, ReferenceLine,
 } from 'recharts';
 import { SVGBarChart } from '../shared/SVGBarChart';
-import { X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { X } from 'lucide-react';
 import type { Measurement, WorkoutSession, FitnessGoal } from '../../types';
-import { daysAgo, formatShortDate, getWeekDates, today } from '../../utils/dateHelpers';
+import { daysAgo, formatShortDate, today } from '../../utils/dateHelpers';
+import { averageDailyCalories } from '../../utils/calorieAverage';
 import { macroStatusColor } from '../../utils/macroColors';
 import { GOAL_LABELS } from '../../utils/tdee';
 
 type TrendRange = '7d' | '30d' | '60d' | '90d' | '1y' | 'all';
-type ViewMode = 'continuous' | 'weekly';
 
 interface TrendSnapshotCardProps {
   title: string;
@@ -49,26 +49,14 @@ function phaseLabel(getGoalForDate: ((date: string) => FitnessGoal | undefined) 
 
 const DAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
-function getMiniDays(viewMode: ViewMode, weekOffset: number): string[] {
-  const todayStr = today();
-  if (viewMode === 'continuous') {
-    return Array.from({ length: 7 }, (_, i) => daysAgo(6 - i));
-  }
-  if (weekOffset === 0) {
-    // Current week: Mon through today only — no blank future days
-    const todayDate = new Date(todayStr + 'T00:00:00');
-    const dow = todayDate.getDay();
-    const fromMonday = dow === 0 ? 6 : dow - 1;
-    return Array.from({ length: fromMonday + 1 }, (_, i) => {
-      const d = new Date(todayDate);
-      d.setDate(todayDate.getDate() - (fromMonday - i));
-      return d.toISOString().split('T')[0];
-    });
-  }
-  // Past weeks: full Mon–Sun
-  const anchor = new Date();
-  anchor.setDate(anchor.getDate() - weekOffset * 7);
-  return getWeekDates(anchor.toISOString().split('T')[0]);
+// The card is always a rolling window ending today. Calendar weeks live in Week in
+// Review, which owns the Mon–Sun framing along with sets, weight and protein days;
+// having both cards answer "the week" with different windows is what used to make
+// their averages disagree for no visible reason.
+const MINI_DAYS = 7;
+
+function getMiniDays(): string[] {
+  return Array.from({ length: MINI_DAYS }, (_, i) => daysAgo(MINI_DAYS - 1 - i));
 }
 
 export default function TrendSnapshotCard({
@@ -90,12 +78,14 @@ export default function TrendSnapshotCard({
   const [expanded, setExpanded] = useState(false);
   const [range, setRange] = useState<TrendRange>('30d');
   const [calViewMode, setCalViewMode] = useState<'bar' | 'line'>('bar');
-  const [weekOffset, setWeekOffset] = useState(0);
-  const [viewMode, setViewMode] = useState<ViewMode>('continuous');
+
   const [selectedBars, setSelectedBars] = useState<Set<number>>(new Set());
+  // Expanded chart has its own selection — its indices are into a different, longer series.
+  const [selectedDetailBars, setSelectedDetailBars] = useState<Set<number>>(new Set());
 
   // Reset selection when view config changes
   const resetSelection = () => setSelectedBars(new Set());
+  const resetDetailSelection = () => setSelectedDetailBars(new Set());
 
   const cutoffDate = useMemo(() => {
     if (range === '7d') return daysAgo(7);
@@ -202,18 +192,22 @@ export default function TrendSnapshotCard({
   // ── Mini calorie card ─────────────────────────────────────────────────────
   if (!expanded && metric === 'calories' && calorieData) {
     const todayStr = today();
-    const miniDays = getMiniDays(viewMode, weekOffset);
+    const miniDays = getMiniDays();
     const miniBarData = miniDays.map((date) => {
       const entry = calorieData.find((e) => e.date === date);
-      return { date, value: entry?.total || 0, target: targetForDate(date) };
+      // `logged` distinguishes a day with no entries at all from one that was tracked
+      // and totalled 0 — only the latter belongs in the average's denominator.
+      return { date, value: entry?.total || 0, target: targetForDate(date), logged: entry != null };
     });
     const maxCal = Math.max(...miniBarData.map((d) => d.target), ...miniBarData.map((d) => d.value), 1);
 
-    // Rolling average (logged days only)
-    const loggedMini = miniBarData.filter((d) => d.value > 0);
-    const rollingAvg = loggedMini.length > 0
-      ? Math.round(loggedMini.reduce((s, d) => s + d.value, 0) / loggedMini.length)
-      : 0;
+    // Average over logged days, today excluded — same rule Week in Review uses, so the
+    // two cards agree.
+    const loggedMini = miniBarData.filter((d) => d.logged);
+    const rollingAvg = averageDailyCalories(
+      loggedMini.map((d) => ({ date: d.date, total: d.value })),
+      todayStr
+    );
 
     // Selection stats
     const selData = miniBarData.filter((_, i) => selectedBars.has(i));
@@ -221,7 +215,7 @@ export default function TrendSnapshotCard({
     const selAvg = selData.length > 0 ? Math.round(selTotal / selData.length) : 0;
     const isAnySelected = selectedBars.size > 0;
 
-    const avgLabel = viewMode === 'weekly' && weekOffset === 0 ? 'Wk avg' : viewMode === 'continuous' ? '7d avg' : 'Wk avg';
+    const avgLabel = `Last ${MINI_DAYS} days`;
     const miniPhaseLabel = phaseLabel(getGoalForDate, miniDays[0], miniDays[miniDays.length - 1]);
 
     return (
@@ -229,40 +223,9 @@ export default function TrendSnapshotCard({
         {/* Header */}
         <div className="flex items-center justify-between mb-3 gap-2">
           <h2 className="label shrink-0">{title}</h2>
-          <div className="flex items-center gap-1 ml-auto">
-            {/* Roll / Week toggle */}
-            <div className="flex gap-0.5 bg-surface-raised rounded-lg p-0.5">
-              <button
-                onClick={() => { setViewMode('continuous'); resetSelection(); }}
-                className={`px-2 py-0.5 rounded-md text-[0.5625rem] font-medium transition-colors ${viewMode === 'continuous' ? 'bg-surface text-text-primary shadow-sm' : 'text-text-muted'}`}
-              >
-                Roll
-              </button>
-              <button
-                onClick={() => { setViewMode('weekly'); resetSelection(); }}
-                className={`px-2 py-0.5 rounded-md text-[0.5625rem] font-medium transition-colors ${viewMode === 'weekly' ? 'bg-surface text-text-primary shadow-sm' : 'text-text-muted'}`}
-              >
-                Week
-              </button>
-            </div>
-            {/* Week nav — only in weekly mode */}
-            {viewMode === 'weekly' && (
-              <div className="flex items-center gap-0.5">
-                <button className="p-0.5 rounded" onClick={() => { setWeekOffset((o) => o + 1); resetSelection(); }}>
-                  <ChevronLeft size={12} className="text-text-muted" />
-                </button>
-                <span className="text-[0.5625rem] text-text-muted w-10 text-center">
-                  {weekOffset === 0 ? 'This wk' : `${weekOffset}w ago`}
-                </span>
-                <button
-                  className={`p-0.5 rounded ${weekOffset === 0 ? 'opacity-30' : ''}`}
-                  onClick={() => { if (weekOffset > 0) { setWeekOffset((o) => o - 1); resetSelection(); } }}
-                >
-                  <ChevronRight size={12} className="text-text-muted" />
-                </button>
-              </div>
-            )}
-          </div>
+          <span className="text-[0.5625rem] text-text-muted ml-auto">
+            {formatShortDate(miniDays[0])} – {formatShortDate(miniDays[miniDays.length - 1])}
+          </span>
         </div>
 
         {/* Bars */}
@@ -317,6 +280,7 @@ export default function TrendSnapshotCard({
                 {' · '}
                 <span className="font-medium" style={{ color: '#e8572a' }}>{selAvg.toLocaleString()} avg</span>
                 <span className="text-text-muted"> ({selectedBars.size}d)</span>
+                <button onClick={resetSelection} className="ml-1.5 text-accent-blue font-medium">Clear</button>
               </span>
             ) : (
               <span className="text-text-muted">
@@ -390,10 +354,13 @@ export default function TrendSnapshotCard({
   }
 
   // ── Expanded detail view ──────────────────────────────────────────────────
-  const expandedLoggedDays = chartData.filter((d) => d.value > 0);
-  const expandedRollingAvg = expandedLoggedDays.length > 0
-    ? Math.round(expandedLoggedDays.reduce((s, d) => s + d.value, 0) / expandedLoggedDays.length)
-    : 0;
+  // chartData only contains dates that were actually logged, so every row counts.
+  const expandedRollingAvg = averageDailyCalories(
+    chartData.map((d) => ({ date: d.date, total: d.value }))
+  );
+  const detailSel = chartData.filter((_, i) => selectedDetailBars.has(i));
+  const detailSelTotal = Math.round(detailSel.reduce((sum, d) => sum + d.value, 0));
+  const detailSelAvg = detailSel.length > 0 ? Math.round(detailSelTotal / detailSel.length) : 0;
   const expandedPhaseLabel = metric === 'calories' ? phaseLabel(getGoalForDate, cutoffDate, today()) : null;
 
   return (
@@ -419,7 +386,7 @@ export default function TrendSnapshotCard({
               {(['7d', '30d', '60d', '90d', '1y', 'all'] as TrendRange[]).map((r) => (
                 <button
                   key={r}
-                  onClick={() => setRange(r)}
+                  onClick={() => { setRange(r); resetDetailSelection(); }}
                   className={`px-2.5 py-1.5 rounded-lg text-[0.6875rem] font-medium transition-colors ${
                     range === r ? 'bg-surface-raised text-text-primary' : 'text-text-muted'
                   }`}
@@ -449,14 +416,24 @@ export default function TrendSnapshotCard({
           {metric === 'calories' ? (
             <div className="flex items-baseline gap-3">
               <div>
-                <p className="text-[0.625rem] text-text-muted mb-0.5">{range} rolling avg</p>
+                <p className="text-[0.625rem] text-text-muted mb-0.5">
+                  {detailSel.length > 0
+                    ? `${detailSel.length} day${detailSel.length === 1 ? '' : 's'} selected · ${detailSelTotal.toLocaleString()} kcal total`
+                    : `${range} rolling avg`}
+                </p>
                 <div className="flex items-baseline gap-1.5">
                   <span className="text-3xl font-bold text-text-primary">
-                    {expandedRollingAvg > 0 ? expandedRollingAvg.toLocaleString() : '—'}
+                    {detailSel.length > 0
+                      ? detailSelAvg.toLocaleString()
+                      : expandedRollingAvg > 0 ? expandedRollingAvg.toLocaleString() : '—'}
                   </span>
                   <span className="text-sm text-text-muted">kcal/day</span>
                 </div>
-                {expandedPhaseLabel && (
+                {detailSel.length > 0 ? (
+                  <button onClick={resetDetailSelection} className="text-[0.625rem] text-accent-blue font-medium mt-0.5">
+                    Clear selection
+                  </button>
+                ) : expandedPhaseLabel && (
                   <p className="text-[0.625rem] text-text-muted mt-0.5">Goal: {expandedPhaseLabel}</p>
                 )}
               </div>
@@ -493,6 +470,13 @@ export default function TrendSnapshotCard({
                   targetLabel="Target"
                   height={260}
                   formatValue={(v) => `${Math.round(v)} kcal`}
+                  selectedIndices={selectedDetailBars}
+                  onToggleBar={(i) => setSelectedDetailBars((prev) => {
+                    const next = new Set(prev);
+                    if (next.has(i)) next.delete(i);
+                    else next.add(i);
+                    return next;
+                  })}
                 />
               ) : (
                 <div style={{ width: '100%', height: 280 }}>

@@ -3,6 +3,7 @@ import { ChevronDown, ChevronUp, ChevronLeft, ChevronRight, TrendingUp, Trending
 import type { WorkoutSession, FoodEntry, Measurement, CheckInEntry, MacroTargets, FitnessGoal } from '../../types';
 import { getWeekDates, today, localDateStr, formatShortDate } from '../../utils/dateHelpers';
 import { macroStatusColor } from '../../utils/macroColors';
+import { averageDays } from '../../utils/calorieAverage';
 import { GOAL_LABELS } from '../../utils/tdee';
 import { totalSetCounts, hasRatedSets, formatSets } from '../../utils/muscleVolume';
 import { toDisplayWeight, type WeightUnit } from '../../utils/units';
@@ -100,7 +101,6 @@ export function WeeklyInsights({ sessions, allFoodEntries, measurements, checkIn
     const fatByDay = new Map<string, number>();
     const todayStr = today();
     for (const f of weekFood) {
-      if (weekOffset === 0 && f.date === todayStr) continue; // exclude today for current week — day isn't complete yet
       const cals = f.calories * f.servingsConsumed;
       const prot = f.protein * f.servingsConsumed;
       const carbs = f.carbs * f.servingsConsumed;
@@ -111,19 +111,21 @@ export function WeeklyInsights({ sessions, allFoodEntries, measurements, checkIn
       fatByDay.set(f.date, (fatByDay.get(f.date) || 0) + fat);
     }
 
-    const daysLogged = caloriesByDay.size;
-    const avgCalories = daysLogged > 0
-      ? Math.round([...caloriesByDay.values()].reduce((a, b) => a + b, 0) / daysLogged)
+    // Which of the logged days the averages run over — complete days, or today alone
+    // when the week is too young to have one. Shared with the Weekly Intake card.
+    const { days: avgDates, todayExcluded } = averageDays(
+      [...caloriesByDay.keys()].map((date) => ({ date })),
+      todayStr
+    );
+    const daysLogged = avgDates.length;
+    const avgOf = (byDay: Map<string, number>) => daysLogged > 0
+      ? Math.round(avgDates.reduce((sum, { date }) => sum + (byDay.get(date) || 0), 0) / daysLogged)
       : 0;
-    const avgProtein = daysLogged > 0
-      ? Math.round([...proteinByDay.values()].reduce((a, b) => a + b, 0) / daysLogged)
-      : 0;
-    const avgCarbs = daysLogged > 0
-      ? Math.round([...carbsByDay.values()].reduce((a, b) => a + b, 0) / daysLogged)
-      : 0;
-    const avgFat = daysLogged > 0
-      ? Math.round([...fatByDay.values()].reduce((a, b) => a + b, 0) / daysLogged)
-      : 0;
+
+    const avgCalories = avgOf(caloriesByDay);
+    const avgProtein = avgOf(proteinByDay);
+    const avgCarbs = avgOf(carbsByDay);
+    const avgFat = avgOf(fatByDay);
 
     const prevCalsByDay = new Map<string, number>();
     for (const f of prevFood) {
@@ -134,7 +136,7 @@ export function WeeklyInsights({ sessions, allFoodEntries, measurements, checkIn
       ? Math.round([...prevCalsByDay.values()].reduce((a, b) => a + b, 0) / prevDaysLogged)
       : 0;
 
-    const proteinDaysHit = [...proteinByDay.values()].filter((p) => p >= weekTargets.protein).length;
+    const proteinDaysHit = avgDates.filter(({ date }) => (proteinByDay.get(date) || 0) >= weekTargets.protein).length;
 
     // --- Weight ---
     const weekWeights = measurements
@@ -192,6 +194,7 @@ export function WeeklyInsights({ sessions, allFoodEntries, measurements, checkIn
       prevAvgCalories,
       calorieTarget: weekTargets.calories,
       daysLogged,
+      todayExcluded,
       proteinDaysHit,
       avgWeight,
       weighInsThisWeek,
@@ -201,7 +204,7 @@ export function WeeklyInsights({ sessions, allFoodEntries, measurements, checkIn
       prevAvgCheckIn,
       weekCheckIns: weekCheckIns.length,
     };
-  }, [sessions, allFoodEntries, measurements, checkIns, weekTargets, weekDates, prevWeekDates, weekOffset, units]);
+  }, [sessions, allFoodEntries, measurements, checkIns, weekTargets, weekDates, prevWeekDates, units]);
 
   const metrics: InsightMetric[] = useMemo(() => {
     const m: InsightMetric[] = [];
@@ -234,7 +237,7 @@ export function WeeklyInsights({ sessions, allFoodEntries, measurements, checkIn
       m.push({
         label: 'Nutrition',
         value: `${insights.avgCalories.toLocaleString()} cal avg`,
-        subtext: `${calDiff >= 0 ? '+' : ''}${calDiff} from target · Protein ${insights.proteinDaysHit}/${insights.daysLogged} days`,
+        subtext: `${weekLabel} · ${calDiff >= 0 ? '+' : ''}${calDiff} from target · Protein ${insights.proteinDaysHit}/${insights.daysLogged} days`,
         trend: calTrend,
         icon: Utensils,
         color: '#f5a623',
@@ -275,7 +278,7 @@ export function WeeklyInsights({ sessions, allFoodEntries, measurements, checkIn
     }
 
     return m;
-  }, [insights]);
+  }, [insights, weekLabel]);
 
   if (metrics.length === 0) return null;
 
@@ -419,7 +422,7 @@ export function WeeklyInsights({ sessions, allFoodEntries, measurements, checkIn
       {expanded && insights.daysLogged > 0 && (
         <div className="mt-3 pt-3 border-t border-border">
           <div className="text-[0.625rem] text-text-muted font-semibold uppercase mb-2">
-            Avg Daily Intake <span className="font-normal normal-case">({insights.daysLogged}d logged{weekOffset === 0 ? ', today excluded' : ''})</span>
+            Avg Daily Intake <span className="font-normal normal-case">({insights.daysLogged}d logged{insights.todayExcluded ? ', today excluded' : ''})</span>
           </div>
           <div className="space-y-2">
             {[

@@ -882,7 +882,7 @@ export default function Dashboard({ profile, onUpdateProfile }: DashboardProps) 
         } else if (id === 'calories' && dashConfig.calories) {
           content = (
             <TrendSnapshotCard
-              title="Weekly Intake"
+              title="Calorie Intake"
               metric="calories"
               measurements={measurements}
               sessions={sessions}
