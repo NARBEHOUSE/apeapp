@@ -15,7 +15,7 @@ import { useNutrition } from '../hooks/useNutrition';
 import { formatDate, today } from '../utils/dateHelpers';
 import { type ServingUnit, SERVING_UNITS, servingToGrams, convertServingUnit, normaliseServingUnit } from '../utils/units';
 import { macroStatusColor, macroStatusBg } from '../utils/macroColors';
-import { getFoodEmoji } from '../utils/foodEmoji';
+import { getFoodEmoji, ALL_FOOD_EMOJIS } from '../utils/foodEmoji';
 import { sumIngredients } from '../utils/mealIngredients';
 import { getSavedMeals, addSavedMeal, deleteSavedMeal, updateSavedMeal, type SavedMeal, type MealIngredient } from '../db/savedMeals';
 import { getSavedFoods, updateSavedFood, updateSavedFoodLibraryOnly, saveAsNewFood, countFoodLogEntries, deleteSavedFood, type SavedFood } from '../db/foodHistory';
@@ -279,6 +279,7 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
   const [editFoodBarcode, setEditFoodBarcode] = useState('');
   const [editFoodBrand, setEditFoodBrand] = useState('');
   const [editFoodEmoji, setEditFoodEmoji] = useState('');
+  const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
   const [usdaFoodResults, setUsdaFoodResults] = useState<{ name: string; brand?: string; cal: number; p: number; c: number; f: number; fiber: number; source: string }[]>([]);
   const [usdaFoodSearching, setUsdaFoodSearching] = useState(false);
   const [pendingFoodEdit, setPendingFoodEdit] = useState<{
@@ -889,9 +890,30 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
                             return (
                               <div key={food.name} className="bg-surface rounded-xl p-3 space-y-2 border border-accent-blue/30">
                                 <div className="flex items-center gap-2">
-                                  <input type="text" className="w-8 text-center text-lg bg-transparent outline-none" value={editFoodEmoji} onChange={(e) => setEditFoodEmoji(e.target.value)} />
+                                  <button type="button" onClick={() => setEmojiPickerOpen((o) => !o)} title="Change icon"
+                                    className="relative w-10 h-10 shrink-0 rounded-lg border border-border bg-surface-raised text-xl flex items-center justify-center hover:border-accent-blue">
+                                    {editFoodEmoji || getFoodEmoji(food.name)}
+                                    <Pencil size={9} className="absolute -bottom-1 -right-1 bg-surface rounded-full p-px text-text-muted" />
+                                  </button>
                                   <div className="text-xs font-semibold flex-1">{food.name}</div>
                                 </div>
+                                {emojiPickerOpen && (
+                                  <div className="bg-surface-raised rounded-lg p-2 space-y-2">
+                                    <div className="grid grid-cols-10 gap-0.5">
+                                      {ALL_FOOD_EMOJIS.map((em) => (
+                                        <button key={em} type="button" onClick={() => { setEditFoodEmoji(em); setEmojiPickerOpen(false); }}
+                                          className={`text-lg rounded-md py-0.5 hover:bg-border ${editFoodEmoji === em ? 'bg-accent-blue/20' : ''}`}>{em}</button>
+                                      ))}
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                      <input type="text" className="input-field text-xs flex-1 py-1" placeholder="Or type/paste any emoji"
+                                        value={editFoodEmoji} onChange={(e) => setEditFoodEmoji(e.target.value)} />
+                                      <button type="button" onClick={() => { setEditFoodEmoji(''); setEmojiPickerOpen(false); }}
+                                        className="btn-secondary text-[0.625rem] px-2 py-1">Auto ({getFoodEmoji(food.name)})</button>
+                                    </div>
+                                    <p className="text-[0.5625rem] text-text-muted">Applies to this food everywhere, including past days.</p>
+                                  </div>
+                                )}
 
                                 {/* Search built-in + USDA */}
                                 <div className="flex gap-1">
@@ -991,7 +1013,7 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
                                   <input type="text" inputMode="numeric" className="input-field text-xs w-full py-1" placeholder="UPC barcode" value={editFoodBarcode} onChange={(e) => setEditFoodBarcode(e.target.value)} />
                                 </div>
                                 <div className="flex gap-2">
-                                  <button onClick={() => { setEditingFood(null); setUsdaFoodResults([]); setEditFoodQuery(''); }} className="btn-secondary flex-1 text-xs">Cancel</button>
+                                  <button onClick={() => { setEditingFood(null); setEmojiPickerOpen(false); setUsdaFoodResults([]); setEditFoodQuery(''); }} className="btn-secondary flex-1 text-xs">Cancel</button>
                                   <button onClick={async () => {
                                     const updates: Partial<Omit<SavedFood, 'frequency' | 'lastUsed'>> = {
                                       calories: parseFloat(editFoodCal) || 0, protein: parseFloat(editFoodP) || 0,
@@ -1003,6 +1025,22 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
                                       barcode: editFoodBarcode.trim() || undefined,
                                       emoji: editFoodEmoji.trim() || undefined,
                                     };
+                                    // The icon is looked up by name wherever the food shows, so an icon-only
+                                    // change reaches every past day without touching logged macros — no need to ask.
+                                    const blank = (v: unknown) => (v === 0 || v === '' ? undefined : v);
+                                    const onlyEmojiChanged = (['calories', 'protein', 'carbs', 'fat', 'fiber', 'servingSize', 'brand', 'barcode'] as const)
+                                      .every((k) => blank(updates[k]) === blank(food[k]));
+                                    if (onlyEmojiChanged) {
+                                      updateSavedFoodLibraryOnly(profile.id, food.name, { emoji: updates.emoji });
+                                      setFoodLibrary(getSavedFoods(profile.id));
+                                      setEditingFood(null);
+                                      setEmojiPickerOpen(false);
+                                      setUsdaFoodResults([]);
+                                      setEditFoodQuery('');
+                                      toast('Icon updated everywhere', 'success');
+                                      return;
+                                    }
+                                    setEmojiPickerOpen(false);
                                     const count = await countFoodLogEntries(profile.id, food.name);
                                     if (count > 0) {
                                       setPendingFoodEdit({ foodName: food.name, updates });
@@ -1026,6 +1064,7 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
                           return (
                             <div key={food.name} className="bg-surface-raised rounded-lg px-3 py-2 flex items-center gap-2">
                               {!hasMacros && <AlertCircle size={12} className="text-warning shrink-0" />}
+                              <span className="text-base shrink-0">{resolveEmoji(food.name)}</span>
                               <button onClick={() => {
                                 setEditingFood(food);
                                 setEditFoodCal(String(food.calories)); setEditFoodP(String(food.protein));
@@ -1033,7 +1072,8 @@ export default function Nutrition({ profile, onUpdateProfile }: NutritionPagePro
                                 setEditFoodFiber(String(food.fiber || '')); setEditFoodQuery('');
                                 setEditFoodServing(String(food.servingSize || 1)); setEditFoodUnit('g');
                                 setEditFoodBarcode(food.barcode || ''); setEditFoodBrand(food.brand || '');
-                                setEditFoodEmoji(food.emoji || getFoodEmoji(food.name));
+                                setEditFoodEmoji(food.emoji || '');
+                                setEmojiPickerOpen(false);
                                 setUsdaFoodResults([]);
                               }} className="flex-1 min-w-0 text-left">
                                 <div className="text-xs font-medium truncate">{food.name}</div>

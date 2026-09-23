@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef } from 'react';
 import { Search, X, Plus, Trash2 } from 'lucide-react';
 import type { MealIngredient } from '../../types';
-import { searchSavedFoods } from '../../db/foodHistory';
+import { searchSavedFoods, getCustomEmoji } from '../../db/foodHistory';
 import { FOOD_DATABASE } from '../../data/foods';
 import { getFoodEmoji } from '../../utils/foodEmoji';
 import { scaledIngredient } from '../../utils/mealIngredients';
@@ -173,7 +173,7 @@ export function IngredientEditor({ profileId, ingredients, onChange, allowAddNew
                   onClick={() => selectFood(food)}
                   className="w-full px-3 py-2.5 flex items-center gap-2.5 text-left hover:bg-surface-raised transition-colors border-b border-border/50 last:border-0"
                 >
-                  <span className="text-lg leading-none">{getFoodEmoji(food.name)}</span>
+                  <span className="text-lg leading-none">{getCustomEmoji(profileId, food.name) || getFoodEmoji(food.name)}</span>
                   <div className="flex-1 min-w-0">
                     <div className="text-xs font-medium truncate">{food.name}</div>
                     {food.brand && <div className="text-[0.5625rem] text-text-muted">{food.brand}</div>}
@@ -202,7 +202,7 @@ export function IngredientEditor({ profileId, ingredients, onChange, allowAddNew
             const e = scaledIngredient(ing);
             return (
               <div key={i} className="bg-surface rounded-xl px-3 py-2 flex items-center gap-2">
-                <span className="text-base leading-none shrink-0">{getFoodEmoji(ing.name)}</span>
+                <span className="text-base leading-none shrink-0">{getCustomEmoji(profileId, ing.name) || getFoodEmoji(ing.name)}</span>
                 <div className="flex-1 min-w-0">
                   <div className="text-xs font-medium truncate">{ing.name}</div>
                   <div className="flex items-center gap-1.5 mt-0.5">
